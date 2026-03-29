@@ -2,6 +2,7 @@
 
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -135,16 +136,27 @@ export default function Home() {
             color: "rgba(247,245,250,0.2)",
           }}
         >
-          Share the link after creation — no accounts required
+          Share the link after creation. Your API key stays on your machine.
         </p>
       </div>
 
       {/* ADHDesigns watermark */}
       <div
-        className="absolute bottom-6 text-xs tracking-widest uppercase"
-        style={{ color: "rgba(247,245,250,0.15)" }}
+        className="absolute bottom-6"
+        style={{ opacity: 0.55 }}
       >
-        ADHDesigns
+        <a
+          href="https://adhdesigns.dev"
+          aria-label="Visit ADHDesigns"
+        >
+          <Image
+            src="/adhdesigns-logo.svg"
+            alt="ADHDesigns"
+            width={130}
+            height={31}
+            className="h-auto w-[130px]"
+          />
+        </a>
       </div>
     </main>
   );
