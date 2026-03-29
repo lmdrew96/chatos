@@ -3,7 +3,6 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -126,14 +125,7 @@ export default function JoinPage() {
       />
 
       <div className="relative z-10 w-full max-w-lg animate-fade-up">
-        <div className="flex items-center gap-2 mb-5 select-none">
-          <Image
-            src="/chatos-t-logo.svg"
-            alt="Cha(t)os"
-            width={22}
-            height={22}
-            className="h-5.5 w-5.5"
-          />
+        <div className="mb-5 select-none">
           <span
             className="text-base font-extrabold leading-none"
             style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
