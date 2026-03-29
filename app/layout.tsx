@@ -25,9 +25,9 @@ export const metadata: Metadata = {
   description:
     "A shared AI workspace where multiple users bring their own Claude into the same conversation.",
   icons: {
-    icon: [{ url: "/chatos-t-logo.svg", type: "image/svg+xml" }],
-    shortcut: "/chatos-t-logo.svg",
-    apple: "/chatos-t-logo.svg",
+    icon: [{ url: "/chatos-t-logo.png", type: "image/png" }],
+    shortcut: "/chatos-t-logo.png",
+    apple: "/chatos-t-logo.png",
   },
   openGraph: {
     type: "website",
