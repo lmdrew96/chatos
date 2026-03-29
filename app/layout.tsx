@@ -25,13 +25,12 @@ export const metadata: Metadata = {
   description:
     "A shared AI workspace where multiple users bring their own Claude into the same conversation.",
   icons: {
-    icon: [{ url: "/chatos-t-logo.png", type: "image/png" }],
-    shortcut: "/chatos-t-logo.png",
+    icon: '/chatos-t-logo.png',
     apple: "/chatos-t-logo.png",
   },
   openGraph: {
     type: "website",
-    url: "/",
+    url: "https://chatos.adhdesigns.dev",
     siteName: "Cha(t)os",
     title: "Cha(t)os",
     description:
@@ -44,6 +43,7 @@ export const metadata: Metadata = {
         alt: "Cha(t)os homepage preview",
       },
     ],
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
