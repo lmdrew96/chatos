@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { callClaude } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
+import { AccountButton } from "@/components/AccountButton";
 
 // Participant color palette — assigned by join order
 const COLORS = [
@@ -274,7 +275,10 @@ export default function RoomPage() {
           </div>
         </div>
 
-        {/* Right: participant dots */}
+        {/* Right: account + participant dots */}
+        <div className="flex items-center gap-3">
+        <AccountButton />
+        <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
         <div className="flex items-center gap-1.5">
           {participants.map((p) => {
             const color = participantColors[p.userId];
@@ -299,6 +303,7 @@ export default function RoomPage() {
               </div>
             );
           })}
+        </div>
         </div>
       </header>
 

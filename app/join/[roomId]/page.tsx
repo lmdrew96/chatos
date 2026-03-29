@@ -4,7 +4,9 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+import { AccountButton } from "@/components/AccountButton";
 
 const STARTER_PROMPTS = [
   {
@@ -39,6 +41,15 @@ export default function JoinPage() {
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { user } = useUser();
+
+  // Pre-fill display name from Clerk if available and field is untouched
+  useEffect(() => {
+    if (user && !displayName) {
+      const name = user.firstName ?? user.fullName ?? "";
+      if (name) setDisplayName(name);
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const suggestedClaudeName = `${displayName.trim().replace(/\s+/g, "")}Claude`;
   const resolvedClaudeName = claudeNameTouched
@@ -125,13 +136,14 @@ export default function JoinPage() {
       />
 
       <div className="relative z-10 w-full max-w-lg animate-fade-up">
-        <div className="mb-5 select-none">
+        <div className="mb-5 flex items-center justify-between select-none">
           <span
             className="text-base font-extrabold leading-none"
             style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
           >
             Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
           </span>
+          <AccountButton />
         </div>
 
         {/* Room badge */}

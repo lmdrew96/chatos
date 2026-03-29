@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AccountButton } from "@/components/AccountButton";
 
 export default function Home() {
   const createRoom = useMutation(api.rooms.createRoom);
@@ -26,6 +27,11 @@ export default function Home() {
       className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
       style={{ background: "var(--deep-dark)" }}
     >
+      {/* Account button */}
+      <div className="absolute top-4 right-4 z-20">
+        <AccountButton />
+      </div>
+
       {/* Ambient background glow */}
       <div
         className="animate-glow-pulse absolute inset-0 pointer-events-none"
