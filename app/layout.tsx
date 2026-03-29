@@ -20,9 +20,33 @@ const superBakery = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://chatos.adhdesigns.dev"),
   title: "Cha(t)os",
   description:
     "A shared AI workspace where multiple users bring their own Claude into the same conversation.",
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Cha(t)os",
+    title: "Cha(t)os",
+    description:
+      "A shared AI workspace where multiple users bring their own Claude into the same conversation.",
+    images: [
+      {
+        url: "/homepage.png",
+        width: 3024,
+        height: 1402,
+        alt: "Cha(t)os homepage preview",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Cha(t)os",
+    description:
+      "A shared AI workspace where multiple users bring their own Claude into the same conversation.",
+    images: ["/homepage.png"],
+  },
 };
 
 export default function RootLayout({
