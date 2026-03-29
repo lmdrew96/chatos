@@ -4,7 +4,6 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { callClaude } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
@@ -261,21 +260,12 @@ export default function RoomPage() {
       >
         {/* Left: logo + room info */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 select-none">
-            <Image
-              src="/chatos-t-logo.svg"
-              alt="Cha(t)os"
-              width={22}
-              height={22}
-              className="h-5.5 w-5.5"
-            />
-            <span
-              className="text-lg font-extrabold leading-none"
-              style={{ fontFamily: "var(--font-super-bakery)" }}
-            >
-              Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
-            </span>
-          </div>
+          <span
+            className="text-lg font-extrabold leading-none select-none"
+            style={{ fontFamily: "var(--font-super-bakery)" }}
+          >
+            Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
+          </span>
           <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
           <div className="flex items-center gap-2">
             <span className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
