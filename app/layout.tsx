@@ -24,6 +24,11 @@ export const metadata: Metadata = {
   title: "Cha(t)os",
   description:
     "A shared AI workspace where multiple users bring their own Claude into the same conversation.",
+  icons: {
+    icon: [{ url: "/chatos-t-logo.svg", type: "image/svg+xml" }],
+    shortcut: "/chatos-t-logo.svg",
+    apple: "/chatos-t-logo.svg",
+  },
   openGraph: {
     type: "website",
     url: "/",

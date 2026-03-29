@@ -3,8 +3,9 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const STARTER_PROMPTS = [
   {
@@ -40,22 +41,21 @@ export default function JoinPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Auto-suggest claudeName
-  useEffect(() => {
-    if (!claudeNameTouched && displayName.trim()) {
-      const sanitized = displayName.trim().replace(/\s+/g, "");
-      setClaudeName(`${sanitized}Claude`);
-    }
-    if (!displayName.trim() && !claudeNameTouched) {
-      setClaudeName("");
-    }
-  }, [displayName, claudeNameTouched]);
+  const suggestedClaudeName = `${displayName.trim().replace(/\s+/g, "")}Claude`;
+  const resolvedClaudeName = claudeNameTouched
+    ? claudeName
+    : (displayName.trim() ? suggestedClaudeName : "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!displayName.trim() || !claudeName.trim() || !systemPrompt.trim() || !apiKey.trim()) {
+    if (
+      !displayName.trim() ||
+      !resolvedClaudeName.trim() ||
+      !systemPrompt.trim() ||
+      !apiKey.trim()
+    ) {
       setError("All fields are required.");
       return;
     }
@@ -72,14 +72,14 @@ export default function JoinPage() {
     sessionStorage.setItem(`apiKey_${userId}`, apiKey.trim());
     // Store display name for this session
     sessionStorage.setItem("displayName", displayName.trim());
-    sessionStorage.setItem("claudeName", claudeName.trim());
+    sessionStorage.setItem("claudeName", resolvedClaudeName.trim());
 
     try {
       await joinRoom({
         roomId,
         userId,
         displayName: displayName.trim(),
-        claudeName: claudeName.trim(),
+        claudeName: resolvedClaudeName.trim(),
         systemPrompt: systemPrompt.trim(),
       });
       router.push(`/room/${roomId}`);
@@ -126,6 +126,22 @@ export default function JoinPage() {
       />
 
       <div className="relative z-10 w-full max-w-lg animate-fade-up">
+        <div className="flex items-center gap-2 mb-5 select-none">
+          <Image
+            src="/chatos-t-logo.svg"
+            alt="Cha(t)os"
+            width={22}
+            height={22}
+            className="h-5.5 w-5.5"
+          />
+          <span
+            className="text-base font-extrabold leading-none"
+            style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
+          >
+            Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
+          </span>
+        </div>
+
         {/* Room badge */}
         <div className="flex items-center gap-2 mb-8">
           <span
@@ -166,7 +182,15 @@ export default function JoinPage() {
             <input
               type="text"
               value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              onChange={(e) => {
+                const nextDisplayName = e.target.value;
+                setDisplayName(nextDisplayName);
+
+                if (!claudeNameTouched) {
+                  const nextSanitized = nextDisplayName.trim().replace(/\s+/g, "");
+                  setClaudeName(nextSanitized ? `${nextSanitized}Claude` : "");
+                }
+              }}
               placeholder="e.g. Nae"
               autoComplete="off"
               className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
@@ -194,7 +218,7 @@ export default function JoinPage() {
             <div className="relative">
               <input
                 type="text"
-                value={claudeName}
+                value={resolvedClaudeName}
                 onChange={(e) => {
                   setClaudeNameTouched(true);
                   setClaudeName(e.target.value);
@@ -216,7 +240,7 @@ export default function JoinPage() {
                   e.target.style.boxShadow = "none";
                 }}
               />
-              {!claudeNameTouched && claudeName && (
+              {!claudeNameTouched && resolvedClaudeName && (
                 <span
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
                   style={{ color: "var(--sage-teal)" }}
@@ -226,7 +250,7 @@ export default function JoinPage() {
               )}
             </div>
             <p className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
-              Others use <span style={{ color: "var(--amber)" }}>@{claudeName || "YourClaude"}</span> to invoke your Claude.
+              Others use <span style={{ color: "var(--amber)" }}>@{resolvedClaudeName || "YourClaude"}</span> to invoke your Claude.
             </p>
           </div>
 
