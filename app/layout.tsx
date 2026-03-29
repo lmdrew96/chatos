@@ -24,9 +24,8 @@ export const metadata: Metadata = {
   title: "Cha(t)os",
   description:
     "A shared AI workspace where multiple users bring their own Claude into the same conversation.",
-  icons: {
-    icon: '/chatos-t-logo.png',
-    apple: '/chatos-t-logo.png',
+  appleWebApp: {
+    title: "Cha(t)os",
   },
   openGraph: {
     type: "website",
