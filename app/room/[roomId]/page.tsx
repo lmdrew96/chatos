@@ -12,6 +12,7 @@ import { AccountButton } from "@/components/AccountButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InviteButton } from "@/components/InviteButton";
 import { SettingsLink } from "@/components/SettingsLink";
+import { TopBar } from "@/components/TopBar";
 
 // Participant color palette — assigned by join order
 const COLORS = [
@@ -228,21 +229,26 @@ export default function RoomPage() {
   // Loading state
   if (!currentUserId || messages === undefined || participants === undefined) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "var(--deep-dark)", color: "rgba(247,245,250,0.3)" }}
-      >
-        <div className="flex flex-col items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-full border-2 animate-spin"
-            style={{
-              borderColor: "rgba(223,166,73,0.2)",
-              borderTopColor: "var(--amber)",
-            }}
-          />
-          <span className="text-sm">Entering the chaos…</span>
+      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+        <div className="absolute top-0 inset-x-0 z-30 px-4">
+          <TopBar />
         </div>
-      </div>
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ color: "rgba(247,245,250,0.3)" }}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-full border-2 animate-spin"
+              style={{
+                borderColor: "rgba(223,166,73,0.2)",
+                borderTopColor: "var(--amber)",
+              }}
+            />
+            <span className="text-sm">Entering the chaos…</span>
+          </div>
+        </div>
+      </main>
     );
   }
 
@@ -250,12 +256,16 @@ export default function RoomPage() {
 
   return (
     <div
-      className="flex flex-col h-screen"
+      className="relative flex flex-col h-screen"
       style={{ background: "var(--deep-dark)" }}
     >
+      <div className="absolute top-0 inset-x-0 z-30 px-4">
+        <TopBar />
+      </div>
+
       {/* Header */}
       <header
-        className="shrink-0 flex items-center justify-between px-5 py-3 border-b"
+        className="page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
         style={{
           borderColor: "rgba(247,245,250,0.06)",
           background: "rgba(30,24,48,0.8)",

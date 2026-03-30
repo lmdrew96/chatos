@@ -29,24 +29,32 @@ export default function FriendsPage() {
 
   if (isLoading) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "var(--deep-dark)", color: "rgba(247,245,250,0.3)" }}
-      >
+      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+        <div className="absolute top-0 inset-x-0 z-20 px-4">
+          <TopBar current="friends" />
+        </div>
         <div
-          className="w-6 h-6 rounded-full border-2 animate-spin"
-          style={{ borderColor: "rgba(223,166,73,0.2)", borderTopColor: "var(--amber)" }}
-        />
-      </div>
+          className="min-h-screen flex items-center justify-center"
+          style={{ color: "rgba(247,245,250,0.3)" }}
+        >
+          <div
+            className="w-6 h-6 rounded-full border-2 animate-spin"
+            style={{ borderColor: "rgba(223,166,73,0.2)", borderTopColor: "var(--amber)" }}
+          />
+        </div>
+      </main>
     );
   }
 
   if (!isAuthenticated) {
     return (
       <main
-        className="min-h-screen flex flex-col items-center justify-center gap-6"
+        className="relative min-h-screen flex flex-col items-center justify-center gap-6"
         style={{ background: "var(--deep-dark)" }}
       >
+        <div className="absolute top-0 inset-x-0 z-20 px-4">
+          <TopBar current="friends" />
+        </div>
         <div
           className="fixed inset-0 pointer-events-none"
           style={{
@@ -94,7 +102,7 @@ export default function FriendsPage() {
 
   return (
     <main
-      className="min-h-screen px-4 py-8"
+      className="relative min-h-screen px-4 pb-8"
       style={{ background: "var(--deep-dark)" }}
     >
       <div
@@ -105,13 +113,13 @@ export default function FriendsPage() {
         }}
       />
 
-      <div className="relative z-10 w-full px-4">
+      <div className="absolute top-0 inset-x-0 z-20 px-4">
         <TopBar current="friends" />
       </div>
 
-      <div className="relative z-10 max-w-2xl mx-auto">
+      <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
         {/* Search */}
-        <section className="mb-8 mt-8">
+        <section className="mb-8">
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-3"
             style={{ color: "rgba(247,245,250,0.3)" }}

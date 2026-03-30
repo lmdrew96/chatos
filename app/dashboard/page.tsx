@@ -26,24 +26,29 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "var(--deep-dark)" }}
-      >
-        <div
-          className="w-6 h-6 rounded-full border-2 animate-spin"
-          style={{ borderColor: "rgba(223,166,73,0.2)", borderTopColor: "var(--amber)" }}
-        />
-      </div>
+      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+        <div className="absolute top-0 inset-x-0 z-20 px-4">
+          <TopBar current="dashboard" />
+        </div>
+        <div className="min-h-screen flex items-center justify-center">
+          <div
+            className="w-6 h-6 rounded-full border-2 animate-spin"
+            style={{ borderColor: "rgba(223,166,73,0.2)", borderTopColor: "var(--amber)" }}
+          />
+        </div>
+      </main>
     );
   }
 
   if (!isAuthenticated) {
     return (
       <main
-        className="min-h-screen flex flex-col items-center justify-center"
+        className="relative min-h-screen flex flex-col items-center justify-center"
         style={{ background: "var(--deep-dark)" }}
       >
+        <div className="absolute top-0 inset-x-0 z-20 px-4">
+          <TopBar current="dashboard" />
+        </div>
         <div
           className="fixed inset-0 pointer-events-none"
           style={{
@@ -83,7 +88,7 @@ export default function DashboardPage() {
   const offlineFriends = friends?.filter((f) => !f.isOnline) ?? [];
 
   return (
-    <main className="min-h-screen px-4 py-8" style={{ background: "var(--deep-dark)" }}>
+    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--deep-dark)" }}>
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -92,12 +97,12 @@ export default function DashboardPage() {
         }}
       />
 
-      <div className="relative z-10 w-full px-4">
+      <div className="absolute top-0 inset-x-0 z-20 px-4">
         <TopBar current="dashboard" />
       </div>
 
-      <div className="relative z-10 max-w-2xl mx-auto">
-        <div className="grid gap-8 md:grid-cols-2 mt-8">
+      <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
+        <div className="grid gap-8 md:grid-cols-2">
           {/* Friends section */}
           <section>
             <div className="flex items-center justify-between mb-3">

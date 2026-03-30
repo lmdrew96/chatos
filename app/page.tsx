@@ -49,7 +49,7 @@ export default function Home() {
       />
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center gap-10 px-6 text-center">
+      <div className="relative z-10 page-topbar-offset flex flex-col items-center gap-10 px-6 text-center">
         {/* Logo / wordmark */}
         <div
           className="animate-fade-up"

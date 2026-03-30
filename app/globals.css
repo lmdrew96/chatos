@@ -10,6 +10,7 @@
   --lavender: #DBD5E2;
   --off-white: #F7F5FA;
   --deep-dark: #1E1830;
+  --topbar-offset: 5rem;
 }
 
 @theme inline {
@@ -49,3 +50,12 @@ body {
 .animate-glow-pulse {
   animation: glow-pulse 4s ease-in-out infinite;
 }
+
+.page-topbar-offset {
+  padding-top: var(--topbar-offset);
+}
+
+.page-topbar-margin {
+  margin-top: var(--topbar-offset);
+}
+

@@ -29,7 +29,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="min-h-screen px-4 py-8" style={{ background: "var(--deep-dark)" }}>
+    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--deep-dark)" }}>
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -38,13 +38,13 @@ export default function SettingsPage() {
         }}
       />
 
-      <div className="relative z-10 w-full px-4">
+      <div className="absolute top-0 inset-x-0 z-20 px-4">
         <TopBar current="settings" />
       </div>
 
-      <div className="relative z-10 max-w-2xl mx-auto">
+      <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
         {/* API Key section */}
-        <section className="mt-8">
+        <section>
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-1"
             style={{ color: "rgba(247,245,250,0.3)" }}

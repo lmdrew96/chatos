@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { AccountButton } from "@/components/AccountButton";
+import { TopBar } from "@/components/TopBar";
 
 const STARTER_PROMPTS = [
   {
@@ -93,31 +93,45 @@ export default function JoinPage() {
 
   if (room === undefined) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "var(--deep-dark)", color: "rgba(247,245,250,0.4)" }}
-      >
-        Loading…
-      </div>
+      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+        <div className="absolute top-0 inset-x-0 z-20 px-4">
+          <TopBar />
+        </div>
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ color: "rgba(247,245,250,0.4)" }}
+        >
+          Loading…
+        </div>
+      </main>
     );
   }
 
   if (room === null) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: "var(--deep-dark)", color: "var(--off-white)" }}
-      >
-        Room not found.
-      </div>
+      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+        <div className="absolute top-0 inset-x-0 z-20 px-4">
+          <TopBar />
+        </div>
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ color: "var(--off-white)" }}
+        >
+          Room not found.
+        </div>
+      </main>
     );
   }
 
   return (
     <main
-      className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
+      className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12"
       style={{ background: "var(--deep-dark)" }}
     >
+      <div className="absolute top-0 inset-x-0 z-20 px-4">
+        <TopBar />
+      </div>
+
       {/* Ambient glow */}
       <div
         className="fixed inset-0 pointer-events-none"
@@ -127,16 +141,7 @@ export default function JoinPage() {
         }}
       />
 
-      <div className="relative z-10 w-full max-w-2xl animate-fade-up">
-        <div className="mb-5 flex items-center justify-between select-none">
-          <span
-            className="text-base font-extrabold leading-none"
-            style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
-          >
-            Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
-          </span>
-          <AccountButton />
-        </div>
+      <div className="relative z-10 w-full max-w-2xl animate-fade-up page-topbar-offset">
 
         {/* Room badge */}
         <div className="flex items-center gap-2 mb-8">
