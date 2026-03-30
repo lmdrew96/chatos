@@ -22,12 +22,26 @@ export type PersonalContext = {
  * The server must expose GET /context returning PersonalContext JSON.
  */
 export async function fetchPersonalContext(mcpUrl: string): Promise<PersonalContext> {
-  const base = mcpUrl.replace(/\/+$/, "");
-  const res = await fetch(`${base}/context`, {
+  const normalized = normalizeContextUrl(mcpUrl);
+  const res = await fetch(`/api/personal-context?url=${encodeURIComponent(normalized)}`, {
     headers: { Accept: "application/json" },
+    cache: "no-store",
   });
   if (!res.ok) throw new Error(`Personal Context MCP returned ${res.status}`);
   return res.json();
+}
+
+function normalizeContextUrl(input: string): string {
+  const url = new URL(input.trim());
+  const path = url.pathname.replace(/\/+$/, "");
+
+  if (/\/mcp$/i.test(path)) {
+    url.pathname = path.replace(/\/mcp$/i, "/context");
+  } else if (!/\/context$/i.test(path)) {
+    url.pathname = `${path}/context`;
+  }
+
+  return url.toString();
 }
 
 /**

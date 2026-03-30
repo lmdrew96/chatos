@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { fetchPersonalContext, buildContextPrefix } from "@/lib/personalContext";
 
@@ -45,12 +45,13 @@ export default function JoinPage() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [hasApiKey] = useState(
-    () => typeof window !== "undefined" && !!localStorage.getItem("chatos:apiKey")
-  );
-  const [hasMcpUrl] = useState(
-    () => typeof window !== "undefined" && !!localStorage.getItem("chatos:mcpUrl")?.trim()
-  );
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [hasMcpUrl, setHasMcpUrl] = useState(false);
+
+  useEffect(() => {
+    setHasApiKey(!!localStorage.getItem("chatos:apiKey"));
+    setHasMcpUrl(!!localStorage.getItem("chatos:mcpUrl")?.trim());
+  }, []);
 
   const resolvedDisplayName = displayNameTouched ? displayName : defaultDisplayName;
 

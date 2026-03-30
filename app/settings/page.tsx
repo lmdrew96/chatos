@@ -181,13 +181,13 @@ export default function SettingsPage() {
                 Personal Context MCP URL
               </label>
               <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
-                Your deployed Personal Context MCP. Cha(t)os will fetch your identity, projects, and preferences and inject them into your Claude&apos;s context automatically.
+                Your deployed Personal Context service URL. You can paste either a <code>/context</code> endpoint or an MCP URL ending in <code>/mcp</code>; Cha(t)os will resolve it automatically.
               </p>
               <input
                 type="url"
                 value={mcpUrl}
                 onChange={(e) => setMcpUrl(e.target.value)}
-                placeholder="https://your-context.vercel.app/mcp"
+                placeholder="https://your-context.vercel.app/context"
                 autoComplete="off"
                 className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono"
                 style={{
