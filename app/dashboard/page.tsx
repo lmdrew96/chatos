@@ -207,7 +207,17 @@ export default function DashboardPage() {
                 {rooms!.map((r) => (
                   <button
                     key={r!.roomId}
-                    onClick={() => router.push(`/join/${r!.roomId}`)}
+                    onClick={() => {
+                      sessionStorage.setItem("userId", r!.userId);
+                      sessionStorage.setItem("displayName", r!.displayName);
+                      sessionStorage.setItem("claudeName", r!.claudeName);
+                      // Bridge MCP servers from persistent settings
+                      try {
+                        const servers = localStorage.getItem("chatos:mcpServers") ?? "[]";
+                        sessionStorage.setItem("chatos:mcpServers", servers);
+                      } catch { /* localStorage unavailable */ }
+                      router.push(`/room/${r!.roomId}`);
+                    }}
                     className="flex flex-col gap-1.5 px-4 py-3 rounded-xl text-left w-full transition-all"
                     style={{
                       background: "rgba(255,255,255,0.03)",

@@ -79,6 +79,9 @@ export const getMyRooms = query({
           roomId: p.roomId,
           roomCode: room.roomCode,
           participantCount: allParticipants.length,
+          userId: p.userId,
+          displayName: p.displayName,
+          claudeName: p.claudeName,
           lastMessage: lastMessage
             ? {
                 content: lastMessage.content,
