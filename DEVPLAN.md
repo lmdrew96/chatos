@@ -13,246 +13,288 @@
 
 ---
 
-## Phase 0: Project Setup
+## Phase 0: Project Setup ✅
 
-- [ ] `npx create-next-app@latest chatos --typescript --app`
-- [ ] Install Convex: `npm install convex`
-- [ ] `npx convex dev` — initialize Convex project
-- [ ] Install Anthropic SDK: `npm install @anthropic-ai/sdk`
-- [ ] Connect to Vercel for deployment
-- [ ] Set up `.env.local` with `NEXT_PUBLIC_CONVEX_URL`
+- [x] `npx create-next-app@latest chatos --typescript --app`
+- [x] Install Convex: `npm install convex`
+- [x] `npx convex dev` — initialized Convex project (`dev:tangible-dolphin-838`)
+- [x] Install Anthropic SDK: `npm install @anthropic-ai/sdk`
+- [x] Connect to Vercel for deployment
+- [x] Set up `.env.local` with `NEXT_PUBLIC_CONVEX_URL`
+- [x] Install Clerk: `npm install @clerk/nextjs @clerk/themes`
 
 ---
 
-## Phase 1: Convex Schema + Data Layer
+## Phase 1: Convex Schema + Data Layer ✅
 
-### Schema (`convex/schema.ts`)
+### Schema (`convex/schema.ts`) — Implemented
+
+All tables from the original spec plus additional tables added during development:
 
 ```typescript
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+// Core tables (original spec)
+rooms       — roomCode, createdAt | index: by_code
+participants — roomId, userId, tokenIdentifier, displayName, claudeName, systemPrompt, isOnline | index: by_room, by_room_user
+messages     — roomId, fromUserId, fromDisplayName, type, claudeName, ownerUserId, content, mentions, createdAt | index: by_room
 
-export default defineSchema({
-  rooms: defineTable({
-    roomCode: v.string(),         // Short invite code (e.g. "chaos-42")
-    createdAt: v.number(),
-  }).index("by_code", ["roomCode"]),
-
-  participants: defineTable({
-    roomId: v.id("rooms"),
-    userId: v.string(),           // Client-generated UUID, stored in sessionStorage
-    displayName: v.string(),      // e.g. "Nae"
-    claudeName: v.string(),       // e.g. "NaeClaude"
-    systemPrompt: v.string(),     // Claude persona configuration
-    isOnline: v.boolean(),
-  }).index("by_room", ["roomId"]),
-
-  messages: defineTable({
-    roomId: v.id("rooms"),
-    fromUserId: v.string(),
-    fromDisplayName: v.string(),
-    type: v.union(v.literal("user"), v.literal("claude"), v.literal("system")),
-    claudeName: v.optional(v.string()),   // Which Claude sent this (if type === "claude")
-    ownerUserId: v.optional(v.string()),  // Claude's owner (for billing attribution)
-    content: v.string(),
-    mentions: v.array(v.string()),        // Claude names mentioned in this message
-    createdAt: v.number(),
-  }).index("by_room", ["roomId"]),
-});
+// Added during development
+users           — tokenIdentifier, username, displayName, isOnline | index: by_token, by_username
+friendRequests  — fromId, toId, status (pending/accepted/declined) | indexes for both directions
+roomInvites     — roomId, fromId, toId, status | indexes for recipient and sender
 ```
 
-### Mutations + Queries (`convex/messages.ts`, `convex/rooms.ts`)
+### Mutations + Queries — All Implemented
 
+**`convex/rooms.ts`:**
 - `createRoom()` → generates room code, returns roomId
 - `joinRoom(roomCode, participant)` → adds participant to room
+- `getRoomById()`, `getRoomByCode()` → room lookups
+- `setOnlineStatus()` → presence updates within a room
+- `useParticipants(roomId)` → reactive participant list
+
+**`convex/messages.ts`:**
 - `sendMessage(roomId, message)` → stores message
 - `useMessages(roomId)` → reactive query (auto-updates all clients)
-- `useParticipants(roomId)` → reactive query for online users + their Claude configs
+
+**`convex/users.ts`:**
+- `upsertUser()` → Clerk→Convex sync on auth
+- `updatePresence()` → global online/offline tracking
+- `getMe()`, `getUserByUsername()` → user lookups
+
+**`convex/friends.ts`:**
+- `sendFriendRequest()`, `respondToFriendRequest()`, `cancelFriendRequest()`
+- `getIncomingRequests()`, `getOutgoingRequests()`, `getFriends()`
+- Auto-accept if both users request each other
+
+**`convex/invites.ts`:**
+- `sendRoomInvite()`, `respondToRoomInvite()`
+- `getPendingInvites()` → drives notification bell
+- Deduplication guard (no duplicate pending invites)
+
+**`convex/dashboard.ts`:**
+- `getFriendsWithPresence()` → friends list with online dots
+- `getMyRooms()` → recent rooms + last message + participant count
 
 ---
 
-## Phase 2: Join Flow
+## Phase 2: Join Flow ✅
 
-**Route:** `/join/[roomId]`
+**Routes:** `/` (room creation) and `/join/[roomId]`
 
-**Form fields:**
-1. Your name (display name)
-2. Your Claude's name (e.g. "NaeClaude") — auto-suggests `[YourName]Claude`
-3. Your Claude's personality (system prompt textarea) — include starter templates
-4. Your Anthropic API key — `type="password"`, stored in `sessionStorage` only, never in Convex
+**Form fields — implemented:**
+1. Display name
+2. Claude name — auto-suggests `[YourName]Claude`
+3. Claude personality (system prompt textarea) — 3 starter templates: "Devil's Advocate", "Hype Machine", "Ruthless Editor"
+4. Anthropic API key check — shows warning if not set; links to `/settings`
+5. **[Advanced]** Personal Context MCP URL (Layer 1)
+6. **[Advanced]** Additional MCP servers, add/remove (Layer 2)
+7. **[Advanced]** Context seed textarea (Layer 3)
+
+Advanced section is **collapsed by default** so first-time users aren't overwhelmed.
 
 **On submit:**
-- Store API key in `sessionStorage`
-- Store userId (UUID) in `sessionStorage`
-- Write participant to Convex (no API key)
+- API key read from `localStorage` (`chatos:apiKey`)
+- userId (UUID) stored in `sessionStorage`
+- Display name, Claude name, MCP servers stored in `sessionStorage`
+- Participant written to Convex (no API key)
 - Redirect to `/room/[roomId]`
 
 **Room creation (`/`):**
-- Button: "Create a new room"
-- Calls `createRoom()`, redirects to `/join/[roomId]`
+- "Create a new room" button calls `createRoom()`, redirects to `/join/[roomId]`
 - Share link shown after creation
+
+**API key management (`/settings`):**
+- `localStorage` key: `chatos:apiKey`
+- Password input with set/clear
+- Security note: "Stored only in this browser"
 
 ---
 
-## Phase 3: Chat UI
+## Phase 3: Chat UI ✅
 
 **Route:** `/room/[roomId]`
 
 ### Components
 
-**`ChatRoom.tsx`**
-- Loads messages via `useMessages(roomId)` (reactive — auto-updates)
+**`app/room/[roomId]/page.tsx`** — main chat room:
+- Loads messages via `useMessages(roomId)` (reactive)
 - Loads participants via `useParticipants(roomId)`
-- Renders message list
-- Renders `MentionInput` at bottom
-- Handles Claude response orchestration
+- Participant color palette (6 colors, assigned by join order)
+- Online participant count in header
+- Auto-scroll to latest message
+- "Thinking" bounce animation while Claude generates
+- Session restoration from `sessionStorage` (redirects if no userId)
+- Online status tracking via `beforeunload` event
 
-**`MessageBubble.tsx`**
-
-Props: `message`, `participants`
-
-Render logic:
+**`components/MessageBubble.tsx`:**
 - `type === "system"` → centered dim text
-- `type === "user"` → colored by sender, aligned left/right based on current user
-- `type === "claude"` → Claude's owner color (slightly different shade), robot icon, Claude name label
+- `type === "user"` → sender's color, left/right aligned based on current user
+- `type === "claude"` → Claude's owner color, robot icon, Claude name label, left-aligned
 
-**`MentionInput.tsx`**
-- Textarea with `@` autocomplete
-- Detects `@` trigger → shows dropdown of Claude names from `useParticipants`
+**`components/MentionInput.tsx`:**
+- `@` trigger → dropdown of Claude names
+- Arrow keys + Tab/Enter to select, Escape to cancel
 - `Enter` to send, `Shift+Enter` for newline
-- Shows "sending as [YourName]" indicator
+- "Sending as [YourName]" indicator
+
+**`components/TopBar.tsx`:**
+- Navigation bar with logo, account button, settings link
+- Used across all pages
+
+**`components/InviteButton.tsx`:**
+- Share room link / invite friends from within a room
+
+**`components/NotificationBell.tsx`:**
+- Shows pending room invite count
+- Accessible from top bar
 
 ---
 
-## Phase 4: Claude Response Orchestration
+## Phase 4: Claude Response Orchestration ✅
 
-This logic lives in `ChatRoom.tsx` (client-side only — API keys never leave the client).
+Lives in `app/room/[roomId]/page.tsx` (client-side only).
+
+**`handleSendMessage()` flow:**
+1. Parse `@mentions` from content
+2. Store user message in Convex
+3. Build shared history from last 12 messages (consecutive same-role messages collapsed)
+4. Sequential Claude responses — each Claude sees preceding replies:
 
 ```typescript
-const handleSendMessage = async (content: string) => {
-  // 1. Parse @mentions from content
-  const mentions = detectMentions(content, participants);
-  
-  // 2. Store user message in Convex
-  await sendMessage({ roomId, content, type: "user", mentions, ... });
+for (const claudeName of mentions) {
+  const owner = participants.find(p => p.claudeName === claudeName);
+  const apiKey = localStorage.getItem("chatos:apiKey"); // owner's key
 
-  if (mentions.length === 0) return;
+  const callMessages = [...history, { role: "user", content: `${sender}: ${content}` }];
 
-  // 3. Build shared history from last 12 messages
-  const history = buildHistory(messages.slice(-12));
-
-  // 4. Sequential Claude responses (aware of preceding replies)
-  const precedingReplies: { claudeName: string; content: string }[] = [];
-
-  for (const claudeName of mentions) {
-    const owner = participants.find(p => p.claudeName === claudeName);
-    if (!owner) continue;
-
-    // Get this owner's API key from sessionStorage
-    const apiKey = sessionStorage.getItem(`apiKey_${owner.userId}`);
-    if (!apiKey) continue;
-
-    // Build messages array
-    const callMessages = [
-      ...history,
-      { role: "user", content: `${currentUser.displayName}: ${content}` },
-    ];
-
-    // Inject preceding Claude reply if exists
-    if (precedingReplies.length > 0) {
-      const context = precedingReplies
-        .map(r => `[${r.claudeName} just responded]: "${r.content}"`)
-        .join("\n");
-      callMessages.push({
-        role: "user",
-        content: `(You were also mentioned. Note that ${context} — respond to them or the original message, your call.)`,
-      });
-    }
-
-    // Call Anthropic API
-    const reply = await callClaude({
-      apiKey,
-      systemPrompt: owner.systemPrompt,
-      messages: callMessages,
+  if (precedingReplies.length > 0) {
+    callMessages.push({
+      role: "user",
+      content: `(You were also mentioned. Note that ${context} — respond to them or the original message, your call.)`,
     });
-
-    // Store Claude response in Convex
-    await sendMessage({
-      roomId,
-      content: reply,
-      type: "claude",
-      claudeName,
-      ownerUserId: owner.userId,
-      mentions: [],
-    });
-
-    precedingReplies.push({ claudeName, content: reply });
   }
-};
-```
 
-**`lib/claude.ts`** — thin wrapper:
-```typescript
-export async function callClaude({ apiKey, systemPrompt, messages }) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-    }),
-  });
-  const data = await res.json();
-  return data.content?.[0]?.text ?? "...";
+  const reply = await callClaude({ apiKey, systemPrompt: owner.systemPrompt, messages: callMessages, mcpServers: owner.mcpServers });
+  await sendMessage({ ..., type: "claude", claudeName, content: reply });
+  precedingReplies.push({ claudeName, content: reply });
 }
 ```
 
-> **Note:** The `anthropic-dangerous-direct-browser-access` header is required for direct browser API calls. This is intentional — it's the BYOK model.
+**`lib/claude.ts`** — Anthropic API client:
+- Direct browser calls to `https://api.anthropic.com/v1/messages`
+- Header: `anthropic-dangerous-direct-browser-access: true` (intentional BYOK)
+- Model: `claude-sonnet-4-6`
+- Max tokens: 1024
+- `mcp_servers` parameter passed when provided (Layer 2)
+
+**`lib/personalContext.ts`** — Personal Context MCP client:
+- `fetchPersonalContext(mcpUrl)` — fetches from `{mcpUrl}/context`
+- `buildContextPrefix(claudeName, userName, ctx)` — formats context into system prompt prefix
+- Called at join time, result prepended to system prompt
 
 ---
 
-## Phase 5: Online Presence
+## Phase 5: Online Presence ✅
 
-- On join: set `isOnline: true` in Convex
-- On tab close / disconnect: set `isOnline: false`
-- Use `useEffect` cleanup + `beforeunload` event
-- Show online indicators next to participant names in header
+- On join: `setOnlineStatus(true)` in room, `updatePresence(true)` globally
+- On tab close / disconnect: `setOnlineStatus(false)` via `beforeunload`
+- Displayed in:
+  - Dashboard → green dot for online friends
+  - Room header → "N online" count
+  - Participant list → opacity shift for offline users
 
 ---
 
-## Phase 6: Polish (Post-MVP)
+## Phase 6: Authentication & Social Layer ✅
 
-- [ ] System prompt starter templates (e.g. "Devil's Advocate", "Hype Machine", "Ruthless Editor")
-- [ ] Typing indicators ("NaeClaude is thinking...")
-- [ ] Room expiry / cleanup
-- [ ] Mobile responsive layout
-- [ ] Copy room link button
-- [ ] Message timestamps
-- [ ] Reconnect / rejoin flow if API key is lost from sessionStorage
-- [ ] Error handling for invalid/expired API keys (surface clearly to the correct user)
-- [ ] `@everyone` shorthand to ping all Claudes
+> _Added beyond original spec — required for friend invites and dashboard._
+
+**Clerk integration:**
+- `@clerk/nextjs` ^7.0.7 with dark theme
+- `ClerkProvider` wraps app in layout
+- Custom Clerk domain: `clerk.chatos.adhdesigns.dev`
+- `convex/auth.config.ts` — Clerk JWT validation
+
+**`components/UserSync.tsx`:**
+- Syncs Clerk identity to Convex `users` table on auth change
+- Stores `tokenIdentifier`, `username`, `displayName`
+
+**`app/dashboard/page.tsx`:**
+- Requires Clerk auth (redirects to sign-in otherwise)
+- Friends list with online presence dots
+- Recent rooms with last message preview + participant count
+- New room + Add friends CTAs
+
+**`app/friends/page.tsx`:**
+- Send/accept/decline friend requests by username
+- View incoming and outgoing pending requests
+
+---
+
+## Phase 7: Polish ✅ / 🔲 In Progress
+
+| Feature | Status |
+|---|---|
+| System prompt starter templates (3 built-in) | ✅ Done |
+| "Thinking" indicator for Claude responses | ✅ Done |
+| Online presence indicators | ✅ Done |
+| Copy/share room link | ✅ Done (InviteButton) |
+| Personal Context MCP (Layer 1) | ✅ Done |
+| MCP passthrough (Layer 2) | ✅ Done |
+| Context seed (Layer 3) | ✅ Done |
+| API key settings page | ✅ Done |
+| Friend system + room invites | ✅ Done |
+| ADHDesigns brand design system | ✅ Done |
+| Message timestamps | 🔲 Not yet (createdAt exists, not displayed) |
+| Room expiry / cleanup | 🔲 Not yet |
+| Reconnect / rejoin flow (lost API key) | 🔲 Not yet |
+| Error handling for invalid/expired API keys | 🔲 Partial (basic error messages) |
+| `@everyone` shorthand | 🔲 Not yet |
+| Show more for long Claude responses | 🔲 Not yet |
+| Mobile responsive refinement | 🔲 Partial |
+| Duplicate Claude name validation at join | 🔲 Not yet |
 
 ---
 
 ## Known Edge Cases to Handle
 
-| Scenario | Handling |
-|---|---|
-| User closes tab (API key lost) | Prompt to re-enter key on rejoin |
-| API key is invalid | Show error only to that user, not the whole room |
-| Both Claudes mentioned, one owner offline | Skip offline Claude, note in system message |
-| Very long Claude response | Truncate display with "show more" |
-| Same Claude name entered by two users | Validate uniqueness on join |
+| Scenario | Status | Handling |
+|---|---|---|
+| User closes tab (API key lost) | 🔲 | Prompt to re-enter key on rejoin |
+| API key is invalid | 🔲 Partial | Basic error shown; should surface only to that user |
+| Mentioned Claude, owner offline | 🔲 | Skip offline Claude, surface system message |
+| Very long Claude response | 🔲 | Truncate with "show more" |
+| Duplicate Claude name at join | 🔲 | Validate uniqueness before submitting |
+| MCP server unreachable | ✅ | Error state shown in join form, Layer 2 skipped gracefully |
+| Personal Context MCP URL invalid | ✅ | Validation with ok/error states before submit |
 
 ---
 
-## Prompt for Claude Code
+## Stack
 
-> Hey! I'm building **Cha(t)os** — a real-time group chat app where multiple users bring their own Claude AI instance (with their own API key and custom persona) into a shared room. Read the README and this dev plan, then let's start with **Phase 0 and Phase 1**. Set up the Next.js project, install Convex, and implement the schema. I'm using TypeScript throughout. Ask me before making any decisions that aren't covered in the docs.
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16.2.1 (App Router) |
+| React | 19.2.4 |
+| Styling | Tailwind CSS 4 + ADHDesigns CSS tokens |
+| Real-time DB | Convex 1.34.1 |
+| Auth | Clerk (`@clerk/nextjs` ^7.0.7) |
+| AI | Anthropic SDK (`@anthropic-ai/sdk` ^0.80.0) |
+| Language | TypeScript |
+
+---
+
+## Environment
+
+```
+Convex deployment: dev:tangible-dolphin-838 (team: lmdrew)
+Convex URL:        https://tangible-dolphin-838.convex.cloud
+Clerk domain:      clerk.chatos.adhdesigns.dev
+```
+
+Env vars in `.env.local`:
+- `CONVEX_DEPLOYMENT`
+- `NEXT_PUBLIC_CONVEX_URL`
+- `NEXT_PUBLIC_CONVEX_SITE_URL`
+- `CLERK_FRONTEND_API_URL`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
