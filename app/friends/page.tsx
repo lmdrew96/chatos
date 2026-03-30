@@ -6,9 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SignInButton } from "@clerk/nextjs";
 import { useState } from "react";
-import { AccountButton } from "@/components/AccountButton";
-import { NotificationBell } from "@/components/NotificationBell";
-import { SettingsLink } from "@/components/SettingsLink";
+import { TopBar } from "@/components/TopBar";
 
 export default function FriendsPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -108,39 +106,10 @@ export default function FriendsPage() {
       />
 
       <div className="relative z-10 max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <a
-              href="/"
-              className="text-base font-extrabold leading-none select-none"
-              style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
-            >
-              Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
-            </a>
-            <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
-            <a
-              href="/dashboard"
-              className="text-sm transition-colors"
-              style={{ color: "rgba(247,245,250,0.35)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--sage-teal)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.35)")}
-            >
-              Dashboard
-            </a>
-            <span className="text-sm font-semibold" style={{ color: "rgba(247,245,250,0.6)" }}>
-              Friends
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <SettingsLink />
-            <NotificationBell />
-            <AccountButton />
-          </div>
-        </div>
+        <TopBar current="friends" />
 
         {/* Search */}
-        <section className="mb-8">
+        <section className="mb-8 mt-8">
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-3"
             style={{ color: "rgba(247,245,250,0.3)" }}

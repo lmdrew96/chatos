@@ -5,9 +5,7 @@ import { useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SignInButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { AccountButton } from "@/components/AccountButton";
-import { NotificationBell } from "@/components/NotificationBell";
-import { SettingsLink } from "@/components/SettingsLink";
+import { TopBar } from "@/components/TopBar";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -94,38 +92,9 @@ export default function DashboardPage() {
       />
 
       <div className="relative z-10 max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <a
-              href="/"
-              className="text-base font-extrabold leading-none select-none"
-              style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
-            >
-              Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
-            </a>
-            <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
-            <span className="text-sm font-semibold" style={{ color: "rgba(247,245,250,0.6)" }}>
-              Dashboard
-            </span>
-            <a
-              href="/friends"
-              className="text-sm transition-colors"
-              style={{ color: "rgba(247,245,250,0.35)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--sage-teal)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.35)")}
-            >
-              Friends
-            </a>
-          </div>
-          <div className="flex items-center gap-1">
-            <SettingsLink />
-            <NotificationBell />
-            <AccountButton />
-          </div>
-        </div>
+        <TopBar current="dashboard" />
 
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid gap-8 md:grid-cols-2 mt-8">
           {/* Friends section */}
           <section>
             <div className="flex items-center justify-between mb-3">

@@ -5,9 +5,7 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { AccountButton } from "@/components/AccountButton";
-import { NotificationBell } from "@/components/NotificationBell";
-import { SettingsLink } from "@/components/SettingsLink";
+import { TopBar } from "@/components/TopBar";
 
 export default function Home() {
   const createRoom = useMutation(api.rooms.createRoom);
@@ -30,33 +28,8 @@ export default function Home() {
       style={{ background: "var(--deep-dark)" }}
     >
       {/* Top bar */}
-      <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-center px-4 h-14">
-        <nav className="flex items-center gap-5">
-          <a
-            href="/dashboard"
-            className="text-xs transition-colors"
-            style={{ color: "rgba(247,245,250,0.3)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.7)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.3)")}
-          >
-            Dashboard
-          </a>
-          <span style={{ color: "rgba(247,245,250,0.1)" }}>·</span>
-          <a
-            href="/friends"
-            className="text-xs transition-colors"
-            style={{ color: "rgba(247,245,250,0.3)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.7)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.3)")}
-          >
-            Friends
-          </a>
-        </nav>
-        <div className="absolute right-4 flex items-center gap-1">
-          <SettingsLink />
-          <NotificationBell />
-          <AccountButton />
-        </div>
+      <div className="absolute top-0 inset-x-0 z-20 px-4">
+        <TopBar />
       </div>
 
       {/* Ambient background glow */}

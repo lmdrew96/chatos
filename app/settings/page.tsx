@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AccountButton } from "@/components/AccountButton";
-import { NotificationBell } from "@/components/NotificationBell";
+import { TopBar } from "@/components/TopBar";
 
 const KEY = "chatos:apiKey";
 
@@ -46,29 +45,10 @@ export default function SettingsPage() {
       />
 
       <div className="relative z-10 max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-10">
-          <div className="flex items-center gap-3">
-            <a
-              href="/"
-              className="text-base font-extrabold leading-none select-none"
-              style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
-            >
-              Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
-            </a>
-            <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
-            <span className="text-sm font-semibold" style={{ color: "rgba(247,245,250,0.6)" }}>
-              Settings
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <NotificationBell />
-            <AccountButton />
-          </div>
-        </div>
+        <TopBar current="settings" />
 
         {/* API Key section */}
-        <section>
+        <section className="mt-8">
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-1"
             style={{ color: "rgba(247,245,250,0.3)" }}
