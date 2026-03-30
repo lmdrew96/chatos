@@ -46,6 +46,9 @@ export const joinRoom = mutation({
     systemPrompt: v.string(),
   },
   handler: async (ctx, { roomId, userId, displayName, claudeName, systemPrompt }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const tokenIdentifier = identity?.tokenIdentifier;
+
     // Check if participant already exists (rejoin)
     const existing = await ctx.db
       .query("participants")
@@ -54,7 +57,7 @@ export const joinRoom = mutation({
       .unique();
 
     if (existing) {
-      await ctx.db.patch(existing._id, { isOnline: true, displayName, claudeName, systemPrompt });
+      await ctx.db.patch(existing._id, { isOnline: true, displayName, claudeName, systemPrompt, tokenIdentifier });
       return existing._id;
     }
 
@@ -72,6 +75,7 @@ export const joinRoom = mutation({
     const participantId = await ctx.db.insert("participants", {
       roomId,
       userId,
+      tokenIdentifier,
       displayName,
       claudeName,
       systemPrompt,

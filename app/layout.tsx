@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
+import { UserSync } from "@/components/UserSync";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 
@@ -67,7 +68,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${superBakery.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
-          <ConvexClientProvider>{children}</ConvexClientProvider>
+          <ConvexClientProvider>
+            <UserSync />
+            {children}
+          </ConvexClientProvider>
         </body>
       </html>
     </ClerkProvider>

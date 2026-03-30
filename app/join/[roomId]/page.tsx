@@ -38,10 +38,14 @@ export default function JoinPage() {
   const [claudeName, setClaudeName] = useState("");
   const [claudeNameTouched, setClaudeNameTouched] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasApiKey, setHasApiKey] = useState(false);
   const { user } = useUser();
+
+  useEffect(() => {
+    setHasApiKey(!!localStorage.getItem("chatos:apiKey"));
+  }, []);
 
   // Pre-fill display name from Clerk if available and field is untouched
   useEffect(() => {
@@ -56,16 +60,11 @@ export default function JoinPage() {
     ? claudeName
     : (displayName.trim() ? suggestedClaudeName : "");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     setError("");
 
-    if (
-      !displayName.trim() ||
-      !resolvedClaudeName.trim() ||
-      !systemPrompt.trim() ||
-      !apiKey.trim()
-    ) {
+    if (!displayName.trim() || !resolvedClaudeName.trim() || !systemPrompt.trim()) {
       setError("All fields are required.");
       return;
     }
@@ -78,9 +77,6 @@ export default function JoinPage() {
       sessionStorage.setItem("userId", userId);
     }
 
-    // API key stays client-side only
-    sessionStorage.setItem(`apiKey_${userId}`, apiKey.trim());
-    // Store display name for this session
     sessionStorage.setItem("displayName", displayName.trim());
     sessionStorage.setItem("claudeName", resolvedClaudeName.trim());
 
@@ -135,7 +131,7 @@ export default function JoinPage() {
         }}
       />
 
-      <div className="relative z-10 w-full max-w-lg animate-fade-up">
+      <div className="relative z-10 w-full max-w-2xl animate-fade-up">
         <div className="mb-5 flex items-center justify-between select-none">
           <span
             className="text-base font-extrabold leading-none"
@@ -165,6 +161,35 @@ export default function JoinPage() {
             {room.roomCode}
           </span>
         </div>
+
+        {/* No API key warning */}
+        {!hasApiKey && (
+          <div
+            className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl mb-6"
+            style={{
+              background: "rgba(223,166,73,0.07)",
+              border: "1px solid rgba(223,166,73,0.2)",
+            }}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ color: "var(--amber)", flexShrink: 0 }}>
+                <path d="M7 1.5L12.5 11H1.5L7 1.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                <path d="M7 5.5v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                <circle cx="7" cy="10" r="0.6" fill="currentColor" />
+              </svg>
+              <p className="text-sm" style={{ color: "rgba(223,166,73,0.9)" }}>
+                No API key set — your Claude won&apos;t be able to respond.
+              </p>
+            </div>
+            <a
+              href="/settings"
+              className="text-xs font-medium shrink-0 transition-opacity hover:opacity-70"
+              style={{ color: "var(--amber)" }}
+            >
+              Set it →
+            </a>
+          </div>
+        )}
 
         {/* Heading */}
         <h1
@@ -309,43 +334,6 @@ export default function JoinPage() {
                 e.target.style.boxShadow = "none";
               }}
             />
-          </div>
-
-          {/* API key */}
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
-              Anthropic API key
-            </label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-…"
-              autoComplete="off"
-              className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(247,245,250,0.1)",
-                color: "var(--off-white)",
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "var(--amber)";
-                e.target.style.boxShadow = "0 0 0 3px rgba(223,166,73,0.1)";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "rgba(247,245,250,0.1)";
-                e.target.style.boxShadow = "none";
-              }}
-            />
-            <div className="flex items-center gap-1.5">
-              <svg width="11" height="13" viewBox="0 0 11 13" fill="none" style={{ color: "var(--soft-green)", flexShrink: 0 }}>
-                <rect x="1" y="5" width="9" height="7.5" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-              <p className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
-                Stored in your browser only — never sent to our servers. Your Claude&apos;s owner always pays.
-              </p>
-            </div>
           </div>
 
           {/* Error */}

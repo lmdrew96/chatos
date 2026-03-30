@@ -6,6 +6,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AccountButton } from "@/components/AccountButton";
+import { NotificationBell } from "@/components/NotificationBell";
+import { SettingsLink } from "@/components/SettingsLink";
 
 export default function Home() {
   const createRoom = useMutation(api.rooms.createRoom);
@@ -27,8 +29,10 @@ export default function Home() {
       className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
       style={{ background: "var(--deep-dark)" }}
     >
-      {/* Account button */}
-      <div className="absolute top-4 right-4 z-20">
+      {/* Account + notifications */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
+        <SettingsLink />
+        <NotificationBell />
         <AccountButton />
       </div>
 
@@ -144,6 +148,35 @@ export default function Home() {
         >
           Share the link after creation. Your API key stays on your machine.
         </p>
+
+        <div
+          className="animate-fade-up flex items-center gap-4"
+          style={{
+            animationDelay: "440ms",
+            opacity: 0,
+            animationFillMode: "forwards",
+          }}
+        >
+          <a
+            href="/dashboard"
+            className="text-xs transition-colors"
+            style={{ color: "rgba(247,245,250,0.25)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.55)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.25)")}
+          >
+            Dashboard
+          </a>
+          <span style={{ color: "rgba(247,245,250,0.1)" }}>·</span>
+          <a
+            href="/friends"
+            className="text-xs transition-colors"
+            style={{ color: "rgba(247,245,250,0.25)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.55)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.25)")}
+          >
+            Friends
+          </a>
+        </div>
       </div>
 
       {/* ADHDesigns watermark */}

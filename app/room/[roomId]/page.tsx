@@ -9,6 +9,9 @@ import { callClaude } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { AccountButton } from "@/components/AccountButton";
+import { NotificationBell } from "@/components/NotificationBell";
+import { InviteButton } from "@/components/InviteButton";
+import { SettingsLink } from "@/components/SettingsLink";
 
 // Participant color palette — assigned by join order
 const COLORS = [
@@ -146,14 +149,14 @@ export default function RoomPage() {
         const owner = currentParticipants.find((p) => p.claudeName === claudeName);
         if (!owner) continue;
 
-        const apiKey = sessionStorage.getItem(`apiKey_${owner.userId}`);
+        const apiKey = localStorage.getItem("chatos:apiKey");
         if (!apiKey) {
           await sendMessage({
             roomId,
             fromUserId: "system",
             fromDisplayName: "system",
             type: "system",
-            content: `${claudeName}'s API key isn't available — ${owner.displayName} may need to rejoin.`,
+            content: `${claudeName}'s API key isn't available — ${owner.displayName} needs to set one in Settings.`,
             mentions: [],
           });
           continue;
@@ -275,8 +278,11 @@ export default function RoomPage() {
           </div>
         </div>
 
-        {/* Right: account + participant dots */}
+        {/* Right: account + notifications + invite + participant dots */}
         <div className="flex items-center gap-3">
+        <InviteButton roomId={roomId} />
+        <SettingsLink />
+        <NotificationBell />
         <AccountButton />
         <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
         <div className="flex items-center gap-1.5">

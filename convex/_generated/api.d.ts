@@ -8,8 +8,12 @@
  * @module
  */
 
+import type * as dashboard from "../dashboard.js";
+import type * as friends from "../friends.js";
+import type * as invites from "../invites.js";
 import type * as messages from "../messages.js";
 import type * as rooms from "../rooms.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -18,8 +22,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  dashboard: typeof dashboard;
+  friends: typeof friends;
+  invites: typeof invites;
   messages: typeof messages;
   rooms: typeof rooms;
+  users: typeof users;
 }>;
 
 /**
