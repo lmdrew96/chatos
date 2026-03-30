@@ -48,6 +48,9 @@ export default function JoinPage() {
   const [hasApiKey] = useState(
     () => typeof window !== "undefined" && !!localStorage.getItem("chatos:apiKey")
   );
+  const [hasMcpUrl] = useState(
+    () => typeof window !== "undefined" && !!localStorage.getItem("chatos:mcpUrl")?.trim()
+  );
 
   const resolvedDisplayName = displayNameTouched ? displayName : defaultDisplayName;
 
@@ -60,7 +63,7 @@ export default function JoinPage() {
     e.preventDefault();
     setError("");
 
-    if (!resolvedDisplayName.trim() || !resolvedClaudeName.trim() || !systemPrompt.trim()) {
+    if (!resolvedDisplayName.trim() || !resolvedClaudeName.trim() || (!hasMcpUrl && !systemPrompt.trim())) {
       setError("All fields are required.");
       return;
     }
@@ -92,7 +95,7 @@ export default function JoinPage() {
         try {
           const ctx = await fetchPersonalContext(mcpUrl.trim());
           const prefix = buildContextPrefix(resolvedClaudeName.trim(), resolvedDisplayName.trim(), ctx);
-          basePrompt = `${prefix}\n\nPersonality: ${basePrompt}`;
+          basePrompt = basePrompt ? `${prefix}\n\nPersonality: ${basePrompt}` : prefix;
         } catch {
           setError("Couldn't reach your Personal Context MCP — check the URL in Settings and try again.");
           setLoading(false);
@@ -307,9 +310,23 @@ export default function JoinPage() {
           {/* System prompt */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
-                Your Claude&apos;s personality
-              </label>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                  Your Claude&apos;s personality
+                </label>
+                {hasMcpUrl && (
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded"
+                    style={{
+                      background: "rgba(139,189,185,0.12)",
+                      color: "var(--sage-teal)",
+                      border: "1px solid rgba(139,189,185,0.2)",
+                    }}
+                  >
+                    optional — MCP connected
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 {STARTER_PROMPTS.map((s) => (
                   <button
@@ -337,7 +354,7 @@ export default function JoinPage() {
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Describe your Claude's role, personality, and how it should engage in the room…"
+              placeholder={hasMcpUrl ? "Optional — your MCP context will define the personality. Add extra instructions here if you like…" : "Describe your Claude's role, personality, and how it should engage in the room…"}
               rows={4}
               className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all resize-none"
               style={{
