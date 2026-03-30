@@ -3,8 +3,9 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { AccountButton } from "@/components/AccountButton";
 
@@ -34,37 +35,32 @@ export default function JoinPage() {
   const joinRoom = useMutation(api.rooms.joinRoom);
   const room = useQuery(api.rooms.getRoomById, { roomId });
 
+  const { user } = useUser();
+  const defaultDisplayName = user?.firstName ?? user?.fullName ?? "";
+
   const [displayName, setDisplayName] = useState("");
+  const [displayNameTouched, setDisplayNameTouched] = useState(false);
   const [claudeName, setClaudeName] = useState("");
   const [claudeNameTouched, setClaudeNameTouched] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [hasApiKey, setHasApiKey] = useState(false);
-  const { user } = useUser();
+  const [hasApiKey] = useState(
+    () => typeof window !== "undefined" && !!localStorage.getItem("chatos:apiKey")
+  );
 
-  useEffect(() => {
-    setHasApiKey(!!localStorage.getItem("chatos:apiKey"));
-  }, []);
+  const resolvedDisplayName = displayNameTouched ? displayName : defaultDisplayName;
 
-  // Pre-fill display name from Clerk if available and field is untouched
-  useEffect(() => {
-    if (user && !displayName) {
-      const name = user.firstName ?? user.fullName ?? "";
-      if (name) setDisplayName(name);
-    }
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const suggestedClaudeName = `${displayName.trim().replace(/\s+/g, "")}Claude`;
+  const suggestedClaudeName = `${resolvedDisplayName.trim().replace(/\s+/g, "")}Claude`;
   const resolvedClaudeName = claudeNameTouched
     ? claudeName
-    : (displayName.trim() ? suggestedClaudeName : "");
+    : (resolvedDisplayName.trim() ? suggestedClaudeName : "");
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
     setError("");
 
-    if (!displayName.trim() || !resolvedClaudeName.trim() || !systemPrompt.trim()) {
+    if (!resolvedDisplayName.trim() || !resolvedClaudeName.trim() || !systemPrompt.trim()) {
       setError("All fields are required.");
       return;
     }
@@ -77,14 +73,14 @@ export default function JoinPage() {
       sessionStorage.setItem("userId", userId);
     }
 
-    sessionStorage.setItem("displayName", displayName.trim());
+    sessionStorage.setItem("displayName", resolvedDisplayName.trim());
     sessionStorage.setItem("claudeName", resolvedClaudeName.trim());
 
     try {
       await joinRoom({
         roomId,
         userId,
-        displayName: displayName.trim(),
+        displayName: resolvedDisplayName.trim(),
         claudeName: resolvedClaudeName.trim(),
         systemPrompt: systemPrompt.trim(),
       });
@@ -181,13 +177,13 @@ export default function JoinPage() {
                 No API key set — your Claude won&apos;t be able to respond.
               </p>
             </div>
-            <a
+            <Link
               href="/settings"
               className="text-xs font-medium shrink-0 transition-opacity hover:opacity-70"
               style={{ color: "var(--amber)" }}
             >
               Set it →
-            </a>
+            </Link>
           </div>
         )}
 
@@ -210,9 +206,10 @@ export default function JoinPage() {
             </label>
             <input
               type="text"
-              value={displayName}
+              value={resolvedDisplayName}
               onChange={(e) => {
                 const nextDisplayName = e.target.value;
+                setDisplayNameTouched(true);
                 setDisplayName(nextDisplayName);
 
                 if (!claudeNameTouched) {

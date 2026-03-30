@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { AccountButton } from "@/components/AccountButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SettingsLink } from "@/components/SettingsLink";
@@ -16,9 +17,9 @@ export function TopBar({ current }: { current?: Page }) {
   return (
     <div className="flex items-center justify-center h-14 relative">
       {/* Logo — left */}
-      <a href="/" className="absolute left-0 flex items-center" aria-label="Cha(t)os home">
+      <Link href="/" className="absolute left-0 flex items-center" aria-label="Cha(t)os home">
         <Image src="/chatos-t-logo.png" alt="Cha(t)os" width={32} height={32} />
-      </a>
+      </Link>
 
       {/* Nav — center */}
       <nav className="flex items-center gap-5">
@@ -35,7 +36,7 @@ export function TopBar({ current }: { current?: Page }) {
                 {item.label}
               </span>
             ) : (
-              <a
+              <Link
                 href={item.href}
                 className="text-xs transition-colors"
                 style={{ color: "rgba(247,245,250,0.3)" }}
@@ -43,7 +44,7 @@ export function TopBar({ current }: { current?: Page }) {
                 onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.3)")}
               >
                 {item.label}
-              </a>
+              </Link>
             )}
           </span>
         ))}

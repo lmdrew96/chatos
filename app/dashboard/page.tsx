@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import { useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SignInButton } from "@clerk/nextjs";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 
@@ -91,9 +92,11 @@ export default function DashboardPage() {
         }}
       />
 
-      <div className="relative z-10 max-w-2xl mx-auto">
+      <div className="relative z-10 w-full px-4">
         <TopBar current="dashboard" />
+      </div>
 
+      <div className="relative z-10 max-w-2xl mx-auto">
         <div className="grid gap-8 md:grid-cols-2 mt-8">
           {/* Friends section */}
           <section>
@@ -200,9 +203,9 @@ export default function DashboardPage() {
                 <p className="text-sm mb-2" style={{ color: "rgba(247,245,250,0.25)" }}>
                   No rooms yet.
                 </p>
-                <a href="/" className="text-xs" style={{ color: "var(--sage-teal)" }}>
+                <Link href="/" className="text-xs" style={{ color: "var(--sage-teal)" }}>
                   Create one →
-                </a>
+                </Link>
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">

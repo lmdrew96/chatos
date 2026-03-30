@@ -1,20 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { TopBar } from "@/components/TopBar";
 
 const KEY = "chatos:apiKey";
 
 export default function SettingsPage() {
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKey] = useState(
+    () => (typeof window !== "undefined" ? localStorage.getItem(KEY) ?? "" : "")
+  );
   const [saved, setSaved] = useState(false);
-  const [hasKey, setHasKey] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(KEY) ?? "";
-    setApiKey(stored);
-    setHasKey(!!stored);
-  }, []);
+  const hasKey = apiKey.trim().length > 0;
 
   const handleSave = () => {
     const trimmed = apiKey.trim();
@@ -23,7 +19,6 @@ export default function SettingsPage() {
     } else {
       localStorage.removeItem(KEY);
     }
-    setHasKey(!!trimmed);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -31,7 +26,6 @@ export default function SettingsPage() {
   const handleClear = () => {
     localStorage.removeItem(KEY);
     setApiKey("");
-    setHasKey(false);
   };
 
   return (
@@ -44,9 +38,11 @@ export default function SettingsPage() {
         }}
       />
 
-      <div className="relative z-10 max-w-2xl mx-auto">
+      <div className="relative z-10 w-full px-4">
         <TopBar current="settings" />
+      </div>
 
+      <div className="relative z-10 max-w-2xl mx-auto">
         {/* API Key section */}
         <section className="mt-8">
           <h2

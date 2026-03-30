@@ -105,9 +105,11 @@ export default function FriendsPage() {
         }}
       />
 
-      <div className="relative z-10 max-w-2xl mx-auto">
+      <div className="relative z-10 w-full px-4">
         <TopBar current="friends" />
+      </div>
 
+      <div className="relative z-10 max-w-2xl mx-auto">
         {/* Search */}
         <section className="mb-8 mt-8">
           <h2
