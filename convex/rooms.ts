@@ -202,3 +202,19 @@ export const useParticipants = query({
       .collect();
   },
 });
+
+export const getMyParticipantInRoom = query({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, { roomId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    return await ctx.db
+      .query("participants")
+      .withIndex("by_room_and_token_identifier", (q) =>
+        q.eq("roomId", roomId).eq("tokenIdentifier", identity.tokenIdentifier)
+      )
+      .unique();
+  },
+});
+

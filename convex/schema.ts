@@ -21,6 +21,7 @@ export default defineSchema({
     isOnline: v.boolean(),
   }).index("by_room", ["roomId"])
     .index("by_token_identifier", ["tokenIdentifier"])
+    .index("by_room_and_token_identifier", ["roomId", "tokenIdentifier"])
     .index("by_room_and_user_id", ["roomId", "userId"])
     .index("by_room_and_claude_name", ["roomId", "claudeName"]),
 

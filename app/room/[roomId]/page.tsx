@@ -64,6 +64,7 @@ export default function RoomPage() {
 
   const messages = useQuery(api.messages.useMessages, { roomId });
   const participants = useQuery(api.rooms.useParticipants, { roomId });
+  const myParticipant = useQuery(api.rooms.getMyParticipantInRoom, { roomId });
   const sendMessage = useMutation(api.messages.sendMessage);
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
 
@@ -72,24 +73,40 @@ export default function RoomPage() {
   // Restore session from sessionStorage
   useEffect(() => {
     const userId = sessionStorage.getItem("userId");
-    if (!userId) {
-      router.push(`/join/${roomId}`);
-      return;
-    }
     setCurrentUserId(userId);
     setCurrentDisplayName(sessionStorage.getItem("displayName") ?? "");
     const stored = sessionStorage.getItem("chatos:mcpServers");
     if (stored) setMcpServers(JSON.parse(stored));
-  }, [roomId, router]);
+  }, [roomId]);
 
-  // Redirect if the user hasn't joined this room
+  // For signed-in users, trust server membership over stale local session values.
   useEffect(() => {
-    if (!currentUserId || participants === undefined) return;
+    if (!myParticipant) return;
+
+    sessionStorage.setItem("userId", myParticipant.userId);
+    sessionStorage.setItem("displayName", myParticipant.displayName);
+    sessionStorage.setItem("claudeName", myParticipant.claudeName);
+
+    setCurrentUserId(myParticipant.userId);
+    setCurrentDisplayName(myParticipant.displayName);
+  }, [myParticipant]);
+
+  // Send users to join only when they are not already a known participant.
+  useEffect(() => {
+    if (participants === undefined || myParticipant === undefined) return;
+
+    if (myParticipant) return;
+
+    if (!currentUserId) {
+      router.replace(`/join/${roomId}`);
+      return;
+    }
+
     const found = participants.find((p) => p.userId === currentUserId);
     if (!found) {
-      router.push(`/join/${roomId}`);
+      router.replace(`/join/${roomId}`);
     }
-  }, [currentUserId, participants, roomId, router]);
+  }, [currentUserId, participants, myParticipant, roomId, router]);
 
   // Online presence
   useEffect(() => {
