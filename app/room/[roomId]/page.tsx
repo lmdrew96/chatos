@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { callClaude } from "@/lib/claude";
+import { callClaude, McpServer } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
@@ -57,6 +57,7 @@ export default function RoomPage() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentDisplayName, setCurrentDisplayName] = useState("");
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [sending, setSending] = useState(false);
   // Claude names currently generating a response
   const [thinkingClaudes, setThinkingClaudes] = useState<Set<string>>(new Set());
@@ -77,6 +78,8 @@ export default function RoomPage() {
     }
     setCurrentUserId(userId);
     setCurrentDisplayName(sessionStorage.getItem("displayName") ?? "");
+    const stored = sessionStorage.getItem("chatos:mcpServers");
+    if (stored) setMcpServers(JSON.parse(stored));
   }, [roomId, router]);
 
   // Redirect if the user hasn't joined this room
@@ -184,6 +187,7 @@ export default function RoomPage() {
             apiKey,
             systemPrompt: owner.systemPrompt,
             messages: callMessages,
+            mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
           });
 
           await sendMessage({

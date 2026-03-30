@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
+import { fetchPersonalContext, buildContextPrefix } from "@/lib/personalContext";
 
 const STARTER_PROMPTS = [
   {
@@ -42,6 +43,11 @@ export default function JoinPage() {
   const [claudeName, setClaudeName] = useState("");
   const [claudeNameTouched, setClaudeNameTouched] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [contextSeed, setContextSeed] = useState("");
+  const [mcpUrl, setMcpUrl] = useState("");
+  const [mcpStatus, setMcpStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [extraMcpServers, setExtraMcpServers] = useState<{ name: string; url: string }[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasApiKey] = useState(
@@ -74,14 +80,39 @@ export default function JoinPage() {
 
     sessionStorage.setItem("displayName", resolvedDisplayName.trim());
     sessionStorage.setItem("claudeName", resolvedClaudeName.trim());
+    const filledServers = extraMcpServers.filter((s) => s.name.trim() && s.url.trim());
+    sessionStorage.setItem("chatos:mcpServers", JSON.stringify(filledServers));
 
     try {
+      let basePrompt = systemPrompt.trim();
+
+      // Layer 1: Prepend personal context from MCP if URL provided
+      if (mcpUrl.trim()) {
+        setMcpStatus("loading");
+        try {
+          const ctx = await fetchPersonalContext(mcpUrl.trim());
+          const prefix = buildContextPrefix(resolvedClaudeName.trim(), resolvedDisplayName.trim(), ctx);
+          basePrompt = `${prefix}\n\nPersonality: ${basePrompt}`;
+          setMcpStatus("ok");
+        } catch {
+          setMcpStatus("error");
+          setError("Couldn't reach your Personal Context MCP — check the URL and try again.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Layer 3: Append context seed if provided
+      const fullSystemPrompt = contextSeed.trim()
+        ? `${basePrompt}\n\n## Recent context\n${contextSeed.trim()}`
+        : basePrompt;
+
       await joinRoom({
         roomId,
         userId,
         displayName: resolvedDisplayName.trim(),
         claudeName: resolvedClaudeName.trim(),
-        systemPrompt: systemPrompt.trim(),
+        systemPrompt: fullSystemPrompt,
       });
       router.push(`/room/${roomId}`);
     } catch (err: unknown) {
@@ -326,6 +357,194 @@ export default function JoinPage() {
                 e.target.style.boxShadow = "none";
               }}
             />
+          </div>
+
+          {/* Advanced: personalize your Claude */}
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{ border: "1px solid rgba(247,245,250,0.08)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium transition-colors"
+              style={{
+                background: "rgba(255,255,255,0.02)",
+                color: "rgba(247,245,250,0.5)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)";
+              }}
+            >
+              <span>Advanced: personalize your Claude</span>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                style={{
+                  transform: advancedOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                }}
+              >
+                <path d="M2.5 5L7 9.5L11.5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {advancedOpen && (
+              <div className="px-4 pb-4 pt-3 flex flex-col gap-4" style={{ background: "rgba(255,255,255,0.01)" }}>
+                {/* Layer 1: Personal Context MCP URL */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                    Personal Context MCP URL
+                  </label>
+                  <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+                    Your deployed Personal Context MCP. Cha(t)os will fetch your identity, projects, and preferences and inject them into your Claude&apos;s context automatically.
+                  </p>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={mcpUrl}
+                      onChange={(e) => { setMcpUrl(e.target.value); setMcpStatus("idle"); }}
+                      placeholder="https://your-context.vercel.app/mcp"
+                      autoComplete="off"
+                      className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono"
+                      style={{
+                        background: "rgba(255,255,255,0.04)",
+                        border: `1px solid ${mcpStatus === "ok" ? "rgba(139,189,185,0.4)" : mcpStatus === "error" ? "rgba(255,100,100,0.4)" : "rgba(247,245,250,0.1)"}`,
+                        color: "var(--off-white)",
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "var(--sage-teal)";
+                        e.target.style.boxShadow = "0 0 0 3px rgba(139,189,185,0.1)";
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = mcpStatus === "ok" ? "rgba(139,189,185,0.4)" : mcpStatus === "error" ? "rgba(255,100,100,0.4)" : "rgba(247,245,250,0.1)";
+                        e.target.style.boxShadow = "none";
+                      }}
+                    />
+                    {mcpStatus === "loading" && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: "rgba(247,245,250,0.4)" }}>fetching…</span>
+                    )}
+                    {mcpStatus === "ok" && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--sage-teal)" }}>context loaded ✓</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Layer 2: Additional MCP servers */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                        Additional MCP servers
+                      </label>
+                      <p className="text-xs mt-0.5" style={{ color: "rgba(247,245,250,0.35)" }}>
+                        Any MCP you already run (e.g. ControlledChaos). Your Claude will have access to these tools in the room.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExtraMcpServers((prev) => [...prev, { name: "", url: "" }])}
+                      className="text-xs px-2.5 py-1 rounded-lg shrink-0 transition-colors"
+                      style={{
+                        background: "rgba(136,115,158,0.15)",
+                        color: "var(--mauve)",
+                        border: "1px solid rgba(136,115,158,0.2)",
+                      }}
+                    >
+                      + Add
+                    </button>
+                  </div>
+
+                  {extraMcpServers.length === 0 && (
+                    <p className="text-xs italic" style={{ color: "rgba(247,245,250,0.2)" }}>
+                      No extra MCP servers added.
+                    </p>
+                  )}
+
+                  {extraMcpServers.map((server, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input
+                        type="text"
+                        value={server.name}
+                        onChange={(e) => setExtraMcpServers((prev) => prev.map((s, j) => j === i ? { ...s, name: e.target.value } : s))}
+                        placeholder="Name (e.g. ControlledChaos)"
+                        className="px-3 py-2 rounded-lg text-sm outline-none transition-all"
+                        style={{
+                          width: "36%",
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(247,245,250,0.1)",
+                          color: "var(--off-white)",
+                        }}
+                        onFocus={(e) => { e.target.style.borderColor = "var(--mauve)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "rgba(247,245,250,0.1)"; }}
+                      />
+                      <input
+                        type="url"
+                        value={server.url}
+                        onChange={(e) => setExtraMcpServers((prev) => prev.map((s, j) => j === i ? { ...s, url: e.target.value } : s))}
+                        placeholder="https://your-mcp.vercel.app/mcp"
+                        className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1"
+                        style={{
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(247,245,250,0.1)",
+                          color: "var(--off-white)",
+                        }}
+                        onFocus={(e) => { e.target.style.borderColor = "var(--mauve)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "rgba(247,245,250,0.1)"; }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setExtraMcpServers((prev) => prev.filter((_, j) => j !== i))}
+                        className="text-xs px-2 py-2 rounded-lg transition-colors shrink-0"
+                        style={{ color: "rgba(247,245,250,0.3)" }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Context seed */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                    Import Claude Desktop context
+                  </label>
+                  <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+                    Paste a summary or recent exchange from Claude Desktop. Your Claude will have this as background context for the room.
+                    <br />
+                    <span style={{ color: "rgba(247,245,250,0.25)" }}>
+                      Tip: ask Claude Desktop to summarize your recent conversations, then paste the result here.
+                    </span>
+                  </p>
+                  <textarea
+                    value={contextSeed}
+                    onChange={(e) => setContextSeed(e.target.value)}
+                    placeholder="Paste context from Claude Desktop here…"
+                    rows={5}
+                    className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all resize-none"
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(247,245,250,0.1)",
+                      color: "var(--off-white)",
+                      lineHeight: "1.6",
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "var(--sage-teal)";
+                      e.target.style.boxShadow = "0 0 0 3px rgba(139,189,185,0.1)";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = "rgba(247,245,250,0.1)";
+                      e.target.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error */}
