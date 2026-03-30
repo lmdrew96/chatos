@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { AccountButton } from "@/components/AccountButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SettingsLink } from "@/components/SettingsLink";
@@ -15,12 +16,8 @@ export function TopBar({ current }: { current?: Page }) {
   return (
     <div className="flex items-center justify-center h-14 relative">
       {/* Logo — left */}
-      <a
-        href="/"
-        className="absolute left-0 text-base font-extrabold leading-none select-none"
-        style={{ fontFamily: "var(--font-super-bakery)", color: "var(--off-white)" }}
-      >
-        Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
+      <a href="/" className="absolute left-0 flex items-center" aria-label="Cha(t)os home">
+        <Image src="/chatos-t-logo.png" alt="Cha(t)os" width={32} height={32} />
       </a>
 
       {/* Nav — center */}
