@@ -29,11 +29,34 @@ export default function Home() {
       className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
       style={{ background: "var(--deep-dark)" }}
     >
-      {/* Account + notifications */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
-        <SettingsLink />
-        <NotificationBell />
-        <AccountButton />
+      {/* Top bar */}
+      <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-center px-4 h-14">
+        <nav className="flex items-center gap-5">
+          <a
+            href="/dashboard"
+            className="text-xs transition-colors"
+            style={{ color: "rgba(247,245,250,0.3)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.7)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.3)")}
+          >
+            Dashboard
+          </a>
+          <span style={{ color: "rgba(247,245,250,0.1)" }}>·</span>
+          <a
+            href="/friends"
+            className="text-xs transition-colors"
+            style={{ color: "rgba(247,245,250,0.3)" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.7)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.3)")}
+          >
+            Friends
+          </a>
+        </nav>
+        <div className="absolute right-4 flex items-center gap-1">
+          <SettingsLink />
+          <NotificationBell />
+          <AccountButton />
+        </div>
       </div>
 
       {/* Ambient background glow */}
@@ -71,7 +94,7 @@ export default function Home() {
 
         {/* Tagline */}
         <p
-          className="animate-fade-up max-w-sm text-base leading-relaxed"
+          className="animate-fade-up max-w-2xl text-base leading-relaxed"
           style={{
             animationDelay: "120ms",
             opacity: 0,
@@ -149,34 +172,6 @@ export default function Home() {
           Share the link after creation. Your API key stays on your machine.
         </p>
 
-        <div
-          className="animate-fade-up flex items-center gap-4"
-          style={{
-            animationDelay: "440ms",
-            opacity: 0,
-            animationFillMode: "forwards",
-          }}
-        >
-          <a
-            href="/dashboard"
-            className="text-xs transition-colors"
-            style={{ color: "rgba(247,245,250,0.25)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.55)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.25)")}
-          >
-            Dashboard
-          </a>
-          <span style={{ color: "rgba(247,245,250,0.1)" }}>·</span>
-          <a
-            href="/friends"
-            className="text-xs transition-colors"
-            style={{ color: "rgba(247,245,250,0.25)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.55)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.25)")}
-          >
-            Friends
-          </a>
-        </div>
       </div>
 
       {/* ADHDesigns watermark */}

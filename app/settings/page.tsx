@@ -45,7 +45,7 @@ export default function SettingsPage() {
         }}
       />
 
-      <div className="relative z-10 max-w-lg mx-auto">
+      <div className="relative z-10 max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-3">
