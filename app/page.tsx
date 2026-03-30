@@ -5,7 +5,6 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { TopBar } from "@/components/TopBar";
 
 export default function Home() {
   const createRoom = useMutation(api.rooms.createRoom);
@@ -27,10 +26,6 @@ export default function Home() {
       className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
       style={{ background: "var(--deep-dark)" }}
     >
-      {/* Top bar */}
-      <div className="absolute top-0 inset-x-0 z-20 px-4">
-        <TopBar />
-      </div>
 
       {/* Ambient background glow */}
       <div

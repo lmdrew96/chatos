@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { TopBar } from "@/components/TopBar";
 
 const KEY = "chatos:apiKey";
 
@@ -38,9 +37,6 @@ export default function SettingsPage() {
         }}
       />
 
-      <div className="absolute top-0 inset-x-0 z-20 px-4">
-        <TopBar current="settings" />
-      </div>
 
       <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
         {/* API Key section */}

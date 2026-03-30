@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { TopBar } from "@/components/TopBar";
 
 const STARTER_PROMPTS = [
   {
@@ -94,9 +93,6 @@ export default function JoinPage() {
   if (room === undefined) {
     return (
       <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
-        <div className="absolute top-0 inset-x-0 z-20 px-4">
-          <TopBar />
-        </div>
         <div
           className="min-h-screen flex items-center justify-center"
           style={{ color: "rgba(247,245,250,0.4)" }}
@@ -110,9 +106,6 @@ export default function JoinPage() {
   if (room === null) {
     return (
       <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
-        <div className="absolute top-0 inset-x-0 z-20 px-4">
-          <TopBar />
-        </div>
         <div
           className="min-h-screen flex items-center justify-center"
           style={{ color: "var(--off-white)" }}
@@ -128,9 +121,6 @@ export default function JoinPage() {
       className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12"
       style={{ background: "var(--deep-dark)" }}
     >
-      <div className="absolute top-0 inset-x-0 z-20 px-4">
-        <TopBar />
-      </div>
 
       {/* Ambient glow */}
       <div

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AccountButton } from "@/components/AccountButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { SettingsLink } from "@/components/SettingsLink";
@@ -14,6 +15,16 @@ const navItems: { label: string; href: string; page: Page }[] = [
 ];
 
 export function TopBar({ current }: { current?: Page }) {
+  const pathname = usePathname();
+  const derivedCurrent: Page | undefined = pathname.startsWith("/friends")
+    ? "friends"
+    : pathname.startsWith("/dashboard")
+      ? "dashboard"
+      : pathname.startsWith("/settings")
+        ? "settings"
+        : undefined;
+  const activePage = current ?? derivedCurrent;
+
   return (
     <div className="flex items-center justify-center h-14 relative">
       {/* Logo — left */}
@@ -28,7 +39,7 @@ export function TopBar({ current }: { current?: Page }) {
             {i > 0 && (
               <span style={{ color: "rgba(247,245,250,0.1)" }}>·</span>
             )}
-            {current === item.page ? (
+            {activePage === item.page ? (
               <span
                 className="text-xs font-medium"
                 style={{ color: "rgba(247,245,250,0.75)" }}

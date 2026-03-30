@@ -6,7 +6,6 @@ import { api } from "@/convex/_generated/api";
 import { SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TopBar } from "@/components/TopBar";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -27,9 +26,6 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
-        <div className="absolute top-0 inset-x-0 z-20 px-4">
-          <TopBar current="dashboard" />
-        </div>
         <div className="min-h-screen flex items-center justify-center">
           <div
             className="w-6 h-6 rounded-full border-2 animate-spin"
@@ -46,9 +42,6 @@ export default function DashboardPage() {
         className="relative min-h-screen flex flex-col items-center justify-center"
         style={{ background: "var(--deep-dark)" }}
       >
-        <div className="absolute top-0 inset-x-0 z-20 px-4">
-          <TopBar current="dashboard" />
-        </div>
         <div
           className="fixed inset-0 pointer-events-none"
           style={{
@@ -97,9 +90,6 @@ export default function DashboardPage() {
         }}
       />
 
-      <div className="absolute top-0 inset-x-0 z-20 px-4">
-        <TopBar current="dashboard" />
-      </div>
 
       <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
         <div className="grid gap-8 md:grid-cols-2">

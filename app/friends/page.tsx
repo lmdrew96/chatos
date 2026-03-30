@@ -6,7 +6,6 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SignInButton } from "@clerk/nextjs";
 import { useState } from "react";
-import { TopBar } from "@/components/TopBar";
 
 export default function FriendsPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -30,9 +29,6 @@ export default function FriendsPage() {
   if (isLoading) {
     return (
       <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
-        <div className="absolute top-0 inset-x-0 z-20 px-4">
-          <TopBar current="friends" />
-        </div>
         <div
           className="min-h-screen flex items-center justify-center"
           style={{ color: "rgba(247,245,250,0.3)" }}
@@ -52,9 +48,6 @@ export default function FriendsPage() {
         className="relative min-h-screen flex flex-col items-center justify-center gap-6"
         style={{ background: "var(--deep-dark)" }}
       >
-        <div className="absolute top-0 inset-x-0 z-20 px-4">
-          <TopBar current="friends" />
-        </div>
         <div
           className="fixed inset-0 pointer-events-none"
           style={{
@@ -113,9 +106,6 @@ export default function FriendsPage() {
         }}
       />
 
-      <div className="absolute top-0 inset-x-0 z-20 px-4">
-        <TopBar current="friends" />
-      </div>
 
       <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
         {/* Search */}

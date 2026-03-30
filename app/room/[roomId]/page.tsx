@@ -8,11 +8,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { callClaude } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
-import { AccountButton } from "@/components/AccountButton";
-import { NotificationBell } from "@/components/NotificationBell";
 import { InviteButton } from "@/components/InviteButton";
-import { SettingsLink } from "@/components/SettingsLink";
-import { TopBar } from "@/components/TopBar";
 
 // Participant color palette — assigned by join order
 const COLORS = [
@@ -230,9 +226,6 @@ export default function RoomPage() {
   if (!currentUserId || messages === undefined || participants === undefined) {
     return (
       <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
-        <div className="absolute top-0 inset-x-0 z-30 px-4">
-          <TopBar />
-        </div>
         <div
           className="min-h-screen flex items-center justify-center"
           style={{ color: "rgba(247,245,250,0.3)" }}
@@ -259,10 +252,6 @@ export default function RoomPage() {
       className="relative flex flex-col h-screen"
       style={{ background: "var(--deep-dark)" }}
     >
-      <div className="absolute top-0 inset-x-0 z-30 px-4">
-        <TopBar />
-      </div>
-
       {/* Header */}
       <header
         className="page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
@@ -272,15 +261,8 @@ export default function RoomPage() {
           backdropFilter: "blur(12px)",
         }}
       >
-        {/* Left: logo + room info */}
+        {/* Left: room info */}
         <div className="flex items-center gap-3">
-          <span
-            className="text-lg font-extrabold leading-none select-none"
-            style={{ fontFamily: "var(--font-super-bakery)" }}
-          >
-            Cha<span style={{ color: "var(--amber)" }}>(t)</span>os
-          </span>
-          <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
           <div className="flex items-center gap-2">
             <span className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
               {onlineCount} online
@@ -288,38 +270,39 @@ export default function RoomPage() {
           </div>
         </div>
 
-        {/* Right: account + notifications + invite + participant dots */}
+        {/* Right: invite + participant dots */}
         <div className="flex items-center gap-3">
-        <InviteButton roomId={roomId} />
-        <SettingsLink />
-        <NotificationBell />
-        <AccountButton />
-        <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
-        <div className="flex items-center gap-1.5">
-          {participants.map((p) => {
-            const color = participantColors[p.userId];
-            return (
-              <div
-                key={p.userId}
-                title={`${p.displayName} · @${p.claudeName}${p.isOnline ? "" : " (offline)"}`}
-                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-opacity"
-                style={{
-                  background: color?.bg ?? "rgba(255,255,255,0.06)",
-                  border: `1px solid ${color?.text ?? "#fff"}22`,
-                  opacity: p.isOnline ? 1 : 0.4,
-                }}
-              >
+          <InviteButton roomId={roomId} />
+          <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
+          <div className="flex items-center gap-1.5">
+            {participants.map((p) => {
+              const color = participantColors[p.userId];
+              return (
                 <div
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ background: p.isOnline ? (color?.text ?? "#fff") : "rgba(255,255,255,0.2)" }}
-                />
-                <span style={{ color: color?.text ?? "var(--off-white)" }}>
-                  {p.displayName}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                  key={p.userId}
+                  title={`${p.displayName} · @${p.claudeName}${p.isOnline ? "" : " (offline)"}`}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-opacity"
+                  style={{
+                    background: color?.bg ?? "rgba(255,255,255,0.06)",
+                    border: `1px solid ${color?.text ?? "#fff"}22`,
+                    opacity: p.isOnline ? 1 : 0.4,
+                  }}
+                >
+                  <div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      background: p.isOnline
+                        ? (color?.text ?? "#fff")
+                        : "rgba(255,255,255,0.2)",
+                    }}
+                  />
+                  <span style={{ color: color?.text ?? "var(--off-white)" }}>
+                    {p.displayName}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </header>
 
