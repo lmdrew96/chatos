@@ -13,10 +13,12 @@ export const sendMessage = mutation({
     mentions: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("messages", {
+    const messageId = await ctx.db.insert("messages", {
       ...args,
       createdAt: Date.now(),
     });
+    await ctx.db.patch(args.roomId, { lastActivityAt: Date.now() });
+    return messageId;
   },
 });
 

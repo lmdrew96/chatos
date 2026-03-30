@@ -1,5 +1,9 @@
-import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { internalMutation, mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+
+const GUEST_ROOM_TTL_MS = 72 * 60 * 60 * 1000;
 
 function generateRoomCode(): string {
   const adjectives = ["chaos", "wild", "bold", "swift", "calm", "bright", "dark", "loud"];
@@ -8,13 +12,55 @@ function generateRoomCode(): string {
   return `${adj}-${noun}`;
 }
 
+async function deleteRoomCascade(ctx: MutationCtx, roomId: Id<"rooms">) {
+  while (true) {
+    const participants = await ctx.db
+      .query("participants")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .take(100);
+    if (participants.length === 0) break;
+    for (const participant of participants) {
+      await ctx.db.delete(participant._id);
+    }
+  }
+
+  while (true) {
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .take(100);
+    if (messages.length === 0) break;
+    for (const message of messages) {
+      await ctx.db.delete(message._id);
+    }
+  }
+
+  while (true) {
+    const invites = await ctx.db
+      .query("roomInvites")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .take(100);
+    if (invites.length === 0) break;
+    for (const invite of invites) {
+      await ctx.db.delete(invite._id);
+    }
+  }
+
+  await ctx.db.delete(roomId);
+}
+
 export const createRoom = mutation({
   args: {},
   handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const now = Date.now();
     const roomCode = generateRoomCode();
     const roomId = await ctx.db.insert("rooms", {
       roomCode,
-      createdAt: Date.now(),
+      createdAt: now,
+      ownerTokenIdentifier: identity?.tokenIdentifier,
+      lastActivityAt: now,
+      retentionPolicy: identity ? "persistent" : "guest_ttl_72h",
     });
     return { roomId, roomCode };
   },
@@ -52,20 +98,19 @@ export const joinRoom = mutation({
     // Check if participant already exists (rejoin)
     const existing = await ctx.db
       .query("participants")
-      .withIndex("by_room", (q) => q.eq("roomId", roomId))
-      .filter((q) => q.eq(q.field("userId"), userId))
+      .withIndex("by_room_and_user_id", (q) => q.eq("roomId", roomId).eq("userId", userId))
       .unique();
 
     if (existing) {
       await ctx.db.patch(existing._id, { isOnline: true, displayName, claudeName, systemPrompt, tokenIdentifier });
+      await ctx.db.patch(roomId, { lastActivityAt: Date.now() });
       return existing._id;
     }
 
     // Validate Claude name uniqueness in room
     const nameConflict = await ctx.db
       .query("participants")
-      .withIndex("by_room", (q) => q.eq("roomId", roomId))
-      .filter((q) => q.eq(q.field("claudeName"), claudeName))
+      .withIndex("by_room_and_claude_name", (q) => q.eq("roomId", roomId).eq("claudeName", claudeName))
       .unique();
 
     if (nameConflict) {
@@ -82,6 +127,8 @@ export const joinRoom = mutation({
       isOnline: true,
     });
 
+    await ctx.db.patch(roomId, { lastActivityAt: Date.now() });
+
     return participantId;
   },
 });
@@ -95,13 +142,54 @@ export const setOnlineStatus = mutation({
   handler: async (ctx, { roomId, userId, isOnline }) => {
     const participant = await ctx.db
       .query("participants")
-      .withIndex("by_room", (q) => q.eq("roomId", roomId))
-      .filter((q) => q.eq(q.field("userId"), userId))
+      .withIndex("by_room_and_user_id", (q) => q.eq("roomId", roomId).eq("userId", userId))
       .unique();
 
     if (participant) {
       await ctx.db.patch(participant._id, { isOnline });
+      if (isOnline) {
+        await ctx.db.patch(roomId, { lastActivityAt: Date.now() });
+      }
     }
+  },
+});
+
+export const deleteRoom = mutation({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, { roomId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("You must be signed in to delete a room.");
+
+    const room = await ctx.db.get(roomId);
+    if (!room) return;
+
+    if (room.ownerTokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Only the room owner can delete this room.");
+    }
+
+    await deleteRoomCascade(ctx, roomId);
+  },
+});
+
+export const cleanupInactiveGuestRooms = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - GUEST_ROOM_TTL_MS;
+    const candidate = await ctx.db
+      .query("rooms")
+      .withIndex("by_retention_policy_and_last_activity_at", (q) =>
+        q.eq("retentionPolicy", "guest_ttl_72h").lte("lastActivityAt", cutoff)
+      )
+      .first();
+
+    if (!candidate) {
+      return { deletedRoomId: null };
+    }
+
+    await deleteRoomCascade(ctx, candidate._id);
+    await ctx.scheduler.runAfter(0, internal.rooms.cleanupInactiveGuestRooms, {});
+
+    return { deletedRoomId: candidate._id };
   },
 });
 

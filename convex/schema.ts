@@ -5,7 +5,11 @@ export default defineSchema({
   rooms: defineTable({
     roomCode: v.string(),
     createdAt: v.number(),
-  }).index("by_code", ["roomCode"]),
+    ownerTokenIdentifier: v.optional(v.string()),
+    lastActivityAt: v.optional(v.number()),
+    retentionPolicy: v.optional(v.union(v.literal("persistent"), v.literal("guest_ttl_72h"))),
+  }).index("by_code", ["roomCode"])
+    .index("by_retention_policy_and_last_activity_at", ["retentionPolicy", "lastActivityAt"]),
 
   participants: defineTable({
     roomId: v.id("rooms"),
@@ -16,7 +20,9 @@ export default defineSchema({
     systemPrompt: v.string(),
     isOnline: v.boolean(),
   }).index("by_room", ["roomId"])
-    .index("by_token_identifier", ["tokenIdentifier"]),
+    .index("by_token_identifier", ["tokenIdentifier"])
+    .index("by_room_and_user_id", ["roomId", "userId"])
+    .index("by_room_and_claude_name", ["roomId", "claudeName"]),
 
   messages: defineTable({
     roomId: v.id("rooms"),
@@ -52,5 +58,6 @@ export default defineSchema({
     toId: v.id("users"),
     status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("declined")),
   }).index("by_to_and_status", ["toId", "status"])
-    .index("by_room_and_to", ["roomId", "toId"]),
+    .index("by_room_and_to", ["roomId", "toId"])
+    .index("by_room", ["roomId"]),
 });

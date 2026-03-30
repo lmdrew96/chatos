@@ -138,6 +138,8 @@ export default function Home() {
           }}
         >
           Share the link after creation. Your API key stays on your machine.
+          <br />
+          Guest rooms auto-delete after 72h of inactivity. Sign in to keep rooms indefinitely.
         </p>
 
       </div>

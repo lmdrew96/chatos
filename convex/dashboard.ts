@@ -51,11 +51,12 @@ export const getMyRooms = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
+    const tokenIdentifier = identity.tokenIdentifier;
 
     const myParticipants = await ctx.db
       .query("participants")
       .withIndex("by_token_identifier", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier)
+        q.eq("tokenIdentifier", tokenIdentifier)
       )
       .take(20);
 
@@ -78,6 +79,9 @@ export const getMyRooms = query({
         return {
           roomId: p.roomId,
           roomCode: room.roomCode,
+          retentionPolicy: room.retentionPolicy ?? "persistent",
+          lastActivityAt: room.lastActivityAt ?? room.createdAt,
+          canDelete: room.ownerTokenIdentifier === tokenIdentifier,
           participantCount: allParticipants.length,
           userId: p.userId,
           displayName: p.displayName,

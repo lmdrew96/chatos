@@ -1,11 +1,11 @@
 "use client";
 
-import { useQuery } from "convex/react";
-import { useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { SignInButton } from "@clerk/nextjs";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -17,11 +17,32 @@ function timeAgo(ts: number): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function enterRoom(
+  router: ReturnType<typeof useRouter>,
+  roomId: string,
+  userId: string,
+  displayName: string,
+  claudeName: string,
+) {
+  sessionStorage.setItem("userId", userId);
+  sessionStorage.setItem("displayName", displayName);
+  sessionStorage.setItem("claudeName", claudeName);
+  try {
+    const servers = localStorage.getItem("chatos:mcpServers") ?? "[]";
+    sessionStorage.setItem("chatos:mcpServers", servers);
+  } catch {
+    // localStorage unavailable
+  }
+  router.push(`/room/${roomId}`);
+}
+
 export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const friends = useQuery(api.dashboard.getFriendsWithPresence);
   const rooms = useQuery(api.dashboard.getMyRooms);
+  const deleteRoom = useMutation(api.rooms.deleteRoom);
   const router = useRouter();
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -50,10 +71,7 @@ export default function DashboardPage() {
           }}
         />
         <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6">
-          <h1
-            className="text-3xl font-extrabold"
-            style={{ fontFamily: "var(--font-super-bakery)" }}
-          >
+          <h1 className="text-3xl font-extrabold" style={{ fontFamily: "var(--font-super-bakery)" }}>
             Dashboard
           </h1>
           <p className="text-sm" style={{ color: "rgba(247,245,250,0.4)" }}>
@@ -90,26 +108,15 @@ export default function DashboardPage() {
         }}
       />
 
-
       <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
         <div className="grid gap-8 md:grid-cols-2">
-          {/* Friends section */}
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2
-                className="text-xs font-medium tracking-widest uppercase"
-                style={{ color: "rgba(247,245,250,0.3)" }}
-              >
+              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "rgba(247,245,250,0.3)" }}>
                 Friends
-                {friends && friends.length > 0 && (
-                  <span style={{ color: "rgba(247,245,250,0.2)" }}> · {friends.length}</span>
-                )}
+                {friends && friends.length > 0 && <span style={{ color: "rgba(247,245,250,0.2)" }}> · {friends.length}</span>}
               </h2>
-              {onlineFriends.length > 0 && (
-                <span className="text-xs" style={{ color: "var(--soft-green)" }}>
-                  {onlineFriends.length} online
-                </span>
-              )}
+              {onlineFriends.length > 0 && <span className="text-xs" style={{ color: "var(--soft-green)" }}>{onlineFriends.length} online</span>}
             </div>
 
             {(friends?.length ?? 0) === 0 ? (
@@ -120,12 +127,8 @@ export default function DashboardPage() {
                 <p className="text-sm mb-2" style={{ color: "rgba(247,245,250,0.25)" }}>
                   No friends yet.
                 </p>
-                <a
-                  href="/friends"
-                  className="text-xs"
-                  style={{ color: "var(--sage-teal)" }}
-                >
-                  Add some →
+                <a href="/friends" className="text-xs" style={{ color: "var(--sage-teal)" }}>
+                  Add some -&gt;
                 </a>
               </div>
             ) : (
@@ -139,7 +142,6 @@ export default function DashboardPage() {
                       border: "1px solid rgba(247,245,250,0.06)",
                     }}
                   >
-                    {/* Presence dot */}
                     <div
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{
@@ -148,22 +150,12 @@ export default function DashboardPage() {
                       }}
                     />
                     <div className="min-w-0">
-                      <p
-                        className="text-sm font-medium truncate"
-                        style={{ color: f.isOnline ? "var(--off-white)" : "rgba(247,245,250,0.55)" }}
-                      >
+                      <p className="text-sm font-medium truncate" style={{ color: f.isOnline ? "var(--off-white)" : "rgba(247,245,250,0.55)" }}>
                         {f.displayName ?? f.username}
                       </p>
-                      {f.username && (
-                        <p className="text-xs truncate" style={{ color: "rgba(247,245,250,0.3)" }}>
-                          @{f.username}
-                        </p>
-                      )}
+                      {f.username && <p className="text-xs truncate" style={{ color: "rgba(247,245,250,0.3)" }}>@{f.username}</p>}
                     </div>
-                    <span
-                      className="ml-auto text-xs shrink-0"
-                      style={{ color: f.isOnline ? "var(--soft-green)" : "rgba(247,245,250,0.2)" }}
-                    >
+                    <span className="ml-auto text-xs shrink-0" style={{ color: f.isOnline ? "var(--soft-green)" : "rgba(247,245,250,0.2)" }}>
                       {f.isOnline ? "online" : "offline"}
                     </span>
                   </div>
@@ -172,23 +164,19 @@ export default function DashboardPage() {
             )}
           </section>
 
-          {/* Chat history section */}
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2
-                className="text-xs font-medium tracking-widest uppercase"
-                style={{ color: "rgba(247,245,250,0.3)" }}
-              >
+              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "rgba(247,245,250,0.3)" }}>
                 Recent rooms
               </h2>
-              <button
-                onClick={() => router.push("/")}
-                className="text-xs transition-colors"
-                style={{ color: "var(--sage-teal)" }}
-              >
+              <button onClick={() => router.push("/")} className="text-xs transition-colors" style={{ color: "var(--sage-teal)" }}>
                 + New room
               </button>
             </div>
+
+            <p className="text-xs mb-3" style={{ color: "rgba(247,245,250,0.3)" }}>
+              Rooms created without an account auto-delete after 72 hours of inactivity.
+            </p>
 
             {(rooms?.length ?? 0) === 0 ? (
               <div
@@ -199,80 +187,86 @@ export default function DashboardPage() {
                   No rooms yet.
                 </p>
                 <Link href="/" className="text-xs" style={{ color: "var(--sage-teal)" }}>
-                  Create one →
+                  Create one -&gt;
                 </Link>
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {rooms!.map((r) => (
-                  <button
+                  <div
                     key={r!.roomId}
-                    onClick={() => {
-                      sessionStorage.setItem("userId", r!.userId);
-                      sessionStorage.setItem("displayName", r!.displayName);
-                      sessionStorage.setItem("claudeName", r!.claudeName);
-                      // Bridge MCP servers from persistent settings
-                      try {
-                        const servers = localStorage.getItem("chatos:mcpServers") ?? "[]";
-                        sessionStorage.setItem("chatos:mcpServers", servers);
-                      } catch { /* localStorage unavailable */ }
-                      router.push(`/room/${r!.roomId}`);
-                    }}
-                    className="flex flex-col gap-1.5 px-4 py-3 rounded-xl text-left w-full transition-all"
+                    className="rounded-xl"
                     style={{
                       background: "rgba(255,255,255,0.03)",
                       border: "1px solid rgba(247,245,250,0.06)",
                     }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)";
-                      (e.currentTarget as HTMLElement).style.borderColor = "rgba(247,245,250,0.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)";
-                      (e.currentTarget as HTMLElement).style.borderColor = "rgba(247,245,250,0.06)";
-                    }}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className="px-2 py-0.5 rounded text-xs font-mono"
-                        style={{
-                          background: "rgba(139,189,185,0.1)",
-                          color: "var(--sage-teal)",
-                          border: "1px solid rgba(139,189,185,0.15)",
-                        }}
-                      >
-                        {r!.roomCode}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 px-4 pt-3">
+                      <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="text-left">
+                        <span
+                          className="px-2 py-0.5 rounded text-xs font-mono"
+                          style={{
+                            background: "rgba(139,189,185,0.1)",
+                            color: "var(--sage-teal)",
+                            border: "1px solid rgba(139,189,185,0.15)",
+                          }}
+                        >
+                          {r!.roomCode}
+                        </span>
+                      </button>
                       <span className="text-xs" style={{ color: "rgba(247,245,250,0.25)" }}>
                         {r!.participantCount} {r!.participantCount === 1 ? "person" : "people"}
                       </span>
+                      {r!.canDelete && (
+                        <button
+                          onClick={async () => {
+                            const confirmed = window.confirm(`Delete room ${r!.roomCode}? This cannot be undone.`);
+                            if (!confirmed) return;
+                            setDeletingRoomId(r!.roomId);
+                            try {
+                              await deleteRoom({ roomId: r!.roomId });
+                            } finally {
+                              setDeletingRoomId(null);
+                            }
+                          }}
+                          disabled={deletingRoomId === r!.roomId}
+                          className="text-xs px-2 py-1 rounded"
+                          style={{
+                            color: "#ff9a9a",
+                            border: "1px solid rgba(255,154,154,0.25)",
+                            opacity: deletingRoomId === r!.roomId ? 0.55 : 1,
+                          }}
+                        >
+                          {deletingRoomId === r!.roomId ? "Deleting..." : "Delete"}
+                        </button>
+                      )}
                     </div>
 
-                    {r!.lastMessage ? (
-                      <div className="min-w-0">
-                        <p
-                          className="text-xs truncate"
-                          style={{ color: "rgba(247,245,250,0.45)" }}
-                        >
-                          <span style={{ color: "rgba(247,245,250,0.6)" }}>
-                            {r!.lastMessage.type === "claude"
-                              ? r!.lastMessage.fromDisplayName
-                              : r!.lastMessage.fromDisplayName}
-                            :{" "}
-                          </span>
-                          {r!.lastMessage.content.slice(0, 80)}
-                          {r!.lastMessage.content.length > 80 ? "…" : ""}
+                    <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="flex w-full flex-col gap-1.5 px-4 pb-3 pt-2 text-left">
+                      {r!.lastMessage ? (
+                        <div className="min-w-0">
+                          <p className="text-xs truncate" style={{ color: "rgba(247,245,250,0.45)" }}>
+                            <span style={{ color: "rgba(247,245,250,0.6)" }}>{r!.lastMessage.fromDisplayName}: </span>
+                            {r!.lastMessage.content.slice(0, 80)}
+                            {r!.lastMessage.content.length > 80 ? "..." : ""}
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: "rgba(247,245,250,0.2)" }}>
+                            {timeAgo(r!.lastMessage.createdAt)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs" style={{ color: "rgba(247,245,250,0.2)" }}>
+                          No messages yet
                         </p>
-                        <p className="text-xs mt-0.5" style={{ color: "rgba(247,245,250,0.2)" }}>
-                          {timeAgo(r!.lastMessage.createdAt)}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-xs" style={{ color: "rgba(247,245,250,0.2)" }}>
-                        No messages yet
+                      )}
+
+                      <p className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
+                        {r!.retentionPolicy === "guest_ttl_72h"
+                          ? `Auto-deletes after 72h inactivity (last active ${timeAgo(r!.lastActivityAt)})`
+                          : "Persistent room (account-owned)"}
                       </p>
-                    )}
-                  </button>
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
