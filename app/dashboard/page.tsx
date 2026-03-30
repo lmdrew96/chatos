@@ -40,9 +40,21 @@ export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const friends = useQuery(api.dashboard.getFriendsWithPresence);
   const rooms = useQuery(api.dashboard.getMyRooms);
+  const createRoom = useMutation(api.rooms.createRoom);
   const deleteRoom = useMutation(api.rooms.deleteRoom);
   const router = useRouter();
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
+  const [creatingRoom, setCreatingRoom] = useState(false);
+
+  const handleCreateRoom = async () => {
+    setCreatingRoom(true);
+    try {
+      const { roomId } = await createRoom();
+      router.push(`/join/${roomId}`);
+    } finally {
+      setCreatingRoom(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -169,8 +181,13 @@ export default function DashboardPage() {
               <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "rgba(247,245,250,0.3)" }}>
                 Recent rooms
               </h2>
-              <button onClick={() => router.push("/")} className="text-xs transition-colors" style={{ color: "var(--sage-teal)" }}>
-                + New room
+              <button
+                onClick={handleCreateRoom}
+                disabled={creatingRoom}
+                className="text-xs transition-colors"
+                style={{ color: "var(--sage-teal)", opacity: creatingRoom ? 0.6 : 1 }}
+              >
+                {creatingRoom ? "Creating..." : "+ New room"}
               </button>
             </div>
 

@@ -5,13 +5,17 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useConvexAuth } from "convex/react";
 
 export default function Home() {
   const createRoom = useMutation(api.rooms.createRoom);
+  const { isLoading: isAuthLoading } = useConvexAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const isCreatingDisabled = loading || isAuthLoading;
 
   const handleCreate = async () => {
+    if (isAuthLoading) return;
     setLoading(true);
     try {
       const { roomId } = await createRoom();
@@ -112,19 +116,19 @@ export default function Home() {
         >
           <button
             onClick={handleCreate}
-            disabled={loading}
+            disabled={isCreatingDisabled}
             className="group relative px-10 py-4 text-base font-bold rounded-xl transition-all duration-200 active:scale-95"
             style={{
-              background: loading ? "rgba(223,166,73,0.6)" : "var(--amber)",
+              background: isCreatingDisabled ? "rgba(223,166,73,0.6)" : "var(--amber)",
               color: "var(--deep-dark)",
               fontFamily: "var(--font-super-bakery)",
-              cursor: loading ? "not-allowed" : "pointer",
-              boxShadow: loading
+              cursor: isCreatingDisabled ? "not-allowed" : "pointer",
+              boxShadow: isCreatingDisabled
                 ? "none"
                 : "0 0 40px rgba(223,166,73,0.25), 0 4px 16px rgba(0,0,0,0.4)",
             }}
           >
-            {loading ? "Creating room…" : "Create a room"}
+            {loading ? "Creating room…" : isAuthLoading ? "Preparing your session…" : "Create a room"}
           </button>
         </div>
 

@@ -76,10 +76,13 @@ export const getMyRooms = query({
           .order("desc")
           .first();
 
+        const retentionPolicy = room.retentionPolicy
+          ?? (room.ownerTokenIdentifier ? "persistent" : "guest_ttl_72h");
+
         return {
           roomId: p.roomId,
           roomCode: room.roomCode,
-          retentionPolicy: room.retentionPolicy ?? "persistent",
+          retentionPolicy,
           lastActivityAt: room.lastActivityAt ?? room.createdAt,
           canDelete: room.ownerTokenIdentifier === tokenIdentifier,
           participantCount: allParticipants.length,

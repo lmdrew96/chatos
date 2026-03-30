@@ -94,6 +94,25 @@ export const joinRoom = mutation({
   handler: async (ctx, { roomId, userId, displayName, claudeName, systemPrompt }) => {
     const identity = await ctx.auth.getUserIdentity();
     const tokenIdentifier = identity?.tokenIdentifier;
+    const room = await ctx.db.get(roomId);
+    if (!room) {
+      throw new Error("Room not found.");
+    }
+
+    if (tokenIdentifier && !room.ownerTokenIdentifier && room.retentionPolicy !== "persistent") {
+      const hasParticipants = await ctx.db
+        .query("participants")
+        .withIndex("by_room", (q) => q.eq("roomId", roomId))
+        .first();
+
+      if (!hasParticipants) {
+        await ctx.db.patch(roomId, {
+          ownerTokenIdentifier: tokenIdentifier,
+          retentionPolicy: "persistent",
+          lastActivityAt: Date.now(),
+        });
+      }
+    }
 
     // Check if participant already exists (rejoin)
     const existing = await ctx.db

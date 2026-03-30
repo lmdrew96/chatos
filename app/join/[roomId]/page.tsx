@@ -148,6 +148,9 @@ export default function JoinPage() {
     );
   }
 
+  const retentionPolicy = room.retentionPolicy
+    ?? (room.ownerTokenIdentifier ? "persistent" : "guest_ttl_72h");
+
   return (
     <main
       className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12"
@@ -186,7 +189,7 @@ export default function JoinPage() {
         </div>
 
         <p className="text-xs mb-6" style={{ color: "rgba(247,245,250,0.35)" }}>
-          {room.retentionPolicy === "guest_ttl_72h"
+          {retentionPolicy === "guest_ttl_72h"
             ? "This guest room auto-deletes after 72 hours of inactivity."
             : "This room is account-owned and does not auto-delete for inactivity."}
         </p>
