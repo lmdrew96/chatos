@@ -1,5 +1,6 @@
 "use client";
 
+import Markdown from "react-markdown";
 import { Doc } from "@/convex/_generated/dataModel";
 
 interface Color {
@@ -65,7 +66,7 @@ export default function MessageBubble({
             </span>
           </div>
           <div
-            className="px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap"
+            className="px-4 py-3 rounded-2xl text-sm leading-relaxed prose prose-invert prose-sm max-w-none"
             style={{
               background: bgColor,
               color: "var(--off-white)",
@@ -73,7 +74,7 @@ export default function MessageBubble({
               borderRadius: "4px 18px 18px 18px",
             }}
           >
-            {message.content}
+            <Markdown>{message.content}</Markdown>
           </div>
         </div>
       </div>

@@ -37,7 +37,7 @@ function buildHistory(
     const role: "user" | "assistant" = m.type === "claude" ? "assistant" : "user";
     const content =
       m.type === "claude"
-        ? `${m.claudeName}: ${m.content}`
+        ? m.content
         : `${m.fromDisplayName}: ${m.content}`;
 
     if (result.length > 0 && result[result.length - 1].role === role) {
