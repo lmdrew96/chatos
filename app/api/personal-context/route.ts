@@ -1,4 +1,42 @@
+import dns from "node:dns/promises";
+import net from "node:net";
 import { NextRequest, NextResponse } from "next/server";
+
+// Block private/reserved IP ranges to prevent SSRF.
+function isPrivateIp(ip: string): boolean {
+  if (net.isIPv4(ip)) {
+    const parts = ip.split(".").map(Number);
+    const [a, b] = parts;
+    return (
+      a === 127 ||                                    // loopback
+      a === 10 ||                                     // RFC 1918
+      a === 0 ||                                      // unspecified
+      (a === 172 && b >= 16 && b <= 31) ||            // RFC 1918
+      (a === 192 && b === 168) ||                     // RFC 1918
+      (a === 169 && b === 254) ||                     // link-local / cloud metadata
+      (a === 100 && b >= 64 && b <= 127)              // shared address space
+    );
+  }
+  if (net.isIPv6(ip)) {
+    const lower = ip.toLowerCase();
+    return (
+      lower === "::1" ||
+      lower.startsWith("fc") ||
+      lower.startsWith("fd") ||
+      lower.startsWith("fe80")
+    );
+  }
+  return true; // unrecognised format — deny
+}
+
+async function isHostSafe(hostname: string): Promise<boolean> {
+  try {
+    const target = net.isIP(hostname) ? hostname : (await dns.lookup(hostname)).address;
+    return !isPrivateIp(target);
+  } catch {
+    return false;
+  }
+}
 
 export async function GET(req: NextRequest) {
   const rawUrl = req.nextUrl.searchParams.get("url");
@@ -15,6 +53,10 @@ export async function GET(req: NextRequest) {
 
   if (target.protocol !== "https:" && target.protocol !== "http:") {
     return NextResponse.json({ error: "Unsupported URL protocol." }, { status: 400 });
+  }
+
+  if (!(await isHostSafe(target.hostname))) {
+    return NextResponse.json({ error: "URL not allowed." }, { status: 400 });
   }
 
   let upstream: Response;
