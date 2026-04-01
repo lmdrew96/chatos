@@ -38,7 +38,7 @@ const COLORS = [
 function detectMentions(content: string, participants: Doc<"participants">[]): string[] {
   return participants
     .map((p) => p.claudeName)
-    .filter((name) => content.includes(`@${name}`));
+    .filter((name) => new RegExp(`@${name}(?![\\w])`, "i").test(content));
 }
 
 // Collapse consecutive same-role messages so Anthropic API doesn't reject them
