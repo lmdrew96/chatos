@@ -6,12 +6,14 @@ export async function callClaude({
   messages,
   mcpServers,
   claudeName,
+  signal,
 }: {
   apiKey: string;
   systemPrompt: string;
   messages: { role: "user" | "assistant"; content: string }[];
   mcpServers?: McpServer[];
   claudeName?: string;
+  signal?: AbortSignal;
 }): Promise<string> {
   const effectiveSystem = claudeName
     ? `${systemPrompt}\n\n---\nYou are ${claudeName}. Respond only as yourself in a single reply. Do not write dialogue or responses attributed to any other participant.`
@@ -47,6 +49,7 @@ export async function callClaude({
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal,
   });
 
   const data = await res.json();

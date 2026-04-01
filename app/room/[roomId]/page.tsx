@@ -22,6 +22,7 @@ type InvokeParams = {
   respondedSet: Set<string>;
   precedingReplies: { claudeName: string; content: string }[];
   chainStartHumanCount: number;
+  signal: AbortSignal;
 };
 
 // Participant color palette — assigned by join order
@@ -85,6 +86,8 @@ export default function RoomPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Always-current snapshot of messages for use inside async chains
   const messagesRef = useRef<Doc<"messages">[] | undefined>(undefined);
+  // AbortController for the active Claude chain — replaced each user send
+  const chainAbortRef = useRef<AbortController | null>(null);
 
   // Restore session from sessionStorage
   useEffect(() => {
@@ -171,6 +174,7 @@ export default function RoomPage() {
     respondedSet,
     precedingReplies,
     chainStartHumanCount,
+    signal,
   }: InvokeParams): Promise<{ claudeName: string; content: string } | null> => {
     if (depth >= MAX_MENTION_DEPTH) return null;
     if (respondedSet.has(claudeName)) return null;
@@ -189,6 +193,7 @@ export default function RoomPage() {
         messages: callMessages,
         mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
         claudeName,
+        signal,
       });
 
       const subMentions = detectMentions(reply, allParticipants).filter(
@@ -234,12 +239,15 @@ export default function RoomPage() {
             respondedSet,
             precedingReplies: [...precedingReplies, { claudeName, content: reply }],
             chainStartHumanCount,
+            signal,
           });
         }
       }
 
       return { claudeName, content: reply };
     } catch (err) {
+      // Silently drop intentional cancellations
+      if (err instanceof Error && err.name === "AbortError") return null;
       await sendMessage({
         roomId,
         fromUserId: "system",
@@ -285,6 +293,8 @@ export default function RoomPage() {
       const precedingReplies: { claudeName: string; content: string }[] = [];
       const respondedSet = new Set<string>();
       const chainStartHumanCount = (messages ?? []).filter((m) => m.type === "user").length;
+      const abortController = new AbortController();
+      chainAbortRef.current = abortController;
 
       for (const claudeName of uniqueMentions) {
         const owner = currentParticipants.find((p) => p.claudeName === claudeName);
@@ -328,6 +338,7 @@ export default function RoomPage() {
           respondedSet,
           precedingReplies,
           chainStartHumanCount,
+          signal: abortController.signal,
         });
 
         if (result) precedingReplies.push(result);
@@ -461,6 +472,14 @@ export default function RoomPage() {
                   <span className="text-xs font-medium" style={{ color: textColor }}>
                     {claudeName}
                   </span>
+                  <button
+                    onClick={() => chainAbortRef.current?.abort()}
+                    className="text-xs ml-1 transition-opacity opacity-40 hover:opacity-80"
+                    style={{ color: textColor }}
+                    title="Stop this response"
+                  >
+                    wait
+                  </button>
                 </div>
                 <div
                   className="px-4 py-3 text-sm flex items-center gap-1"
