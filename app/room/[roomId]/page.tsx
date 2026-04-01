@@ -21,6 +21,7 @@ type InvokeParams = {
   depth: number;
   respondedSet: Set<string>;
   precedingReplies: { claudeName: string; content: string }[];
+  chainStartHumanCount: number;
 };
 
 // Participant color palette — assigned by join order
@@ -82,6 +83,8 @@ export default function RoomPage() {
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Always-current snapshot of messages for use inside async chains
+  const messagesRef = useRef<Doc<"messages">[] | undefined>(undefined);
 
   // Restore session from sessionStorage
   useEffect(() => {
@@ -136,6 +139,11 @@ export default function RoomPage() {
     };
   }, [currentUserId, roomId, setOnlineStatus]);
 
+  // Keep messagesRef current so async chains can see new human messages
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -162,9 +170,15 @@ export default function RoomPage() {
     depth,
     respondedSet,
     precedingReplies,
+    chainStartHumanCount,
   }: InvokeParams): Promise<{ claudeName: string; content: string } | null> => {
     if (depth >= MAX_MENTION_DEPTH) return null;
     if (respondedSet.has(claudeName)) return null;
+
+    // Guard: a human has sent a message since this chain started — yield to them
+    const liveHumanCount = (messagesRef.current ?? []).filter((m) => m.type === "user").length;
+    if (liveHumanCount > chainStartHumanCount) return null;
+
     respondedSet.add(claudeName);
 
     setThinkingClaudes((prev) => new Set(prev).add(claudeName));
@@ -193,27 +207,35 @@ export default function RoomPage() {
         mentionDepth: depth,
       });
 
-      for (const subName of subMentions) {
-        const subOwner = allParticipants.find((p) => p.claudeName === subName);
-        if (!subOwner) continue;
-        const subCallMessages: { role: "user" | "assistant"; content: string }[] = [
-          ...callMessages,
-          { role: "assistant", content: reply },
-          {
-            role: "user",
-            content: `(${subName}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)`,
-          },
-        ];
-        await invokeClaudeResponse({
-          claudeName: subName,
-          owner: subOwner,
-          callMessages: subCallMessages,
-          allParticipants,
-          apiKey,
-          depth: depth + 1,
-          respondedSet,
-          precedingReplies: [...precedingReplies, { claudeName, content: reply }],
-        });
+      // Guard: if the reply @-addresses a human by display name, yield to them
+      const addressesHuman = allParticipants.some((p) =>
+        reply.includes(`@${p.displayName}`)
+      );
+
+      if (!addressesHuman) {
+        for (const subName of subMentions) {
+          const subOwner = allParticipants.find((p) => p.claudeName === subName);
+          if (!subOwner) continue;
+          const subCallMessages: { role: "user" | "assistant"; content: string }[] = [
+            ...callMessages,
+            { role: "assistant", content: reply },
+            {
+              role: "user",
+              content: `(${subName}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)`,
+            },
+          ];
+          await invokeClaudeResponse({
+            claudeName: subName,
+            owner: subOwner,
+            callMessages: subCallMessages,
+            allParticipants,
+            apiKey,
+            depth: depth + 1,
+            respondedSet,
+            precedingReplies: [...precedingReplies, { claudeName, content: reply }],
+            chainStartHumanCount,
+          });
+        }
       }
 
       return { claudeName, content: reply };
@@ -262,6 +284,7 @@ export default function RoomPage() {
       const history = buildHistory((messages ?? []).slice(-12));
       const precedingReplies: { claudeName: string; content: string }[] = [];
       const respondedSet = new Set<string>();
+      const chainStartHumanCount = (messages ?? []).filter((m) => m.type === "user").length;
 
       for (const claudeName of uniqueMentions) {
         const owner = currentParticipants.find((p) => p.claudeName === claudeName);
@@ -304,6 +327,7 @@ export default function RoomPage() {
           depth: 0,
           respondedSet,
           precedingReplies,
+          chainStartHumanCount,
         });
 
         if (result) precedingReplies.push(result);
