@@ -11,6 +11,7 @@ export const sendMessage = mutation({
     ownerUserId: v.optional(v.string()),
     content: v.string(),
     mentions: v.array(v.string()),
+    mentionDepth: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("messages", {

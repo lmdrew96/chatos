@@ -34,6 +34,7 @@ export default defineSchema({
     ownerUserId: v.optional(v.string()),
     content: v.string(),
     mentions: v.array(v.string()),
+    mentionDepth: v.optional(v.number()),
     createdAt: v.number(),
   }).index("by_room", ["roomId"]),
 

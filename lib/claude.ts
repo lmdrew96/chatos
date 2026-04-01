@@ -5,16 +5,22 @@ export async function callClaude({
   systemPrompt,
   messages,
   mcpServers,
+  claudeName,
 }: {
   apiKey: string;
   systemPrompt: string;
   messages: { role: "user" | "assistant"; content: string }[];
   mcpServers?: McpServer[];
+  claudeName?: string;
 }): Promise<string> {
+  const effectiveSystem = claudeName
+    ? `${systemPrompt}\n\n---\nYou are ${claudeName}. Respond only as yourself in a single reply. Do not write dialogue or responses attributed to any other participant.`
+    : systemPrompt;
+
   const body: Record<string, unknown> = {
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
-    system: systemPrompt,
+    system: effectiveSystem,
     messages,
   };
 
@@ -26,14 +32,20 @@ export async function callClaude({
     }));
   }
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01",
+    "anthropic-dangerous-direct-browser-access": "true",
+  };
+
+  if (mcpServers && mcpServers.length > 0) {
+    headers["anthropic-beta"] = "mcp-client-2025-04-04";
+  }
+
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
+    headers,
     body: JSON.stringify(body),
   });
 

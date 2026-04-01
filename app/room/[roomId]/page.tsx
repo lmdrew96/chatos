@@ -10,6 +10,19 @@ import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
 
+const MAX_MENTION_DEPTH = 3;
+
+type InvokeParams = {
+  claudeName: string;
+  owner: Doc<"participants">;
+  callMessages: { role: "user" | "assistant"; content: string }[];
+  allParticipants: Doc<"participants">[];
+  apiKey: string;
+  depth: number;
+  respondedSet: Set<string>;
+  precedingReplies: { claudeName: string; content: string }[];
+};
+
 // Participant color palette — assigned by join order
 const COLORS = [
   { text: "#DFA649", bg: "rgba(223,166,73,0.1)" },   // amber
@@ -140,12 +153,99 @@ export default function RoomPage() {
     return map;
   }, [participants]);
 
+  const invokeClaudeResponse = async ({
+    claudeName,
+    owner,
+    callMessages,
+    allParticipants,
+    apiKey,
+    depth,
+    respondedSet,
+    precedingReplies,
+  }: InvokeParams): Promise<{ claudeName: string; content: string } | null> => {
+    if (depth >= MAX_MENTION_DEPTH) return null;
+    if (respondedSet.has(claudeName)) return null;
+    respondedSet.add(claudeName);
+
+    setThinkingClaudes((prev) => new Set(prev).add(claudeName));
+    try {
+      const reply = await callClaude({
+        apiKey,
+        systemPrompt: owner.systemPrompt,
+        messages: callMessages,
+        mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
+        claudeName,
+      });
+
+      const subMentions = detectMentions(reply, allParticipants).filter(
+        (name) => name !== claudeName
+      );
+
+      await sendMessage({
+        roomId,
+        fromUserId: owner.userId,
+        fromDisplayName: owner.displayName,
+        type: "claude",
+        claudeName,
+        ownerUserId: owner.userId,
+        content: reply,
+        mentions: subMentions,
+        mentionDepth: depth,
+      });
+
+      for (const subName of subMentions) {
+        const subOwner = allParticipants.find((p) => p.claudeName === subName);
+        if (!subOwner) continue;
+        const subCallMessages: { role: "user" | "assistant"; content: string }[] = [
+          ...callMessages,
+          { role: "assistant", content: reply },
+          {
+            role: "user",
+            content: `(${subName}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)`,
+          },
+        ];
+        await invokeClaudeResponse({
+          claudeName: subName,
+          owner: subOwner,
+          callMessages: subCallMessages,
+          allParticipants,
+          apiKey,
+          depth: depth + 1,
+          respondedSet,
+          precedingReplies: [...precedingReplies, { claudeName, content: reply }],
+        });
+      }
+
+      return { claudeName, content: reply };
+    } catch (err) {
+      await sendMessage({
+        roomId,
+        fromUserId: "system",
+        fromDisplayName: "system",
+        type: "system",
+        content: `${claudeName} hit an error: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`,
+        mentions: [],
+        mentionDepth: depth,
+      });
+      return null;
+    } finally {
+      setThinkingClaudes((prev) => {
+        const next = new Set(prev);
+        next.delete(claudeName);
+        return next;
+      });
+    }
+  };
+
   const handleSendMessage = async (content: string) => {
     if (!currentUserId || !currentDisplayName || sending) return;
     setSending(true);
 
     const currentParticipants = participants ?? [];
-    const mentions = detectMentions(content, currentParticipants);
+    const rawMentions = detectMentions(content, currentParticipants);
+    const uniqueMentions = [...new Set(rawMentions)];
 
     try {
       await sendMessage({
@@ -154,15 +254,16 @@ export default function RoomPage() {
         fromDisplayName: currentDisplayName,
         type: "user",
         content,
-        mentions,
+        mentions: uniqueMentions,
       });
 
-      if (mentions.length === 0) return;
+      if (uniqueMentions.length === 0) return;
 
       const history = buildHistory((messages ?? []).slice(-12));
       const precedingReplies: { claudeName: string; content: string }[] = [];
+      const respondedSet = new Set<string>();
 
-      for (const claudeName of mentions) {
+      for (const claudeName of uniqueMentions) {
         const owner = currentParticipants.find((p) => p.claudeName === claudeName);
         if (!owner) continue;
 
@@ -179,64 +280,33 @@ export default function RoomPage() {
           continue;
         }
 
-        setThinkingClaudes((prev) => new Set(prev).add(claudeName));
+        const callMessages: { role: "user" | "assistant"; content: string }[] = [
+          ...history,
+          { role: "user", content: `${currentDisplayName}: ${content}` },
+        ];
 
-        try {
-          const callMessages: { role: "user" | "assistant"; content: string }[] = [
-            ...history,
-            {
-              role: "user",
-              content: `${currentDisplayName}: ${content}`,
-            },
-          ];
-
-          if (precedingReplies.length > 0) {
-            const context = precedingReplies
-              .map((r) => `[${r.claudeName} just responded]: "${r.content}"`)
-              .join("\n");
-            callMessages.push({
-              role: "user",
-              content: `(You were also mentioned. Note that ${context} — respond to them or the original message, your call.)`,
-            });
-          }
-
-          const reply = await callClaude({
-            apiKey,
-            systemPrompt: owner.systemPrompt,
-            messages: callMessages,
-            mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
-          });
-
-          await sendMessage({
-            roomId,
-            fromUserId: owner.userId,
-            fromDisplayName: owner.displayName,
-            type: "claude",
-            claudeName,
-            ownerUserId: owner.userId,
-            content: reply,
-            mentions: [],
-          });
-
-          precedingReplies.push({ claudeName, content: reply });
-        } catch (err) {
-          await sendMessage({
-            roomId,
-            fromUserId: "system",
-            fromDisplayName: "system",
-            type: "system",
-            content: `${claudeName} hit an error: ${
-              err instanceof Error ? err.message : "Unknown error"
-            }`,
-            mentions: [],
-          });
-        } finally {
-          setThinkingClaudes((prev) => {
-            const next = new Set(prev);
-            next.delete(claudeName);
-            return next;
+        if (precedingReplies.length > 0) {
+          const context = precedingReplies
+            .map((r) => `[${r.claudeName} just responded]: "${r.content}"`)
+            .join("\n");
+          callMessages.push({
+            role: "user",
+            content: `(You were also mentioned. Note that ${context} — respond to them or the original message, your call.)`,
           });
         }
+
+        const result = await invokeClaudeResponse({
+          claudeName,
+          owner,
+          callMessages,
+          allParticipants: currentParticipants,
+          apiKey,
+          depth: 0,
+          respondedSet,
+          precedingReplies,
+        });
+
+        if (result) precedingReplies.push(result);
       }
     } finally {
       setSending(false);
