@@ -35,12 +35,14 @@ function normalizeContextUrl(input: string): string {
   const url = new URL(input.trim());
   const path = url.pathname.replace(/\/+$/, "");
 
+  // If the path ends in /mcp, swap it for /context (Layer 1 data)
   if (/\/mcp$/i.test(path)) {
     url.pathname = path.replace(/\/mcp$/i, "/context");
-  } else if (!/\/context$/i.test(path)) {
-    url.pathname = `${path}/context`;
+  } else if (!path || path === "/") {
+    // If it's a base domain, default to /context for data fetch
+    url.pathname = "/context";
   }
-
+  // Otherwise, leave the path as-is (e.g. if the user provided /v1/context)
   return url.toString();
 }
 
@@ -48,10 +50,12 @@ export function normalizeMcpServerUrl(input: string): string {
   const url = new URL(input.trim());
   const path = url.pathname.replace(/\/+$/, "");
 
+  // If the path ends in /context, swap it for /mcp (Layer 2 tools)
   if (/\/context$/i.test(path)) {
     url.pathname = path.replace(/\/context$/i, "/mcp");
-  } else if (!/\/mcp$/i.test(path)) {
-    url.pathname = `${path}/mcp`;
+  } else if (!path || path === "/") {
+    // Only force /mcp for base domains; otherwise trust the user's path (e.g. /sse)
+    url.pathname = "/mcp";
   }
 
   return url.toString();

@@ -66,7 +66,9 @@ export async function callClaude({
         const parsed = new URL(s.url);
         const token = parsed.searchParams.get("token");
         if (token) {
-          parsed.searchParams.delete("token");
+          // DO NOT delete the token! It may be the ONLY way the server authenticates.
+          // Providing it in BOTH url (query param) and authorization_token (header)
+          // ensures compatibility with various server types.
           return { type: "url", url: parsed.toString(), name: s.name, authorization_token: token };
         }
       } catch {}
