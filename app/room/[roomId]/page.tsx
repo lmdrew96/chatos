@@ -407,11 +407,16 @@ function RoomContent() {
         const thresholdMet = liveMessages.length > 8 && newSinceLast > 5;
 
         if (thresholdMet || triggeredByUser || triggeredByClaude) {
-          const olderMessages = liveMessages.slice(0, -5);
-          const formatted = olderMessages
+          // For explicit triggers use all messages; for threshold use all but the last 5
+          const explicitTrigger = triggeredByUser || triggeredByClaude;
+          const messagesToSummarize = explicitTrigger
+            ? liveMessages
+            : liveMessages.slice(0, -5);
+          const formatted = messagesToSummarize
             .filter((m) => m.type !== "system")
             .map((m) => `${m.fromDisplayName}: ${m.content}`)
             .join("\n");
+          if (!formatted.trim()) return { claudeName, content: reply };
           const summaryPrompt = memory?.summary
             ? `Update this existing summary:\n${memory.summary}\n\nNew messages:\n${formatted}`
             : formatted;
