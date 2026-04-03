@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, fetchQuery } from "convex/react";
+import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
@@ -179,6 +179,7 @@ function RoomContent() {
   const params = useParams();
   const roomId = params.roomId as Id<"rooms">;
   const router = useRouter();
+  const convex = useConvex();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentDisplayName, setCurrentDisplayName] = useState("");
@@ -558,7 +559,7 @@ function RoomContent() {
         const SEARCH_TRIGGER = /\bsearch(?:\s+my\s+(?:history|sessions?))?\s+(?:for\s+)?(.+)/i;
         const searchMatch = content.match(SEARCH_TRIGGER);
         if (searchMatch && currentUserId) {
-          const results = await fetchQuery(api.messages.searchUserMessages, {
+          const results = await convex.query(api.messages.searchUserMessages, {
             fromUserId: currentUserId,
             searchQuery: searchMatch[1].trim(),
           });
