@@ -13,17 +13,27 @@ import { MessageContent } from "@/lib/claude";
 
 async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: string }> {
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch attachment: ${res.statusText}`);
   const blob = await res.blob();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64 = (reader.result as string).split(",")[1];
+      const result = reader.result as string;
+      const base64 = result.split(",")[1];
       resolve({ data: base64, mediaType: blob.type });
     };
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
 }
+
+const SUPPORTED_MEDIA_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+];
 
 // Support the resolved URL from useMessages
 type MessageWithAttachments = Omit<Doc<"messages">, "attachments"> & {
@@ -88,10 +98,17 @@ async function buildHistory(
       
       // Add attachments first (best practice for Claude PDFs/images)
       for (const a of m.attachments) {
-        if (!a.url) continue;
+        const url = a.url || (a.storageId ? `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/storage/${a.storageId}` : null);
+        if (!url) continue;
+
         try {
-          const { data, mediaType } = await fetchAsBase64(a.url);
-          if (mediaType?.startsWith("image/")) {
+          const { data, mediaType } = await fetchAsBase64(url);
+          if (!SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+            console.warn(`Unsupported media type: ${mediaType}`);
+            continue;
+          }
+
+          if (mediaType.startsWith("image/")) {
             contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
           } else if (mediaType === "application/pdf") {
             contentArray.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
@@ -389,10 +406,20 @@ export default function RoomPage() {
           }
         }
 
-        // Re-calculate history to include the message we just sent (which now has attachments in Convex)
-        const updatedHistory = await buildHistory((messagesRef.current ?? []).slice(-12) as MessageWithAttachments[]);
+        // Re-calculate history to include the message we just sent
+        // We wait a tiny bit for the query to possibly catch the local optimistic update or server return
+        const getReadyHistory = async (retries = 3): Promise<any[]> => {
+          const hist = await buildHistory((messagesRef.current ?? []).slice(-12) as MessageWithAttachments[]);
+          // Ensure the last message (if it had attachments) actually has them in the history
+          const lastMsg = hist[hist.length - 1];
+          if (attachments && attachments.length > 0 && typeof lastMsg?.content === 'string' && retries > 0) {
+             await new Promise(r => setTimeout(r, 300));
+             return getReadyHistory(retries - 1);
+          }
+          return hist;
+        };
 
-        const callMessages = updatedHistory;
+        const callMessages = await getReadyHistory();
 
         if (precedingReplies.length > 0) {
           const context = precedingReplies
