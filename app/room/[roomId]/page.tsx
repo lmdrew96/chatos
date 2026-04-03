@@ -415,34 +415,41 @@ export default function RoomPage() {
           }
         }
 
-        // 1. Get history excluding the message we just sent (to avoid duplicates once query updates)
-        const history = await buildHistory((messages ?? []).slice(-12) as MessageWithAttachments[]);
+        // 1. Get history from the current query state
+        const history = await buildHistory((messages ?? []).slice(-15) as MessageWithAttachments[]);
         
-        // 2. Construct the current message block manually to ensure it's included immediately
-        let currentMsgContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
-        if (attachments && attachments.length > 0) {
-          const contentArray: MessageContent[] = [];
-          for (const a of attachments) {
-            // Use the local data provided by MentionInput for instant AI context
-            if (a.data && SUPPORTED_MEDIA_TYPES.includes(a.contentType)) {
-              if (a.contentType.startsWith("image/")) {
-                contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
-              } else if (a.contentType === "application/pdf") {
-                contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+        // 2. Check if the message we just sent (with 'content') is already the last turn in history
+        // We look at the last message content or metadata to decide if we should append manually.
+        const lastMsgTurn = history[history.length - 1];
+        const alreadyInHistory = lastMsgTurn && lastMsgTurn.role === "user" && 
+          (typeof lastMsgTurn.content === "string" ? lastMsgTurn.content : "").includes(content);
+
+        let callMessages = history;
+        
+        if (!alreadyInHistory) {
+          // Construct the current message block manually ONLY if it's not in the history yet
+          let currentMsgContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
+          if (attachments && attachments.length > 0) {
+            const contentArray: MessageContent[] = [];
+            for (const a of attachments) {
+              if (a.data && SUPPORTED_MEDIA_TYPES.includes(a.contentType)) {
+                if (a.contentType.startsWith("image/")) {
+                  contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                } else if (a.contentType === "application/pdf") {
+                  contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                }
               }
             }
+            if (content.trim()) {
+              contentArray.push({ type: "text", text: `${currentDisplayName}: ${content.trim()}` });
+            }
+            currentMsgContent = contentArray;
           }
-          const trimmedText = content.trim();
-          if (trimmedText) {
-            contentArray.push({ type: "text", text: `${currentDisplayName}: ${trimmedText}` });
-          }
-          currentMsgContent = contentArray;
+          callMessages = [
+            ...history,
+            { role: "user" as const, content: currentMsgContent }
+          ];
         }
-
-        const callMessages = [
-          ...history,
-          { role: "user" as const, content: currentMsgContent }
-        ];
 
         if (precedingReplies.length > 0) {
           const context = precedingReplies
