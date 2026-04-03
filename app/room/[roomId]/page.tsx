@@ -406,6 +406,7 @@ function RoomContent() {
         const newSinceLast = liveMessages.length - (memory?.messageCount ?? 0);
         const thresholdMet = liveMessages.length > 8 && newSinceLast > 5;
 
+        console.log("[memory] check:", { thresholdMet, triggeredByUser, triggeredByClaude, msgCount: liveMessages.length });
         if (thresholdMet || triggeredByUser || triggeredByClaude) {
           // For explicit triggers use all messages; for threshold use all but the last 5
           const explicitTrigger = triggeredByUser || triggeredByClaude;
@@ -426,15 +427,16 @@ function RoomContent() {
               "You create concise memory summaries. Capture key facts, ongoing topics, user preferences, and important context — things that would help continuity in future conversations. Be compact (under 300 words).",
             messages: [{ role: "user", content: summaryPrompt }],
           })
-            .then((summary) =>
-              upsertClaudeMemory({
+            .then((summary) => {
+              console.log("[memory] summary generated, saving to Convex:", summary.slice(0, 80));
+              return upsertClaudeMemory({
                 roomId,
                 claudeName,
                 summary,
                 messageCount: liveMessages.length,
-              })
-            )
-            .catch(() => {});
+              });
+            })
+            .catch((err) => console.error("[memory] update failed:", err));
         }
       }
 
