@@ -54,15 +54,15 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
           className="absolute right-0 top-10 w-64 rounded-xl overflow-hidden z-50"
           style={{
             background: "#1a1530",
-            border: "1px solid rgba(247,245,250,0.08)",
+            border: "1px solid var(--border)",
             boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
           }}
         >
           <div
             className="px-4 py-3 border-b"
-            style={{ borderColor: "rgba(247,245,250,0.06)" }}
+            style={{ borderColor: "var(--border-subtle)" }}
           >
-            <p className="text-sm font-semibold" style={{ color: "var(--off-white)" }}>
+            <p className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
               Invite friends
             </p>
           </div>
@@ -70,7 +70,7 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
           <div className="max-h-60 overflow-y-auto">
             {!isAuthenticated ? (
               <div className="px-4 py-4 flex flex-col items-center gap-3 text-center">
-                <p className="text-xs" style={{ color: "rgba(247,245,250,0.4)" }}>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   Sign in to invite friends
                 </p>
                 <SignInButton mode="modal">
@@ -83,7 +83,7 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
                 </SignInButton>
               </div>
             ) : (friends?.length ?? 0) === 0 ? (
-              <p className="px-4 py-4 text-xs text-center" style={{ color: "rgba(247,245,250,0.3)" }}>
+              <p className="px-4 py-4 text-xs text-center" style={{ color: "var(--text-muted)" }}>
                 No friends yet.{" "}
                 <a href="/friends" className="underline" style={{ color: "var(--sage-teal)" }}>
                   Add some →
@@ -94,14 +94,14 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
                 <div
                   key={f._id}
                   className="flex items-center justify-between px-4 py-2.5"
-                  style={{ borderBottom: "1px solid rgba(247,245,250,0.04)" }}
+                  style={{ borderBottom: "1px solid var(--border-subtle)" }}
                 >
                   <div className="min-w-0">
-                    <p className="text-sm truncate" style={{ color: "var(--off-white)" }}>
+                    <p className="text-sm truncate" style={{ color: "var(--fg)" }}>
                       {f.displayName ?? f.username}
                     </p>
                     {f.username && (
-                      <p className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         @{f.username}
                       </p>
                     )}

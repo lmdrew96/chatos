@@ -1,13 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import { useTheme } from "@/components/ThemeProvider";
 
 const KEY = "chatos:apiKey";
 const MCP_URL_KEY = "chatos:mcpUrl";
 const MCP_SERVERS_KEY = "chatos:mcpServers";
 const CONTEXT_SEED_KEY = "chatos:contextSeed";
+const COLOR_KEY = "chatos:preferredColor";
+
+const COLOR_SWATCHES = [
+  { hex: "#DFA649", label: "Amber" },
+  { hex: "#88739E", label: "Mauve" },
+  { hex: "#8CBDB9", label: "Sage" },
+  { hex: "#97D181", label: "Green" },
+  { hex: "#849440", label: "Olive" },
+  { hex: "#DBD5E2", label: "Lavender" },
+];
 
 export default function SettingsPage() {
+  const { theme, toggle } = useTheme();
+
+  const [preferredColor, setPreferredColor] = useState(
+    () => (typeof window !== "undefined" ? localStorage.getItem(COLOR_KEY) ?? "" : "")
+  );
+
+  const handleColorSelect = (hex: string) => {
+    setPreferredColor(hex);
+    localStorage.setItem(COLOR_KEY, hex);
+  };
+
   const [apiKey, setApiKey] = useState(
     () => (typeof window !== "undefined" ? localStorage.getItem(KEY) ?? "" : "")
   );
@@ -52,7 +74,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--deep-dark)" }}>
+    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--bg)" }}>
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -62,15 +84,108 @@ export default function SettingsPage() {
       />
 
       <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset flex flex-col gap-10">
+        {/* Appearance section */}
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-1"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Appearance
+          </h2>
+          <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
+            Theme and your dot color across all rooms.
+          </p>
+
+          <div className="flex flex-col gap-6">
+            {/* Theme toggle */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Theme
+              </label>
+              <div className="flex gap-2">
+                {(["dark", "light"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => { if (theme !== t) toggle(); }}
+                    className="px-4 py-2 rounded-lg text-sm capitalize transition-all"
+                    style={{
+                      background: theme === t ? "rgba(223,166,73,0.12)" : "var(--surface)",
+                      border: theme === t ? "1px solid var(--amber)" : "1px solid var(--border)",
+                      color: theme === t ? "var(--amber)" : "var(--text-muted)",
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Dot color picker */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Your dot color
+              </label>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                This is your color in every room. Takes effect when you next load a room.
+              </p>
+              <div className="flex gap-3 flex-wrap">
+                {COLOR_SWATCHES.map((swatch) => {
+                  const isSelected = preferredColor === swatch.hex;
+                  return (
+                    <button
+                      key={swatch.hex}
+                      onClick={() => handleColorSelect(swatch.hex)}
+                      title={swatch.label}
+                      className="w-8 h-8 rounded-full transition-all relative"
+                      style={{
+                        background: swatch.hex,
+                        boxShadow: isSelected
+                          ? `0 0 0 2px var(--bg), 0 0 0 4px ${swatch.hex}`
+                          : "none",
+                        transform: isSelected ? "scale(1.1)" : "scale(1)",
+                      }}
+                    >
+                      {isSelected && (
+                        <span
+                          className="absolute inset-0 flex items-center justify-center text-xs font-bold"
+                          style={{ color: "rgba(0,0,0,0.5)" }}
+                        >
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {preferredColor && (
+                  <button
+                    onClick={() => { setPreferredColor(""); localStorage.removeItem(COLOR_KEY); }}
+                    className="w-8 h-8 rounded-full text-xs transition-all flex items-center justify-center"
+                    style={{
+                      border: "1px dashed var(--border)",
+                      color: "var(--text-muted)",
+                    }}
+                    title="Reset to auto"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Divider */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
         {/* API Key section */}
         <section>
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-1"
-            style={{ color: "rgba(247,245,250,0.3)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             Anthropic API Key
           </h2>
-          <p className="text-sm mb-5" style={{ color: "rgba(247,245,250,0.35)" }}>
+          <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
             Used to power your Claude in every room. Stored locally in your browser — never sent to our servers.
           </p>
 
@@ -83,19 +198,11 @@ export default function SettingsPage() {
                 placeholder="sk-ant-…"
                 autoComplete="off"
                 spellCheck={false}
-                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono"
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono field-focus"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(247,245,250,0.1)",
-                  color: "var(--off-white)",
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "var(--amber)";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(223,166,73,0.1)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(247,245,250,0.1)";
-                  e.target.style.boxShadow = "none";
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
                 }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
               />
@@ -153,34 +260,34 @@ export default function SettingsPage() {
               <rect x="1" y="5" width="9" height="7.5" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
               <path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
-            <p className="text-xs" style={{ color: "rgba(247,245,250,0.25)" }}>
+            <p className="text-xs" style={{ color: "var(--text-dim)" }}>
               Your key is stored only in this browser. Each Claude always uses its owner&apos;s key.
             </p>
           </div>
         </section>
 
         {/* Divider */}
-        <div style={{ borderTop: "1px solid rgba(247,245,250,0.06)" }} />
+        <div style={{ borderTop: "1px solid var(--border)" }} />
 
         {/* MCP & Context section */}
         <section>
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-1"
-            style={{ color: "rgba(247,245,250,0.3)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             MCP &amp; Context
           </h2>
-          <p className="text-sm mb-6" style={{ color: "rgba(247,245,250,0.35)" }}>
+          <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
             Personalize your Claude across every room. These settings are applied automatically when you join.
           </p>
 
           <div className="flex flex-col gap-6">
             {/* Personal Context MCP URL */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                 Personal Context MCP URL
               </label>
-              <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 Your deployed Personal Context service URL. You can paste either a <code>/context</code> endpoint or an MCP URL ending in <code>/mcp</code>; Cha(t)os will resolve it automatically.
               </p>
               <input
@@ -189,19 +296,11 @@ export default function SettingsPage() {
                 onChange={(e) => setMcpUrl(e.target.value)}
                 placeholder="https://your-context.vercel.app/context"
                 autoComplete="off"
-                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono"
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono field-focus"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(247,245,250,0.1)",
-                  color: "var(--off-white)",
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "var(--sage-teal)";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(139,189,185,0.1)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(247,245,250,0.1)";
-                  e.target.style.boxShadow = "none";
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
                 }}
               />
             </div>
@@ -210,10 +309,10 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                  <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                     Additional MCP servers
                   </label>
-                  <p className="text-xs mt-0.5" style={{ color: "rgba(247,245,250,0.35)" }}>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                     Any MCP you already run (e.g. ControlledChaos). Your Claude will have access to these tools in every room.
                   </p>
                 </div>
@@ -232,7 +331,7 @@ export default function SettingsPage() {
               </div>
 
               {extraMcpServers.length === 0 && (
-                <p className="text-xs italic" style={{ color: "rgba(247,245,250,0.2)" }}>
+                <p className="text-xs italic" style={{ color: "var(--text-dim)" }}>
                   No extra MCP servers added.
                 </p>
               )}
@@ -244,35 +343,31 @@ export default function SettingsPage() {
                     value={server.name}
                     onChange={(e) => setExtraMcpServers((prev) => prev.map((s, j) => j === i ? { ...s, name: e.target.value } : s))}
                     placeholder="Name (e.g. ControlledChaos)"
-                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all"
+                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all field-focus"
                     style={{
                       width: "36%",
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(247,245,250,0.1)",
-                      color: "var(--off-white)",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--fg)",
                     }}
-                    onFocus={(e) => { e.target.style.borderColor = "var(--mauve)"; }}
-                    onBlur={(e) => { e.target.style.borderColor = "rgba(247,245,250,0.1)"; }}
                   />
                   <input
                     type="url"
                     value={server.url}
                     onChange={(e) => setExtraMcpServers((prev) => prev.map((s, j) => j === i ? { ...s, url: e.target.value } : s))}
                     placeholder="https://your-mcp.vercel.app/mcp"
-                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1"
+                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1 field-focus"
                     style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(247,245,250,0.1)",
-                      color: "var(--off-white)",
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--fg)",
                     }}
-                    onFocus={(e) => { e.target.style.borderColor = "var(--mauve)"; }}
-                    onBlur={(e) => { e.target.style.borderColor = "rgba(247,245,250,0.1)"; }}
                   />
                   <button
                     type="button"
                     onClick={() => setExtraMcpServers((prev) => prev.filter((_, j) => j !== i))}
                     className="text-xs px-2 py-2 rounded-lg transition-colors shrink-0"
-                    style={{ color: "rgba(247,245,250,0.3)" }}
+                    style={{ color: "var(--text-muted)" }}
                   >
                     ✕
                   </button>
@@ -282,13 +377,13 @@ export default function SettingsPage() {
 
             {/* Context seed */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                 Import Claude Desktop context
               </label>
-              <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 Paste a summary or recent exchange from Claude Desktop. Your Claude will have this as background context in every room.
                 <br />
-                <span style={{ color: "rgba(247,245,250,0.25)" }}>
+                <span style={{ color: "var(--text-dim)" }}>
                   Tip: ask Claude Desktop to summarize your recent conversations, then paste the result here.
                 </span>
               </p>
@@ -297,20 +392,12 @@ export default function SettingsPage() {
                 onChange={(e) => setContextSeed(e.target.value)}
                 placeholder="Paste context from Claude Desktop here…"
                 rows={5}
-                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all resize-none"
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all resize-none field-focus"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(247,245,250,0.1)",
-                  color: "var(--off-white)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
                   lineHeight: "1.6",
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "var(--sage-teal)";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(139,189,185,0.1)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(247,245,250,0.1)";
-                  e.target.style.boxShadow = "none";
                 }}
               />
             </div>

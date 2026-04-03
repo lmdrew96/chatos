@@ -38,14 +38,14 @@ export function NotificationBell() {
         onClick={() => setOpen((o) => !o)}
         className="relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
         style={{
-          color: open ? "var(--amber)" : "rgba(247,245,250,0.45)",
+          color: open ? "var(--amber)" : "var(--text-muted)",
           background: open ? "rgba(223,166,73,0.08)" : "transparent",
         }}
         onMouseEnter={(e) => {
-          if (!open) (e.currentTarget as HTMLElement).style.color = "rgba(247,245,250,0.8)";
+          if (!open) (e.currentTarget as HTMLElement).style.color = "var(--fg)";
         }}
         onMouseLeave={(e) => {
-          if (!open) (e.currentTarget as HTMLElement).style.color = "rgba(247,245,250,0.45)";
+          if (!open) (e.currentTarget as HTMLElement).style.color = "var(--text-muted)";
         }}
         aria-label="Notifications"
       >
@@ -78,16 +78,16 @@ export function NotificationBell() {
           className="absolute right-0 top-10 w-80 rounded-xl overflow-hidden z-50"
           style={{
             background: "#1a1530",
-            border: "1px solid rgba(247,245,250,0.08)",
+            border: "1px solid var(--border)",
             boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
           }}
         >
           {/* Header */}
           <div
             className="px-4 py-3 flex items-center justify-between border-b"
-            style={{ borderColor: "rgba(247,245,250,0.06)" }}
+            style={{ borderColor: "var(--border-subtle)" }}
           >
-            <span className="text-sm font-semibold" style={{ color: "var(--off-white)" }}>
+            <span className="text-sm font-semibold" style={{ color: "var(--fg)" }}>
               Notifications
             </span>
             <button
@@ -105,7 +105,7 @@ export function NotificationBell() {
               <div>
                 <p
                   className="px-4 pt-3 pb-1 text-xs font-medium tracking-wide uppercase"
-                  style={{ color: "rgba(247,245,250,0.3)" }}
+                  style={{ color: "var(--text-muted)" }}
                 >
                   Friend Requests
                 </p>
@@ -113,14 +113,14 @@ export function NotificationBell() {
                   <div
                     key={r._id}
                     className="px-4 py-3 flex items-center justify-between gap-3"
-                    style={{ borderBottom: "1px solid rgba(247,245,250,0.04)" }}
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--off-white)" }}>
+                      <p className="text-sm font-medium truncate" style={{ color: "var(--fg)" }}>
                         {r.sender.displayName ?? r.sender.username}
                       </p>
                       {r.sender.username && (
-                        <p className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
+                        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                           @{r.sender.username}
                         </p>
                       )}
@@ -136,7 +136,7 @@ export function NotificationBell() {
                       <button
                         onClick={() => respondToRequest({ requestId: r._id, accept: false })}
                         className="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
-                        style={{ background: "rgba(247,245,250,0.06)", color: "rgba(247,245,250,0.4)" }}
+                        style={{ background: "var(--border-subtle)", color: "var(--text-muted)" }}
                       >
                         Decline
                       </button>
@@ -151,7 +151,7 @@ export function NotificationBell() {
               <div>
                 <p
                   className="px-4 pt-3 pb-1 text-xs font-medium tracking-wide uppercase"
-                  style={{ color: "rgba(247,245,250,0.3)" }}
+                  style={{ color: "var(--text-muted)" }}
                 >
                   Room Invites
                 </p>
@@ -159,10 +159,10 @@ export function NotificationBell() {
                   <div
                     key={inv._id}
                     className="px-4 py-3 flex items-center justify-between gap-3"
-                    style={{ borderBottom: "1px solid rgba(247,245,250,0.04)" }}
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--off-white)" }}>
+                      <p className="text-sm font-medium truncate" style={{ color: "var(--fg)" }}>
                         {inv.sender.displayName ?? inv.sender.username} invited you
                       </p>
                       <p className="text-xs font-mono" style={{ color: "var(--sage-teal)" }}>
@@ -184,7 +184,7 @@ export function NotificationBell() {
                       <button
                         onClick={() => respondToInvite({ inviteId: inv._id, accept: false })}
                         className="px-2.5 py-1 rounded-md text-xs font-medium"
-                        style={{ background: "rgba(247,245,250,0.06)", color: "rgba(247,245,250,0.4)" }}
+                        style={{ background: "var(--border-subtle)", color: "var(--text-muted)" }}
                       >
                         Decline
                       </button>
@@ -197,7 +197,7 @@ export function NotificationBell() {
             {totalCount === 0 && (
               <p
                 className="px-4 py-6 text-sm text-center"
-                style={{ color: "rgba(247,245,250,0.25)" }}
+                style={{ color: "var(--text-dim)" }}
               >
                 No new notifications
               </p>

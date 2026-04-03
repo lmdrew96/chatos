@@ -184,10 +184,10 @@ export default function MentionInput({
         <div
           className="absolute bottom-full mb-2 left-0 right-0 rounded-xl overflow-hidden z-10"
           style={{
-            background: "rgba(30,24,48,0.97)",
+            background: "var(--popover)",
             border: "1px solid rgba(139,189,185,0.2)",
             backdropFilter: "blur(16px)",
-            boxShadow: "0 -8px 32px rgba(0,0,0,0.4)",
+            boxShadow: "0 -8px 32px rgba(0,0,0,0.25)",
           }}
         >
           {mentionOptions.map((name, i) => (
@@ -202,7 +202,7 @@ export default function MentionInput({
               style={{
                 background:
                   i === mentionIndex ? "rgba(139,189,185,0.12)" : "transparent",
-                color: "var(--off-white)",
+                color: "var(--fg)",
               }}
               onMouseEnter={() => setMentionIndex(i)}
             >
@@ -217,8 +217,8 @@ export default function MentionInput({
       <div
         className="flex flex-col gap-2 p-3 rounded-2xl transition-all"
         style={{
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(247,245,250,0.08)",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
         }}
       >
         {/* Previews */}
@@ -227,8 +227,8 @@ export default function MentionInput({
             {selectedFiles.map((file, i) => (
               <div
                 key={i}
-                className="relative group w-16 h-16 rounded-lg overflow-hidden border border-white/10"
-                style={{ background: "rgba(255,255,255,0.05)" }}
+                className="relative group w-16 h-16 rounded-lg overflow-hidden"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
               >
                 {file.type.startsWith("image/") ? (
                   <img
@@ -263,7 +263,7 @@ export default function MentionInput({
         <div className="flex items-end gap-3">
           <div className="flex-1 min-w-0">
             {/* Hint */}
-            <div className="text-xs mb-1.5 select-none" style={{ color: "rgba(247,245,250,0.28)" }}>
+            <div className="text-xs mb-1.5 select-none" style={{ color: "var(--text-dim)" }}>
               {currentDisplayName ? (
                 <>
                   Sending as{" "}
@@ -285,7 +285,7 @@ export default function MentionInput({
               disabled={disabled || isUploading}
               className="w-full bg-transparent outline-none resize-none text-sm"
               style={{
-                color: "var(--off-white)",
+                color: "var(--fg)",
                 lineHeight: "1.6",
                 maxHeight: "140px",
                 overflowY: "auto",
@@ -307,7 +307,7 @@ export default function MentionInput({
               disabled={disabled || isUploading}
               className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 hover:bg-white/5"
               style={{
-                color: "rgba(247,245,250,0.4)",
+                color: "var(--text-muted)",
               }}
               title="Attach files (max 50MB)"
             >
@@ -323,7 +323,7 @@ export default function MentionInput({
               className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90"
               style={{
                 background: canSend ? "var(--amber)" : "rgba(255,255,255,0.05)",
-                color: canSend ? "var(--deep-dark)" : "rgba(247,245,250,0.2)",
+                color: canSend ? "var(--deep-dark)" : "var(--text-dim)",
                 boxShadow: canSend ? "0 0 16px rgba(223,166,73,0.25)" : "none",
               }}
             >

@@ -37,23 +37,14 @@ export function TopBar({ current }: { current?: Page }) {
         {navItems.map((item, i) => (
           <span key={item.page} className="flex items-center gap-5">
             {i > 0 && (
-              <span style={{ color: "rgba(247,245,250,0.1)" }}>·</span>
+              <span style={{ color: "var(--border)" }}>·</span>
             )}
             {activePage === item.page ? (
-              <span
-                className="text-xs font-medium"
-                style={{ color: "rgba(247,245,250,0.75)" }}
-              >
+              <span className="text-xs font-medium nav-link-active">
                 {item.label}
               </span>
             ) : (
-              <Link
-                href={item.href}
-                className="text-xs transition-colors"
-                style={{ color: "rgba(247,245,250,0.3)" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.7)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(247,245,250,0.3)")}
-              >
+              <Link href={item.href} className="text-xs nav-link">
                 {item.label}
               </Link>
             )}

@@ -173,6 +173,23 @@ export const setOnlineStatus = mutation({
   },
 });
 
+export const updateParticipantColor = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    userId: v.string(),
+    color: v.string(),
+  },
+  handler: async (ctx, { roomId, userId, color }) => {
+    const participant = await ctx.db
+      .query("participants")
+      .withIndex("by_room_and_user_id", (q) => q.eq("roomId", roomId).eq("userId", userId))
+      .unique();
+    if (participant) {
+      await ctx.db.patch(participant._id, { color });
+    }
+  },
+});
+
 export const deleteRoom = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, { roomId }) => {

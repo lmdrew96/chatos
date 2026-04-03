@@ -5,6 +5,7 @@ import "./globals.css";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 import { UserSync } from "@/components/UserSync";
 import { TopBar } from "@/components/TopBar";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 
@@ -69,13 +70,15 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${superBakery.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
-          <ConvexClientProvider>
-            <UserSync />
-            <div className="fixed top-0 inset-x-0 z-40 px-4">
-              <TopBar />
-            </div>
-            {children}
-          </ConvexClientProvider>
+          <ThemeProvider>
+            <ConvexClientProvider>
+              <UserSync />
+              <div className="fixed top-0 inset-x-0 z-40 px-4">
+                <TopBar />
+              </div>
+              {children}
+            </ConvexClientProvider>
+          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

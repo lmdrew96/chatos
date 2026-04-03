@@ -192,6 +192,7 @@ function RoomContent() {
   const myParticipant = useQuery(api.rooms.getMyParticipantInRoom, { roomId });
   const sendMessage = useMutation(api.messages.sendMessage);
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
+  const updateParticipantColor = useMutation(api.rooms.updateParticipantColor);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Always-current snapshot of messages for use inside async chains
@@ -269,10 +270,27 @@ function RoomContent() {
     );
     const map: Record<string, (typeof COLORS)[0]> = {};
     sorted.forEach((p, i) => {
-      map[p.userId] = COLORS[i % COLORS.length];
+      if (p.color) {
+        const hex = p.color.replace("#", "");
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        map[p.userId] = { text: p.color, bg: `rgba(${r},${g},${b},0.1)` };
+      } else {
+        map[p.userId] = COLORS[i % COLORS.length];
+      }
     });
     return map;
   }, [participants]);
+
+  // Auto-sync preferred color to Convex when participant record loads or changes
+  useEffect(() => {
+    if (!myParticipant || !currentUserId) return;
+    const pref = localStorage.getItem("chatos:preferredColor");
+    if (pref && pref !== myParticipant.color) {
+      updateParticipantColor({ roomId, userId: currentUserId, color: pref });
+    }
+  }, [myParticipant?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const invokeClaudeResponse = async ({
     claudeName,
@@ -400,7 +418,6 @@ function RoomContent() {
 
       if (uniqueMentions.length === 0) return;
 
-      const history = await buildHistory((messages ?? []).slice(-12) as MessageWithAttachments[]);
       const precedingReplies: { claudeName: string; content: string }[] = [];
       const respondedSet = new Set<string>();
       // count includes the human message we just sent.
@@ -521,10 +538,10 @@ function RoomContent() {
   // Loading state
   if (!currentUserId || messages === undefined || participants === undefined) {
     return (
-      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+      <main className="relative min-h-screen" style={{ background: "var(--bg)" }}>
         <div
           className="min-h-screen flex items-center justify-center"
-          style={{ color: "rgba(247,245,250,0.3)" }}
+          style={{ color: "var(--text-muted)" }}
         >
           <div className="flex flex-col items-center gap-3">
             <div
@@ -546,21 +563,21 @@ function RoomContent() {
   return (
     <div
       className="relative flex flex-col h-screen"
-      style={{ background: "var(--deep-dark)" }}
+      style={{ background: "var(--bg)" }}
     >
       {/* Header */}
       <header
         className="page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
         style={{
-          borderColor: "rgba(247,245,250,0.06)",
-          background: "rgba(30,24,48,0.8)",
+          borderColor: "var(--border-subtle)",
+          background: "var(--header-bg)",
           backdropFilter: "blur(12px)",
         }}
       >
         {/* Left: room info */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
               {onlineCount} online
             </span>
           </div>
@@ -569,7 +586,7 @@ function RoomContent() {
         {/* Right: invite + participant dots */}
         <div className="flex items-center gap-3">
           <InviteButton roomId={roomId} />
-          <div className="w-px h-4" style={{ background: "rgba(247,245,250,0.1)" }} />
+          <div className="w-px h-4" style={{ background: "var(--border)" }} />
           <div className="flex items-center gap-1.5">
             {participants.map((p) => {
               const color = participantColors[p.userId];
@@ -579,7 +596,7 @@ function RoomContent() {
                   title={`${p.displayName} · @${p.claudeName}${p.isOnline ? "" : " (offline)"}`}
                   className="flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-opacity"
                   style={{
-                    background: color?.bg ?? "rgba(255,255,255,0.06)",
+                    background: color?.bg ?? "var(--surface)",
                     border: `1px solid ${color?.text ?? "#fff"}22`,
                     opacity: p.isOnline ? 1 : 0.4,
                   }}
@@ -589,10 +606,10 @@ function RoomContent() {
                     style={{
                       background: p.isOnline
                         ? (color?.text ?? "#fff")
-                        : "rgba(255,255,255,0.2)",
+                        : "var(--text-dim)",
                     }}
                   />
-                  <span style={{ color: color?.text ?? "var(--off-white)" }}>
+                  <span style={{ color: color?.text ?? "var(--fg)" }}>
                     {p.displayName}
                   </span>
                 </div>
@@ -606,7 +623,7 @@ function RoomContent() {
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-2 select-none">
-            <p className="text-sm" style={{ color: "rgba(247,245,250,0.25)" }}>
+            <p className="text-sm" style={{ color: "var(--text-dim)" }}>
               No messages yet. Say hello — or{" "}
               <span style={{ color: "var(--sage-teal)" }}>@mention</span> a Claude to
               get things started.
@@ -682,7 +699,7 @@ function RoomContent() {
       {/* Input */}
       <div
         className="shrink-0 px-4 pb-4 pt-3 border-t"
-        style={{ borderColor: "rgba(247,245,250,0.06)" }}
+        style={{ borderColor: "var(--border-subtle)" }}
       >
         <MentionInput
           participants={participants}

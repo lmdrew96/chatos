@@ -58,7 +58,7 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+      <main className="relative min-h-screen" style={{ background: "var(--bg)" }}>
         <div className="min-h-screen flex items-center justify-center">
           <div
             className="w-6 h-6 rounded-full border-2 animate-spin"
@@ -73,7 +73,7 @@ export default function DashboardPage() {
     return (
       <main
         className="relative min-h-screen flex flex-col items-center justify-center"
-        style={{ background: "var(--deep-dark)" }}
+        style={{ background: "var(--bg)" }}
       >
         <div
           className="fixed inset-0 pointer-events-none"
@@ -86,7 +86,7 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-extrabold" style={{ fontFamily: "var(--font-super-bakery)" }}>
             Dashboard
           </h1>
-          <p className="text-sm" style={{ color: "rgba(247,245,250,0.4)" }}>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Sign in to view your friends and chat history.
           </p>
           <SignInButton mode="modal">
@@ -111,7 +111,7 @@ export default function DashboardPage() {
   const offlineFriends = friends?.filter((f) => !f.isOnline) ?? [];
 
   return (
-    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--deep-dark)" }}>
+    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--bg)" }}>
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -124,9 +124,9 @@ export default function DashboardPage() {
         <div className="grid gap-8 md:grid-cols-2">
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "rgba(247,245,250,0.3)" }}>
+              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "var(--text-muted)" }}>
                 Friends
-                {friends && friends.length > 0 && <span style={{ color: "rgba(247,245,250,0.2)" }}> · {friends.length}</span>}
+                {friends && friends.length > 0 && <span style={{ color: "var(--text-dim)" }}> · {friends.length}</span>}
               </h2>
               {onlineFriends.length > 0 && <span className="text-xs" style={{ color: "var(--soft-green)" }}>{onlineFriends.length} online</span>}
             </div>
@@ -134,9 +134,9 @@ export default function DashboardPage() {
             {(friends?.length ?? 0) === 0 ? (
               <div
                 className="px-4 py-5 rounded-xl text-center"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(247,245,250,0.06)" }}
+                style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}
               >
-                <p className="text-sm mb-2" style={{ color: "rgba(247,245,250,0.25)" }}>
+                <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
                   No friends yet.
                 </p>
                 <a href="/friends" className="text-xs" style={{ color: "var(--sage-teal)" }}>
@@ -151,23 +151,23 @@ export default function DashboardPage() {
                     className="flex items-center gap-3 px-4 py-3 rounded-xl"
                     style={{
                       background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(247,245,250,0.06)",
+                      border: "1px solid var(--border-subtle)",
                     }}
                   >
                     <div
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{
-                        background: f.isOnline ? "var(--soft-green)" : "rgba(247,245,250,0.15)",
+                        background: f.isOnline ? "var(--soft-green)" : "var(--text-dim)",
                         boxShadow: f.isOnline ? "0 0 6px rgba(151,209,129,0.6)" : "none",
                       }}
                     />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: f.isOnline ? "var(--off-white)" : "rgba(247,245,250,0.55)" }}>
+                      <p className="text-sm font-medium truncate" style={{ color: f.isOnline ? "var(--fg)" : "var(--text-muted)" }}>
                         {f.displayName ?? f.username}
                       </p>
-                      {f.username && <p className="text-xs truncate" style={{ color: "rgba(247,245,250,0.3)" }}>@{f.username}</p>}
+                      {f.username && <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>@{f.username}</p>}
                     </div>
-                    <span className="ml-auto text-xs shrink-0" style={{ color: f.isOnline ? "var(--soft-green)" : "rgba(247,245,250,0.2)" }}>
+                    <span className="ml-auto text-xs shrink-0" style={{ color: f.isOnline ? "var(--soft-green)" : "var(--text-dim)" }}>
                       {f.isOnline ? "online" : "offline"}
                     </span>
                   </div>
@@ -178,7 +178,7 @@ export default function DashboardPage() {
 
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "rgba(247,245,250,0.3)" }}>
+              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "var(--text-muted)" }}>
                 Recent rooms
               </h2>
               <button
@@ -191,16 +191,16 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <p className="text-xs mb-3" style={{ color: "rgba(247,245,250,0.3)" }}>
+            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
               Rooms created without an account auto-delete after 72 hours of inactivity.
             </p>
 
             {(rooms?.length ?? 0) === 0 ? (
               <div
                 className="px-4 py-5 rounded-xl text-center"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(247,245,250,0.06)" }}
+                style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}
               >
-                <p className="text-sm mb-2" style={{ color: "rgba(247,245,250,0.25)" }}>
+                <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
                   No rooms yet.
                 </p>
                 <Link href="/" className="text-xs" style={{ color: "var(--sage-teal)" }}>
@@ -215,7 +215,7 @@ export default function DashboardPage() {
                     className="rounded-xl"
                     style={{
                       background: "rgba(255,255,255,0.03)",
-                      border: "1px solid rgba(247,245,250,0.06)",
+                      border: "1px solid var(--border-subtle)",
                     }}
                   >
                     <div className="flex items-center justify-between gap-2 px-4 pt-3">
@@ -231,7 +231,7 @@ export default function DashboardPage() {
                           {r!.roomCode}
                         </span>
                       </button>
-                      <span className="text-xs" style={{ color: "rgba(247,245,250,0.25)" }}>
+                      <span className="text-xs" style={{ color: "var(--text-dim)" }}>
                         {r!.participantCount} {r!.participantCount === 1 ? "person" : "people"}
                       </span>
                       {r!.canDelete && (
@@ -262,22 +262,22 @@ export default function DashboardPage() {
                     <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="flex w-full flex-col gap-1.5 px-4 pb-3 pt-2 text-left">
                       {r!.lastMessage ? (
                         <div className="min-w-0">
-                          <p className="text-xs truncate" style={{ color: "rgba(247,245,250,0.45)" }}>
-                            <span style={{ color: "rgba(247,245,250,0.6)" }}>{r!.lastMessage.fromDisplayName}: </span>
+                          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                            <span style={{ color: "var(--fg)" }}>{r!.lastMessage.fromDisplayName}: </span>
                             {r!.lastMessage.content.slice(0, 80)}
                             {r!.lastMessage.content.length > 80 ? "..." : ""}
                           </p>
-                          <p className="text-xs mt-0.5" style={{ color: "rgba(247,245,250,0.2)" }}>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>
                             {timeAgo(r!.lastMessage.createdAt)}
                           </p>
                         </div>
                       ) : (
-                        <p className="text-xs" style={{ color: "rgba(247,245,250,0.2)" }}>
+                        <p className="text-xs" style={{ color: "var(--text-dim)" }}>
                           No messages yet
                         </p>
                       )}
 
-                      <p className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         {r!.retentionPolicy === "guest_ttl_72h"
                           ? `Auto-deletes after 72h inactivity (last active ${timeAgo(r!.lastActivityAt)})`
                           : "Persistent room (account-owned)"}

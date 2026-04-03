@@ -28,7 +28,7 @@ export default function Home() {
   return (
     <main
       className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
-      style={{ background: "var(--deep-dark)" }}
+      style={{ background: "var(--bg)" }}
     >
 
       {/* Ambient background glow */}
@@ -71,7 +71,7 @@ export default function Home() {
             animationDelay: "120ms",
             opacity: 0,
             animationFillMode: "forwards",
-            color: "rgba(247,245,250,0.5)",
+            color: "var(--text-muted)",
           }}
         >
           Multiple users. Multiple Claudes. One shared room.
@@ -138,7 +138,7 @@ export default function Home() {
             animationDelay: "380ms",
             opacity: 0,
             animationFillMode: "forwards",
-            color: "rgba(247,245,250,0.2)",
+            color: "var(--text-dim)",
           }}
         >
           Share the link after creation. Your API key stays on your machine.

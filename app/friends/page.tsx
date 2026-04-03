@@ -28,10 +28,10 @@ export default function FriendsPage() {
 
   if (isLoading) {
     return (
-      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+      <main className="relative min-h-screen" style={{ background: "var(--bg)" }}>
         <div
           className="min-h-screen flex items-center justify-center"
-          style={{ color: "rgba(247,245,250,0.3)" }}
+          style={{ color: "var(--text-muted)" }}
         >
           <div
             className="w-6 h-6 rounded-full border-2 animate-spin"
@@ -46,7 +46,7 @@ export default function FriendsPage() {
     return (
       <main
         className="relative min-h-screen flex flex-col items-center justify-center gap-6"
-        style={{ background: "var(--deep-dark)" }}
+        style={{ background: "var(--bg)" }}
       >
         <div
           className="fixed inset-0 pointer-events-none"
@@ -62,7 +62,7 @@ export default function FriendsPage() {
           >
             Friends
           </h1>
-          <p className="text-sm" style={{ color: "rgba(247,245,250,0.4)" }}>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Sign in to add friends and invite them to rooms.
           </p>
           <SignInButton mode="modal">
@@ -96,7 +96,7 @@ export default function FriendsPage() {
   return (
     <main
       className="relative min-h-screen px-4 pb-8"
-      style={{ background: "var(--deep-dark)" }}
+      style={{ background: "var(--bg)" }}
     >
       <div
         className="fixed inset-0 pointer-events-none"
@@ -112,14 +112,14 @@ export default function FriendsPage() {
         <section className="mb-8">
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: "rgba(247,245,250,0.3)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             Add by username
           </h2>
           <div className="relative">
             <span
               className="absolute left-3 top-1/2 -translate-y-1/2 text-sm select-none pointer-events-none"
-              style={{ color: "rgba(247,245,250,0.25)" }}
+              style={{ color: "var(--text-dim)" }}
             >
               @
             </span>
@@ -134,16 +134,16 @@ export default function FriendsPage() {
               autoComplete="off"
               className="w-full pl-7 pr-4 py-3 rounded-lg text-sm outline-none transition-all"
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(247,245,250,0.1)",
-                color: "var(--off-white)",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
               }}
               onFocus={(e) => {
                 e.target.style.borderColor = "var(--amber)";
                 e.target.style.boxShadow = "0 0 0 3px rgba(223,166,73,0.1)";
               }}
               onBlur={(e) => {
-                e.target.style.borderColor = "rgba(247,245,250,0.1)";
+                e.target.style.borderColor = "var(--border)";
                 e.target.style.boxShadow = "none";
               }}
             />
@@ -152,26 +152,26 @@ export default function FriendsPage() {
           {usernameSearch.trim() && (
             <div className="mt-2">
               {searchResult === undefined ? (
-                <p className="text-sm py-2" style={{ color: "rgba(247,245,250,0.3)" }}>
+                <p className="text-sm py-2" style={{ color: "var(--text-muted)" }}>
                   Searching…
                 </p>
               ) : searchResult === null ? (
-                <p className="text-sm py-2" style={{ color: "rgba(247,245,250,0.3)" }}>
+                <p className="text-sm py-2" style={{ color: "var(--text-muted)" }}>
                   No user found
                 </p>
               ) : (
                 <div
                   className="flex items-center justify-between px-4 py-3 rounded-lg"
                   style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(247,245,250,0.08)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                    <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                       {searchResult.displayName ?? searchResult.username}
                     </p>
-                    <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                       @{searchResult.username}
                     </p>
                   </div>
@@ -205,7 +205,7 @@ export default function FriendsPage() {
           <section className="mb-8">
             <h2
               className="text-xs font-medium tracking-widest uppercase mb-3"
-              style={{ color: "rgba(247,245,250,0.3)" }}
+              style={{ color: "var(--text-muted)" }}
             >
               Incoming requests
             </h2>
@@ -215,16 +215,16 @@ export default function FriendsPage() {
                   key={r._id}
                   className="flex items-center justify-between px-4 py-3 rounded-lg"
                   style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(247,245,250,0.08)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                    <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                       {r.sender.displayName ?? r.sender.username}
                     </p>
                     {r.sender.username && (
-                      <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         @{r.sender.username}
                       </p>
                     )}
@@ -241,8 +241,8 @@ export default function FriendsPage() {
                       onClick={() => respondToRequest({ requestId: r._id, accept: false })}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium"
                       style={{
-                        background: "rgba(247,245,250,0.06)",
-                        color: "rgba(247,245,250,0.4)",
+                        background: "var(--border-subtle)",
+                        color: "var(--text-muted)",
                       }}
                     >
                       Decline
@@ -259,7 +259,7 @@ export default function FriendsPage() {
           <section className="mb-8">
             <h2
               className="text-xs font-medium tracking-widest uppercase mb-3"
-              style={{ color: "rgba(247,245,250,0.3)" }}
+              style={{ color: "var(--text-muted)" }}
             >
               Sent requests
             </h2>
@@ -269,16 +269,16 @@ export default function FriendsPage() {
                   key={r._id}
                   className="flex items-center justify-between px-4 py-3 rounded-lg"
                   style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(247,245,250,0.08)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                    <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                       {r.target.displayName ?? r.target.username}
                     </p>
                     {r.target.username && (
-                      <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         @{r.target.username}
                       </p>
                     )}
@@ -286,7 +286,7 @@ export default function FriendsPage() {
                   <button
                     onClick={() => cancelRequest({ requestId: r._id })}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                    style={{ background: "rgba(247,245,250,0.06)", color: "rgba(247,245,250,0.4)" }}
+                    style={{ background: "var(--border-subtle)", color: "var(--text-muted)" }}
                   >
                     Cancel
                   </button>
@@ -300,12 +300,12 @@ export default function FriendsPage() {
         <section>
           <h2
             className="text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: "rgba(247,245,250,0.3)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             Friends{friends && friends.length > 0 ? ` · ${friends.length}` : ""}
           </h2>
           {(friends?.length ?? 0) === 0 ? (
-            <p className="text-sm py-4" style={{ color: "rgba(247,245,250,0.2)" }}>
+            <p className="text-sm py-4" style={{ color: "var(--text-dim)" }}>
               No friends yet. Search by username above to add someone.
             </p>
           ) : (
@@ -315,16 +315,16 @@ export default function FriendsPage() {
                   key={f._id}
                   className="flex items-center px-4 py-3 rounded-lg"
                   style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(247,245,250,0.08)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
                   }}
                 >
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                    <p className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                       {f.displayName ?? f.username}
                     </p>
                     {f.username && (
-                      <p className="text-xs" style={{ color: "rgba(247,245,250,0.35)" }}>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                         @{f.username}
                       </p>
                     )}

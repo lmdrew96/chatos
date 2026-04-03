@@ -24,8 +24,8 @@ export function AccountButton() {
       <button
         className="text-xs px-3 py-1.5 rounded-lg transition-all duration-150"
         style={{
-          color: "rgba(247,245,250,0.45)",
-          border: "1px solid rgba(247,245,250,0.1)",
+          color: "var(--text-muted)",
+          border: "1px solid var(--border)",
           background: "transparent",
         }}
         onMouseEnter={(e) => {
@@ -36,8 +36,8 @@ export function AccountButton() {
         }}
         onMouseLeave={(e) => {
           const btn = e.currentTarget;
-          btn.style.color = "rgba(247,245,250,0.45)";
-          btn.style.borderColor = "rgba(247,245,250,0.1)";
+          btn.style.color = "var(--text-muted)";
+          btn.style.borderColor = "var(--border)";
           btn.style.background = "transparent";
         }}
       >

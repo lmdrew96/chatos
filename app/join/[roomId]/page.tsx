@@ -125,10 +125,10 @@ export default function JoinPage() {
 
   if (room === undefined) {
     return (
-      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+      <main className="relative min-h-screen" style={{ background: "var(--bg)" }}>
         <div
           className="min-h-screen flex items-center justify-center"
-          style={{ color: "rgba(247,245,250,0.4)" }}
+          style={{ color: "var(--text-muted)" }}
         >
           Loading…
         </div>
@@ -138,10 +138,10 @@ export default function JoinPage() {
 
   if (room === null) {
     return (
-      <main className="relative min-h-screen" style={{ background: "var(--deep-dark)" }}>
+      <main className="relative min-h-screen" style={{ background: "var(--bg)" }}>
         <div
           className="min-h-screen flex items-center justify-center"
-          style={{ color: "var(--off-white)" }}
+          style={{ color: "var(--fg)" }}
         >
           Room not found.
         </div>
@@ -155,7 +155,7 @@ export default function JoinPage() {
   return (
     <main
       className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12"
-      style={{ background: "var(--deep-dark)" }}
+      style={{ background: "var(--bg)" }}
     >
 
       {/* Ambient glow */}
@@ -173,7 +173,7 @@ export default function JoinPage() {
         <div className="flex items-center gap-2 mb-8">
           <span
             className="text-xs tracking-widest uppercase font-medium"
-            style={{ color: "rgba(247,245,250,0.3)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             Room
           </span>
@@ -189,7 +189,7 @@ export default function JoinPage() {
           </span>
         </div>
 
-        <p className="text-xs mb-6" style={{ color: "rgba(247,245,250,0.35)" }}>
+        <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
           {retentionPolicy === "guest_ttl_72h"
             ? "This guest room auto-deletes after 72 hours of inactivity."
             : "This room is account-owned and does not auto-delete for inactivity."}
@@ -231,14 +231,14 @@ export default function JoinPage() {
         >
           Set up your space
         </h1>
-        <p className="text-sm mb-10" style={{ color: "rgba(247,245,250,0.4)" }}>
+        <p className="text-sm mb-10" style={{ color: "var(--text-muted)" }}>
           Configure your identity and your Claude before entering the room.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-7">
           {/* Display name */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+            <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
               Your name
             </label>
             <input
@@ -256,26 +256,18 @@ export default function JoinPage() {
               }}
               placeholder="e.g. Nae"
               autoComplete="off"
-              className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
+              className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all field-focus"
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(247,245,250,0.1)",
-                color: "var(--off-white)",
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "var(--amber)";
-                e.target.style.boxShadow = "0 0 0 3px rgba(223,166,73,0.1)";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "rgba(247,245,250,0.1)";
-                e.target.style.boxShadow = "none";
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
               }}
             />
           </div>
 
           {/* Claude name */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+            <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
               Your Claude&apos;s name
             </label>
             <div className="relative">
@@ -288,19 +280,11 @@ export default function JoinPage() {
                 }}
                 placeholder="e.g. NaeClaude"
                 autoComplete="off"
-                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all field-focus"
                 style={{
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(247,245,250,0.1)",
-                  color: "var(--off-white)",
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "var(--amber)";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(223,166,73,0.1)";
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(247,245,250,0.1)";
-                  e.target.style.boxShadow = "none";
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
                 }}
               />
               {!claudeNameTouched && resolvedClaudeName && (
@@ -312,7 +296,7 @@ export default function JoinPage() {
                 </span>
               )}
             </div>
-            <p className="text-xs" style={{ color: "rgba(247,245,250,0.3)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               Others use <span style={{ color: "var(--amber)" }}>@{resolvedClaudeName || "YourClaude"}</span> to invoke your Claude.
             </p>
           </div>
@@ -321,7 +305,7 @@ export default function JoinPage() {
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium" style={{ color: "var(--off-white)" }}>
+                <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                   Your Claude&apos;s personality
                 </label>
                 {hasMcpUrl && (
@@ -366,20 +350,12 @@ export default function JoinPage() {
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder={hasMcpUrl ? "Optional — your MCP context will define the personality. Add extra instructions here if you like…" : "Describe your Claude's role, personality, and how it should engage in the room…"}
               rows={4}
-              className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all resize-none"
+              className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all resize-none field-focus"
               style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(247,245,250,0.1)",
-                color: "var(--off-white)",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                color: "var(--fg)",
                 lineHeight: "1.6",
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "var(--amber)";
-                e.target.style.boxShadow = "0 0 0 3px rgba(223,166,73,0.1)";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "rgba(247,245,250,0.1)";
-                e.target.style.boxShadow = "none";
               }}
             />
           </div>

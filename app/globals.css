@@ -12,6 +12,36 @@
   --off-white: #F7F5FA;
   --deep-dark: #1E1830;
   --topbar-offset: 5rem;
+
+  /* Semantic tokens — dark defaults */
+  --bg: var(--deep-dark);
+  --fg: var(--off-white);
+  --surface: rgba(255,255,255,0.04);
+  --surface-raised: rgba(255,255,255,0.03);
+  --border: rgba(247,245,250,0.08);
+  --border-subtle: rgba(247,245,250,0.06);
+  --text-muted: rgba(247,245,250,0.35);
+  --text-dim: rgba(247,245,250,0.15);
+  --popover: rgba(20,16,36,0.98);
+  --header-bg: rgba(30,24,48,0.8);
+}
+
+[data-theme="light"] {
+  --bg: #F0EDF7;
+  --fg: #1E1830;
+  --surface: rgba(30,24,48,0.05);
+  --surface-raised: rgba(30,24,48,0.03);
+  --border: rgba(30,24,48,0.1);
+  --border-subtle: rgba(30,24,48,0.06);
+  --text-muted: rgba(30,24,48,0.5);
+  --text-dim: rgba(30,24,48,0.2);
+  --popover: rgba(240,237,247,0.98);
+  --header-bg: rgba(240,237,247,0.85);
+}
+
+[data-theme="light"] body {
+  background: var(--bg);
+  color: var(--fg);
 }
 
 @theme inline {
@@ -23,9 +53,25 @@
 }
 
 body {
-  background: var(--deep-dark);
-  color: var(--off-white);
+  background: var(--bg);
+  color: var(--fg);
   font-family: var(--font-geist-sans);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* Nav link hover — replaces inline JS handlers */
+.nav-link {
+  color: var(--text-dim);
+  transition: color 0.15s ease;
+}
+.nav-link:hover { color: var(--fg); opacity: 0.7; }
+.nav-link-active { color: rgba(247,245,250,0.75); }
+
+/* Consistent focus ring for all input fields */
+.field-focus:focus {
+  border-color: var(--amber) !important;
+  box-shadow: 0 0 0 3px rgba(223,166,73,0.1) !important;
+  outline: none;
 }
 
 @keyframes fade-up {

@@ -46,7 +46,8 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
               <img
                 src={file.url}
                 alt={file.fileName}
-                className="max-h-80 rounded-lg object-contain border border-white/10"
+                className="max-h-80 rounded-lg object-contain"
+                style={{ border: "1px solid var(--border)" }}
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
                 <span className="text-white text-xs font-medium px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-full">
@@ -59,8 +60,11 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
               href={file.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors border border-white/5 group"
-              style={{ background: "rgba(255,255,255,0.03)" }}
+              className="flex items-center gap-3 p-3 rounded-xl transition-colors group"
+              style={{
+                background: "var(--surface-raised)",
+                border: "1px solid var(--border-subtle)",
+              }}
             >
               <div
                 className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
@@ -72,10 +76,10 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
                 </svg>
               </div>
               <div className="flex-1 min-w-0 pr-1">
-                <div className="text-xs font-medium truncate text-white group-hover:text-amber transition-colors">
+                <div className="text-xs font-medium truncate" style={{ color: "var(--fg)" }}>
                   {file.fileName}
                 </div>
-                <div className="text-[10px] text-white/40 mt-0.5">
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>
                   {(file.size / 1024 / 1024).toFixed(2)} MB · {file.contentType.split("/")[1].toUpperCase()}
                 </div>
               </div>
@@ -99,9 +103,9 @@ export default function MessageBubble({
         <span
           className="text-xs px-3 py-1 rounded-full"
           style={{
-            color: "rgba(247,245,250,0.35)",
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            color: "var(--text-muted)",
+            background: "var(--surface)",
+            border: "1px solid var(--border-subtle)",
           }}
         >
           {message.content}
@@ -131,7 +135,7 @@ export default function MessageBubble({
             className="px-4 py-3 rounded-2xl text-sm leading-relaxed prose prose-invert prose-sm max-w-none"
             style={{
               background: bgColor,
-              color: "var(--off-white)",
+              color: "var(--fg)",
               border: `1px solid ${textColor}22`,
               borderRadius: "4px 18px 18px 18px",
             }}
@@ -161,9 +165,9 @@ export default function MessageBubble({
         <div
           className="px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
           style={{
-            background: isSelf ? bgColor : "rgba(255,255,255,0.05)",
-            color: "var(--off-white)",
-            border: isSelf ? `1px solid ${textColor}30` : "1px solid rgba(255,255,255,0.07)",
+            background: isSelf ? bgColor : "var(--surface)",
+            color: "var(--fg)",
+            border: isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
             borderRadius: isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
           }}
         >

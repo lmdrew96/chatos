@@ -19,6 +19,7 @@ export default defineSchema({
     claudeName: v.string(),
     systemPrompt: v.string(),
     isOnline: v.boolean(),
+    color: v.optional(v.string()),
   }).index("by_room", ["roomId"])
     .index("by_token_identifier", ["tokenIdentifier"])
     .index("by_room_and_token_identifier", ["roomId", "tokenIdentifier"])
