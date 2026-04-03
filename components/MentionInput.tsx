@@ -8,6 +8,7 @@ interface Attachment {
   fileName: string;
   contentType: string;
   size: number;
+  data?: string; // local base64 for immediate AI context
 }
 
 interface MentionInputProps {
@@ -110,6 +111,13 @@ export default function MentionInput({
       const attachments: Attachment[] = [];
 
       for (const file of selectedFiles) {
+        // Convert to base64 for immediate AI context
+        const data: string = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(",")[1]);
+          reader.readAsDataURL(file);
+        });
+
         const postUrl = await generateUploadUrl();
         const result = await fetch(postUrl, {
           method: "POST",
@@ -122,6 +130,7 @@ export default function MentionInput({
           fileName: file.name,
           contentType: file.type,
           size: file.size,
+          data,
         });
       }
 

@@ -414,18 +414,13 @@ export default function RoomPage() {
         if (attachments && attachments.length > 0) {
           const contentArray: MessageContent[] = [];
           for (const a of attachments) {
-            const url = `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/storage/${a.storageId}`;
-            try {
-              const { data, mediaType } = await fetchAsBase64(url);
-              if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
-                if (mediaType.startsWith("image/")) {
-                  contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-                } else if (mediaType === "application/pdf") {
-                  contentArray.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
-                }
+            // Use the local data provided by MentionInput for instant AI context
+            if (a.data && SUPPORTED_MEDIA_TYPES.includes(a.contentType)) {
+              if (a.contentType.startsWith("image/")) {
+                contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+              } else if (a.contentType === "application/pdf") {
+                contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
               }
-            } catch (e) {
-              console.error("Manual fetch failed for current attachment", e);
             }
           }
           const trimmedText = content.trim();
