@@ -389,10 +389,24 @@ function RoomContent() {
 
       // Fire-and-forget memory update (only at depth 0 to avoid thrashing)
       if (depth === 0) {
+        const USER_TRIGGERS = /\b(remember this|remember that|don't forget|save this|note this|keep that in mind|log this)\b/i;
+        const CLAUDE_TRIGGERS = /\b(i('ll| will) remember|i('ve| have) noted|i('ll| will) keep that in mind|noted|i('ll| will) make a note)\b/i;
+
+        const lastUserMsg = callMessages.findLast((m) => m.role === "user");
+        const lastUserText = typeof lastUserMsg?.content === "string"
+          ? lastUserMsg.content
+          : (lastUserMsg?.content as { type: string; text?: string }[] | undefined)
+              ?.find((b) => b.type === "text")?.text ?? "";
+
+        const triggeredByUser = USER_TRIGGERS.test(lastUserText);
+        const triggeredByClaude = CLAUDE_TRIGGERS.test(reply);
+
         const liveMessages = messagesRef.current ?? [];
         const memory = claudeMemories?.[claudeName];
         const newSinceLast = liveMessages.length - (memory?.messageCount ?? 0);
-        if (liveMessages.length > 8 && newSinceLast > 5) {
+        const thresholdMet = liveMessages.length > 8 && newSinceLast > 5;
+
+        if (thresholdMet || triggeredByUser || triggeredByClaude) {
           const olderMessages = liveMessages.slice(0, -5);
           const formatted = olderMessages
             .filter((m) => m.type !== "system")
