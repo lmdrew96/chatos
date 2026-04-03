@@ -318,6 +318,7 @@ function RoomContent() {
     setThinkingClaudes((prev) => new Set(prev).add(claudeName));
     try {
       const memoryContext = claudeMemories?.[claudeName]?.summary;
+      console.log("[memory] inject check — claudeName:", claudeName, "| memoriesKeys:", Object.keys(claudeMemories ?? {}), "| memoryContext:", memoryContext ? memoryContext.slice(0, 60) : "NONE");
       const reply = await callClaude({
         apiKey,
         systemPrompt: owner.systemPrompt,
