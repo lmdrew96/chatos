@@ -386,7 +386,8 @@ function RoomContent() {
       const history = await buildHistory((messages ?? []).slice(-12) as MessageWithAttachments[]);
       const precedingReplies: { claudeName: string; content: string }[] = [];
       const respondedSet = new Set<string>();
-      const chainStartHumanCount = (messages ?? []).filter((m) => m.type === "user").length;
+      // count includes the human message we just sent.
+      const chainStartHumanCount = ((messages ?? []).filter((m) => m.type === "user").length) + 1;
       const abortController = new AbortController();
       chainAbortRef.current = abortController;
 
@@ -431,11 +432,17 @@ function RoomContent() {
         // 1. Get history from the current query state
         const history = await buildHistory((messages ?? []).slice(-15) as MessageWithAttachments[]);
         
-        // 2. Check if the message we just sent (with 'content') is already the last turn in history
-        // We look at the last message content or metadata to decide if we should append manually.
+        // 2. Check if the message we just sent is already the last turn in history
+        // We handle both string and multimodal array content here.
         const lastMsgTurn = history[history.length - 1];
-        const alreadyInHistory = lastMsgTurn && lastMsgTurn.role === "user" && 
-          (typeof lastMsgTurn.content === "string" ? lastMsgTurn.content : "").includes(content);
+        let alreadyInHistory = false;
+        if (lastMsgTurn && lastMsgTurn.role === "user") {
+          if (typeof lastMsgTurn.content === "string") {
+             alreadyInHistory = lastMsgTurn.content.includes(content);
+          } else if (Array.isArray(lastMsgTurn.content)) {
+             alreadyInHistory = lastMsgTurn.content.some(c => c.type === "text" && c.text.includes(content));
+          }
+        }
 
         let callMessages = history;
         
