@@ -392,8 +392,8 @@ function RoomContent() {
         const liveMessages = messagesRef.current ?? [];
         const memory = claudeMemories?.[claudeName];
         const newSinceLast = liveMessages.length - (memory?.messageCount ?? 0);
-        if (liveMessages.length > 25 && newSinceLast > 15) {
-          const olderMessages = liveMessages.slice(0, -15);
+        if (liveMessages.length > 8 && newSinceLast > 5) {
+          const olderMessages = liveMessages.slice(0, -5);
           const formatted = olderMessages
             .filter((m) => m.type !== "system")
             .map((m) => `${m.fromDisplayName}: ${m.content}`)
