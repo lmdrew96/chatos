@@ -87,49 +87,58 @@ async function buildHistory(
     if (m.type === "system") continue;
     const role: "user" | "assistant" = m.type === "claude" ? "assistant" : "user";
     
-    let content: string | MessageContent[] = 
-      m.type === "claude"
+    let contentText = m.type === "claude"
         ? m.content
         : `${m.fromDisplayName}: ${m.content}`;
 
-    // If there are attachments, convert to content array
+    const attachmentBlocks: MessageContent[] = [];
     if (m.attachments && m.attachments.length > 0) {
-      const contentArray: MessageContent[] = [];
-      
-      // Add attachments first (best practice for Claude PDFs/images)
       for (const a of m.attachments) {
         const url = a.url || (a.storageId ? `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/storage/${a.storageId}` : null);
         if (!url) continue;
-
         try {
           const { data, mediaType } = await fetchAsBase64(url);
-          if (!SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
-            console.warn(`Unsupported media type: ${mediaType}`);
-            continue;
+          if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+            if (mediaType.startsWith("image/")) {
+              attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+            } else if (mediaType === "application/pdf") {
+              attachmentBlocks.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
+            }
           }
-
-          if (mediaType.startsWith("image/")) {
-            contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-          } else if (mediaType === "application/pdf") {
-            contentArray.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
-          }
-        } catch (err) {
-          console.error("Failed to fetch attachment for AI", err);
+        } catch (e) {
+          console.error("AI history fetch failed", e);
         }
       }
-      
-      const text = (typeof content === "string" ? content : "").trim();
-      if (text) {
-        contentArray.push({ type: "text", text });
-      }
-      
-      content = contentArray;
     }
 
-    if (result.length > 0 && result[result.length - 1].role === role && typeof content === "string" && typeof result[result.length - 1].content === "string") {
-      result[result.length - 1].content += "\n\n" + content;
+    const last = result[result.length - 1];
+    if (last && last.role === role) {
+      // Merge into last message
+      if (typeof last.content === "string") {
+        if (attachmentBlocks.length > 0) {
+          // Convert string to array to add attachments
+          const newContent: MessageContent[] = [{ type: "text", text: last.content }];
+          newContent.push(...attachmentBlocks);
+          if (contentText.trim()) newContent.push({ type: "text", text: contentText });
+          last.content = newContent;
+        } else {
+          // Just append text
+          last.content += "\n\n" + contentText;
+        }
+      } else {
+        // Already an array, just push new blocks
+        last.content.push(...attachmentBlocks);
+        if (contentText.trim()) last.content.push({ type: "text", text: contentText });
+      }
     } else {
-      result.push({ role, content });
+      // New message block
+      if (attachmentBlocks.length > 0) {
+        const contentArray: MessageContent[] = [...attachmentBlocks];
+        if (contentText.trim()) contentArray.push({ type: "text", text: contentText });
+        result.push({ role, content: contentArray });
+      } else {
+        result.push({ role, content: contentText });
+      }
     }
   }
 
