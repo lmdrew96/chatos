@@ -75,10 +75,11 @@ About [userName]:
 - Preferences: [preferences]
 - [customInstructions]
 
-[base personality prompt from room join form]
+You have MCP tools to update [userName]'s personal context. Use them proactively...
 ```
 
-4. This combined prompt is used as the `system` param on every API call for this Claude
+4. This combined prompt is used as the `system` param on every API call for this Claude.
+5. **Tool Usage Logging**: Cha(t)os logs tool calls (e.g. `pctx_update_context`) as system messages in the chat room for transparency.
 
 ### Build notes (for reference)
 - Model this after the ControlledChaos MCP server architecture (same developer, same patterns)
@@ -202,9 +203,9 @@ That's not a generic Claude. That's Nae's Claude. 👁️
 | Gap | Notes |
 |---|---|
 | Personal Context MCP server doesn't exist yet | Spec'd but not built — user must bring their own server |
-| No persistent context sync | Context is injected once at join; doesn't update mid-session |
-| MCP tool errors not surfaced clearly | If a tool call fails mid-response, the user may not know |
-| No context diff / refresh button | Would be useful for long sessions where context drifts |
+| No real-time context refresh | Context is injected once at join; doesn't update mid-session without rejoin |
+| MCP tool errors not surfaced clearly | If a tool call fails mid-response, it logs to system but may be vague |
+| Memory Summarization latency | Updating persistent Claude Memory adds overhead to the end of a chain |
 
 ---
 

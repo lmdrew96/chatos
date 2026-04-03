@@ -245,14 +245,16 @@ for (const claudeName of mentions) {
 | API key settings page | ✅ Done |
 | Friend system + room invites | ✅ Done |
 | ADHDesigns brand design system | ✅ Done |
-| Message timestamps | 🔲 Not yet (createdAt exists, not displayed) |
-| Room expiry / cleanup | 🔲 Not yet |
-| Reconnect / rejoin flow (lost API key) | 🔲 Not yet |
-| Error handling for invalid/expired API keys | 🔲 Partial (basic error messages) |
+| Multimodal (Images/PDFs) | ✅ Done |
+| Prompt Caching (Beta) | ✅ Done |
+| Message timestamps | 🔲 Not yet |
+| Room expiry / cleanup | ✅ Done |
+| Reconnect / rejoin flow (lost API key) | ✅ Done |
+| Error handling for invalid/expired API keys | ✅ Done |
 | `@everyone` shorthand | 🔲 Not yet |
 | Show more for long Claude responses | 🔲 Not yet |
-| Mobile responsive refinement | 🔲 Partial |
-| Duplicate Claude name validation at join | 🔲 Not yet |
+| Mobile responsive refinement | ✅ Done (Partial) |
+| Duplicate Claude name validation at join | ✅ Done |
 
 ---
 
@@ -260,12 +262,12 @@ for (const claudeName of mentions) {
 
 | Scenario | Status | Handling |
 |---|---|---|
-| User closes tab (API key lost) | 🔲 | Prompt to re-enter key on rejoin |
-| API key is invalid | 🔲 Partial | Basic error shown; should surface only to that user |
+| User closes tab (API key lost) | ✅ | Key in `localStorage`, survives refresh |
+| API key is invalid | ✅ | Error toast shown in room via system message |
 | Mentioned Claude, owner offline | 🔲 | Skip offline Claude, surface system message |
 | Very long Claude response | 🔲 | Truncate with "show more" |
-| Duplicate Claude name at join | 🔲 | Validate uniqueness before submitting |
-| MCP server unreachable | ✅ | Error state shown in join form, Layer 2 skipped gracefully |
+| Duplicate Claude name at join | ✅ | `joinRoom` mutation validates uniqueness |
+| MCP server unreachable | ✅ | Error state shown in join form |
 | Personal Context MCP URL invalid | ✅ | Validation with ok/error states before submit |
 
 ---

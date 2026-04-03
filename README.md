@@ -21,27 +21,28 @@ Multiple users and multiple Claudes exist in the same thread. Claudes are addres
 
 ## Core Features (MVP)
 
-- 🔑 **BYOK** — API keys stay client-side, never touch the server
-- 🖼️ **Multimodal support** — upload images and PDFs directly into the chat for Claude's analysis
-- 🤖 **Named Claude personas** — each user configures their Claude's name and system prompt
-- 💬 **@mention routing** — `@NaeClaude` or `@AshleyClaude` triggers the correct Claude
-- 🔄 **Sequential-aware dual responses** — when both Claudes are @mentioned, the second sees the first's reply
-- ⚡ **Real-time sync** — all users see messages as they arrive via Convex reactive queries
-- 🏠 **Room-based** — users join a shared room via a link or room code
-- 💸 **Owner-pays billing model** — the Claude's owner always pays for their Claude's responses, regardless of who @mentions them
+- 🔑 **BYOK** — API keys stay in `localStorage`, never touching our server.
+- 🖼️ **Multimodal support** — Upload images and PDFs directly into the chat for Claude's analysis.
+- 🤖 **Named Claude personas** — Each user configures their Claude's name and system prompt.
+- 💬 **@Mention routing** — `@NaeClaude` or `@AshleyClaude` triggers the correct context.
+- 🔄 **Sequential-aware dual responses** — When both Claudes are mentioned, the second sees the first's reply.
+- 🧠 **Claude Memory** — Per-user, per-Claude persistent memory summaries that bridge sessions.
+- 🔌 **MCP Server Support** — Support for multiple Model Context Protocol servers for tools and context.
+- 📇 **Personal Context** — Layered identity injection from personal-context MCP servers.
+- 🤝 **Social Layer** — Friend system, room invites, and a dashboard for managing active rooms.
+- ⚡ **Real-time sync** — Powered by Convex reactive queries for zero-latency updates.
 
 ---
 
-## Tech Stack
-
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | Next.js (App Router) | Standard for ADHDesigns projects |
-| Database + Realtime | Convex | Reactive queries = real-time without manual websocket wiring |
-| Auth | Convex Auth or Clerk | Simple session management for room participants |
-| AI | Anthropic API (claude-sonnet-4-20250514) | BYOK, client-side calls |
-| Hosting | Vercel | Standard deployment |
-| Language | TypeScript | Standard for ADHDesigns projects |
+| Framework | Next.js 16.2.1 (App Router) | Standard for ADHDesigns |
+| UI Logic | React 19.2.4 | Modern hooks and concurrent rendering |
+| Styling | Tailwind CSS 4 | Native CSS tokens and performance |
+| Database | Convex 1.34.1 | Reactive queries = real-time without sockets |
+| Auth | Clerk 7.0.7 | Secure session and identity management |
+| AI | Anthropic API (`claude-sonnet-4-6`) | BYOK, client-side browser access |
+| Hosting | Vercel | Scalable platform |
 
 ---
 
@@ -81,28 +82,71 @@ A **room** contains:
 
 ---
 
-## Project Structure (Planned)
+## Project Structure
 
 ```
 chatos/
 ├── app/
-│   ├── page.tsx              # Landing / room creation
+│   ├── dashboard/            # Active rooms, friends list, invites
 │   ├── room/[roomId]/
-│   │   └── page.tsx          # Main chat interface
-│   └── join/[roomId]/
-│       └── page.tsx          # Join flow (enter name, Claude config, API key)
+│   │   └── page.tsx          # Main chat engine + AI orchestration
+│   ├── join/[roomId]/
+│   │   └── page.tsx          # Join flow (persona config, key check)
+│   └── settings/             # Persistent API key storage
 ├── components/
-│   ├── ChatRoom.tsx          # Main chat UI
-│   ├── MessageBubble.tsx     # Individual message rendering
-│   ├── MentionInput.tsx      # Input with @mention autocomplete
-│   └── ClaudeSetup.tsx       # API key + persona configuration form
+│   ├── MentionInput.tsx      # Multi-line input with @autocomplete
+│   ├── MessageBubble.tsx     # Multimodal message rendering
+│   └── UserSync.tsx          # Clerk -> Convex identity sync
 ├── convex/
-│   ├── messages.ts           # Message mutations + queries
-│   ├── rooms.ts              # Room creation + participant management
-│   └── schema.ts             # Convex schema
+│   ├── friends.ts            # Friend requests and presence
+│   ├── invites.ts            # Room invitations
+│   ├── messages.ts           # Storage, search, and message flow
+│   ├── rooms.ts              # Room management + Claude Memory logic
+│   └── schema.ts             # 8-table relational schema
 └── lib/
-    └── claude.ts             # Anthropic API call logic (client-side)
+    ├── claude.ts             # Anthropic SDK wrapper
+    └── personalContext.ts    # Layer 1/2 MCP integration logic
 ```
+
+---
+
+## Getting Started
+
+### 1. Prerequisites
+- **Node.js** matching `package.json`
+- **pnpm** (preferred) or `npm`
+- A **Convex** account (free tier works)
+- A **Clerk** account for authentication
+
+### 2. Installation
+```bash
+# Clone the repository
+git clone https://github.com/lmdrew96/chatos
+cd chatos
+
+# Install dependencies
+pnpm install
+```
+
+### 3. Backend Setup
+```bash
+# Initialize Convex (this will open a browser tab to create a project)
+npx convex dev
+```
+Convex will generate a `.env.local` with your backend URL.
+
+### 4. Authentication Setup
+- Create a Clerk application.
+- Add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to `.env.local`.
+- Copy your Clerk JWT Issuer URL to `convex/auth.config.ts`.
+
+### 5. Running Locally
+```bash
+npm run dev
+```
+
+### 6. Final Step (BYOK)
+Open the app, go to **Settings**, and enter your **Anthropic API Key**. It is stored in your browser's `localStorage` and never sent to the Cha(t)os backend.
 
 ---
 
@@ -125,8 +169,12 @@ Cha(t)os is a project under the **ADHDesigns** brand (adhdesigns.dev).
 
 ## Status
 
-🧪 **Prototype complete** — core @mention routing, dual-Claude awareness, and real-time UI validated.
+🧪 **Prototype complete** — Core @mention routing and sequential AI validated.
 
-🖼️ **Multimodal Support Live** — Claude can now analyze uploaded images and PDFs in real-time.
+🖼️ **Multimodal Support Live** — Claude analyzes images and PDFs in real-time.
 
-🔨 **MVP in active development**
+⚡ **Prompt Caching Live** — History blocks are tagged for Anthropic prompt caching.
+
+🤝 **Social & Persistence Live** — Friend system, room invites, and persistent memories are fully functional.
+
+🔨 **MVP Polish phase**
