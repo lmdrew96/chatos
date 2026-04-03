@@ -406,20 +406,39 @@ export default function RoomPage() {
           }
         }
 
-        // Re-calculate history to include the message we just sent
-        // We wait a tiny bit for the query to possibly catch the local optimistic update or server return
-        const getReadyHistory = async (retries = 3): Promise<any[]> => {
-          const hist = await buildHistory((messagesRef.current ?? []).slice(-12) as MessageWithAttachments[]);
-          // Ensure the last message (if it had attachments) actually has them in the history
-          const lastMsg = hist[hist.length - 1];
-          if (attachments && attachments.length > 0 && typeof lastMsg?.content === 'string' && retries > 0) {
-             await new Promise(r => setTimeout(r, 300));
-             return getReadyHistory(retries - 1);
+        // 1. Get history excluding the message we just sent (to avoid duplicates once query updates)
+        const history = await buildHistory((messages ?? []).slice(-12) as MessageWithAttachments[]);
+        
+        // 2. Construct the current message block manually to ensure it's included immediately
+        let currentMsgContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
+        if (attachments && attachments.length > 0) {
+          const contentArray: MessageContent[] = [];
+          for (const a of attachments) {
+            const url = `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/storage/${a.storageId}`;
+            try {
+              const { data, mediaType } = await fetchAsBase64(url);
+              if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+                if (mediaType.startsWith("image/")) {
+                  contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+                } else if (mediaType === "application/pdf") {
+                  contentArray.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
+                }
+              }
+            } catch (e) {
+              console.error("Manual fetch failed for current attachment", e);
+            }
           }
-          return hist;
-        };
+          const trimmedText = content.trim();
+          if (trimmedText) {
+            contentArray.push({ type: "text", text: `${currentDisplayName}: ${trimmedText}` });
+          }
+          currentMsgContent = contentArray;
+        }
 
-        const callMessages = await getReadyHistory();
+        const callMessages = [
+          ...history,
+          { role: "user" as const, content: currentMsgContent }
+        ];
 
         if (precedingReplies.length > 0) {
           const context = precedingReplies
