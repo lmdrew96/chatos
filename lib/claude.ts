@@ -1,5 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
 export type McpServer = { name: string; url: string };
 
 export type MessageContent =
@@ -34,6 +32,27 @@ export async function callClaude({
       : ""
   }`;
 
+  const body: Record<string, unknown> = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: [
+      {
+        type: "text",
+        text: effectiveSystem,
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages,
+  };
+
+  if (mcpServers && mcpServers.length > 0) {
+    body.mcp_servers = mcpServers.map((s) => ({
+      type: "url",
+      url: s.url,
+      name: s.name,
+    }));
+  }
+
   const betas: string[] = [];
   if (mcpServers && mcpServers.length > 0) {
     betas.push("mcp-client-2025-04-04");
@@ -41,42 +60,29 @@ export async function callClaude({
   betas.push("pdfs-2024-09-25");
   betas.push("prompt-caching-2024-07-31");
 
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
-
-  const requestParams = {
-    model: "claude-sonnet-4-6",
-    max_tokens: 1024,
-    system: [
-      {
-        type: "text" as const,
-        text: effectiveSystem,
-        cache_control: { type: "ephemeral" as const },
-      },
-    ],
-    messages,
-    ...(mcpServers && mcpServers.length > 0
-      ? {
-          mcp_servers: mcpServers.map((s) => ({
-            type: "url",
-            url: s.url,
-            name: s.name,
-          })),
-        }
-      : {}),
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    "anthropic-version": "2023-06-01",
+    "anthropic-dangerous-direct-browser-access": "true",
+    "anthropic-beta": betas.join(","),
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const response = await (client.messages as any).create(requestParams, {
-    headers: { "anthropic-beta": betas.join(",") },
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
     signal,
   });
 
-  if (response.error) {
-    throw new Error(response.error.message ?? `API error`);
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error?.message ?? `API error ${res.status}`);
   }
 
   let text = "";
-  for (const block of response.content ?? []) {
+  for (const block of data.content ?? []) {
     if (block.type === "tool_use") {
       onToolUse?.(block.name, block.input ?? {});
     } else if (block.type === "text") {
