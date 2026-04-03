@@ -33,6 +33,16 @@ export default defineSchema({
     claudeName: v.optional(v.string()),
     ownerUserId: v.optional(v.string()),
     content: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          fileName: v.string(),
+          contentType: v.string(),
+          size: v.number(),
+        })
+      )
+    ),
     mentions: v.array(v.string()),
     mentionDepth: v.optional(v.number()),
     createdAt: v.number(),

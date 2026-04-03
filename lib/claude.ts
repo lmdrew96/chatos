@@ -1,5 +1,10 @@
 export type McpServer = { name: string; url: string };
 
+export type MessageContent = 
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+  | { type: "document"; source: { type: "base64"; media_type: string; data: string } };
+
 export async function callClaude({
   apiKey,
   systemPrompt,
@@ -10,7 +15,7 @@ export async function callClaude({
 }: {
   apiKey: string;
   systemPrompt: string;
-  messages: { role: "user" | "assistant"; content: string }[];
+  messages: { role: "user" | "assistant"; content: string | MessageContent[] }[];
   mcpServers?: McpServer[];
   claudeName?: string;
   signal?: AbortSignal;
@@ -41,8 +46,15 @@ export async function callClaude({
     "anthropic-dangerous-direct-browser-access": "true",
   };
 
+  const betas = [];
   if (mcpServers && mcpServers.length > 0) {
-    headers["anthropic-beta"] = "mcp-client-2025-04-04";
+    betas.push("mcp-client-2025-04-04");
+  }
+  // Enable PDF beta support
+  betas.push("pdfs-2024-09-25");
+  
+  if (betas.length > 0) {
+    headers["anthropic-beta"] = betas.join(",");
   }
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {

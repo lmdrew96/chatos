@@ -1,15 +1,24 @@
-"use client";
-
 import Markdown from "react-markdown";
-import { Doc } from "@/convex/_generated/dataModel";
+import { Doc, Id } from "@/convex/_generated/dataModel";
 
 interface Color {
   text: string;
   bg: string;
 }
 
+// Support the resolved URL from useMessages
+type MessageWithAttachments = Doc<"messages"> & {
+  attachments?: {
+    storageId: Id<"_storage">;
+    fileName: string;
+    contentType: string;
+    size: number;
+    url: string;
+  }[];
+};
+
 interface MessageBubbleProps {
-  message: Doc<"messages">;
+  message: MessageWithAttachments;
   currentUserId: string;
   participantColors: Record<string, Color>;
 }
@@ -22,6 +31,59 @@ function BotIcon({ color }: { color: string }) {
       <circle cx="4" cy="7.5" r="0.8" fill="currentColor" />
       <circle cx="8" cy="7.5" r="0.8" fill="currentColor" />
     </svg>
+  );
+}
+
+function AttachmentList({ attachments }: { attachments: MessageWithAttachments["attachments"] }) {
+  if (!attachments || attachments.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2 mt-3">
+      {attachments.map((file, i) => (
+        <div key={i} className="max-w-full overflow-hidden">
+          {file.contentType.startsWith("image/") ? (
+            <a href={file.url} target="_blank" rel="noopener noreferrer" className="block relative group">
+              <img
+                src={file.url}
+                alt={file.fileName}
+                className="max-h-80 rounded-lg object-contain border border-white/10"
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                <span className="text-white text-xs font-medium px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-full">
+                  View Full Size
+                </span>
+              </div>
+            </a>
+          ) : (
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors border border-white/5 group"
+              style={{ background: "rgba(255,255,255,0.03)" }}
+            >
+              <div
+                className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: "rgba(139,189,185,0.1)", color: "var(--sage-teal)" }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0 pr-1">
+                <div className="text-xs font-medium truncate text-white group-hover:text-amber transition-colors">
+                  {file.fileName}
+                </div>
+                <div className="text-[10px] text-white/40 mt-0.5">
+                  {(file.size / 1024 / 1024).toFixed(2)} MB · {file.contentType.split("/")[1].toUpperCase()}
+                </div>
+              </div>
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -74,7 +136,8 @@ export default function MessageBubble({
               borderRadius: "4px 18px 18px 18px",
             }}
           >
-            <Markdown>{message.content}</Markdown>
+            {message.content && <Markdown>{message.content}</Markdown>}
+            <AttachmentList attachments={message.attachments} />
           </div>
         </div>
       </div>
@@ -105,6 +168,7 @@ export default function MessageBubble({
           }}
         >
           {message.content}
+          <AttachmentList attachments={message.attachments} />
         </div>
       </div>
     </div>
