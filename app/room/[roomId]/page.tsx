@@ -436,6 +436,7 @@ function RoomContent() {
                 messageCount: liveMessages.length,
               });
             })
+            .then(() => console.log("[memory] Convex write succeeded"))
             .catch((err) => console.error("[memory] update failed:", err));
         }
       }
