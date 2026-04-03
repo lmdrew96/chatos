@@ -142,6 +142,23 @@ async function buildHistory(
     }
   }
 
+  // Apply prompt caching breakpoints (Max 4 allowed total)
+  // 1 is used for System Prompt in callClaude.
+  // We'll use up to 3 more for the history blocks.
+  // Tagging from latest back ensures the most recent state is cached for the next turn.
+  let breakpointsSet = 0;
+  for (let i = result.length - 1; i >= 0 && breakpointsSet < 3; i--) {
+    const msg = result[i];
+    if (typeof msg.content === "string") {
+      msg.content = [{ type: "text", text: msg.content, cache_control: { type: "ephemeral" } }];
+      breakpointsSet++;
+    } else if (Array.isArray(msg.content) && msg.content.length > 0) {
+      // Tag the last block in the content array (often the text or the last image)
+      msg.content[msg.content.length - 1].cache_control = { type: "ephemeral" };
+      breakpointsSet++;
+    }
+  }
+
   return result;
 }
 

@@ -1,9 +1,9 @@
 export type McpServer = { name: string; url: string };
 
 export type MessageContent = 
-  | { type: "text"; text: string }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
-  | { type: "document"; source: { type: "base64"; media_type: string; data: string } };
+  | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string }; cache_control?: { type: "ephemeral" } }
+  | { type: "document"; source: { type: "base64"; media_type: string; data: string }; cache_control?: { type: "ephemeral" } };
 
 export async function callClaude({
   apiKey,
@@ -27,7 +27,14 @@ export async function callClaude({
   const body: Record<string, unknown> = {
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
-    system: effectiveSystem,
+    // Use array format for system to support caching
+    system: [
+      {
+        type: "text",
+        text: effectiveSystem,
+        cache_control: { type: "ephemeral" }
+      }
+    ],
     messages,
   };
 
@@ -50,8 +57,9 @@ export async function callClaude({
   if (mcpServers && mcpServers.length > 0) {
     betas.push("mcp-client-2025-04-04");
   }
-  // Enable PDF beta support
+  // Enable PDF and Prompt Caching beta support
   betas.push("pdfs-2024-09-25");
+  betas.push("prompt-caching-2024-07-31");
   
   if (betas.length > 0) {
     headers["anthropic-beta"] = betas.join(",");
