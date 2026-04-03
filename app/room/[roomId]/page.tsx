@@ -26,7 +26,7 @@ async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: st
 }
 
 // Support the resolved URL from useMessages
-type MessageWithAttachments = Doc<"messages"> & {
+type MessageWithAttachments = Omit<Doc<"messages">, "attachments"> & {
   attachments?: {
     storageId: Id<"_storage">;
     fileName: string;
