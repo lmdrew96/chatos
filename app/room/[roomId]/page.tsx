@@ -355,7 +355,7 @@ export default function RoomPage() {
         fromDisplayName: currentDisplayName,
         type: "user",
         content,
-        attachments,
+        attachments: attachments?.map(({ data, ...rest }) => rest),
         mentions: uniqueMentions,
       });
 
