@@ -1,4 +1,5 @@
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 
 interface Color {
@@ -140,7 +141,7 @@ export default function MessageBubble({
               borderRadius: "4px 18px 18px 18px",
             }}
           >
-            {message.content && <Markdown>{message.content}</Markdown>}
+            {message.content && <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>}
             <AttachmentList attachments={message.attachments} />
           </div>
         </div>
