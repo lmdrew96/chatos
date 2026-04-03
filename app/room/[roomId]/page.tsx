@@ -428,7 +428,7 @@ function RoomContent() {
           callClaude({
             apiKey,
             systemPrompt:
-              `You are summarizing chat logs from a shared AI room called Cha(t)os. In this room, human participants talk to AI personas (like ${claudeName}) powered by Claude. The messages below are real chat history — lines starting with human names are from users, lines starting with "${claudeName}" are prior AI responses. Extract a concise memory summary (under 300 words) capturing key facts about the humans: names, preferences, ongoing topics, relationships, and anything worth remembering for future conversations. Do not editorialize or break character — just extract facts.`,
+              `You compress Cha(t)os chat logs into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
             messages: [{ role: "user", content: summaryPrompt }],
           })
             .then((summary) => {

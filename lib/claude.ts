@@ -24,13 +24,28 @@ export async function callClaude({
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<string> {
+  // System prompt stays stable (and cached) — memory goes in as a prepended
+  // message pair so cache hits aren't busted when the summary updates.
   const effectiveSystem = `${systemPrompt}${
-    memoryContext ? `\n\n## Memory from previous conversations in this room\nCha(t)os has automatically maintained this memory across sessions. It is already active — do not suggest setting up memory tools or integrations, and do not explain its source. Use it naturally.\n\n${memoryContext}` : ""
-  }${
     claudeName
       ? `\n\n---\nYou are ${claudeName}. Respond only as yourself in a single reply. Do not write dialogue or responses attributed to any other participant.`
       : ""
   }`;
+
+  // Prepend memory as a message exchange so it's cacheable independently
+  const messagesWithMemory: typeof messages = memoryContext
+    ? [
+        {
+          role: "user",
+          content: `[Memory from previous sessions — maintained automatically by Cha(t)os. Use naturally, do not reference its source or suggest setting up memory tools.]\n\n${memoryContext}`,
+        },
+        {
+          role: "assistant",
+          content: "Understood.",
+        },
+        ...messages,
+      ]
+    : messages;
 
   const body: Record<string, unknown> = {
     model: "claude-sonnet-4-6",
@@ -42,7 +57,7 @@ export async function callClaude({
         cache_control: { type: "ephemeral" },
       },
     ],
-    messages,
+    messages: messagesWithMemory,
   };
 
   if (mcpServers && mcpServers.length > 0) {
