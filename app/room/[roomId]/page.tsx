@@ -190,7 +190,10 @@ function RoomContent() {
   const messages = useQuery(api.messages.useMessages, { roomId });
   const participants = useQuery(api.rooms.useParticipants, { roomId });
   const myParticipant = useQuery(api.rooms.getMyParticipantInRoom, { roomId });
-  const claudeMemories = useQuery(api.rooms.getClaudeMemoriesForRoom, { roomId });
+  const claudeMemories = useQuery(
+    api.rooms.getClaudeMemoriesForOwner,
+    currentUserId ? { ownerUserId: currentUserId } : "skip"
+  );
   const sendMessage = useMutation(api.messages.sendMessage);
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
   const updateParticipantColor = useMutation(api.rooms.updateParticipantColor);
@@ -431,7 +434,7 @@ function RoomContent() {
             .then((summary) => {
               console.log("[memory] summary generated, saving to Convex:", summary.slice(0, 80));
               return upsertClaudeMemory({
-                roomId,
+                ownerUserId: owner.userId,
                 claudeName,
                 summary,
                 messageCount: liveMessages.length,

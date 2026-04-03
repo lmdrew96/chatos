@@ -75,10 +75,10 @@ export default defineSchema({
     .index("by_room", ["roomId"]),
 
   claudeMemories: defineTable({
-    roomId: v.id("rooms"),
+    ownerUserId: v.string(),
     claudeName: v.string(),
     summary: v.string(),
     updatedAt: v.number(),
     messageCount: v.number(),
-  }).index("by_room_and_claude_name", ["roomId", "claudeName"]),
+  }).index("by_owner_and_claude_name", ["ownerUserId", "claudeName"]),
 });

@@ -46,17 +46,6 @@ async function deleteRoomCascade(ctx: MutationCtx, roomId: Id<"rooms">) {
     }
   }
 
-  while (true) {
-    const memories = await ctx.db
-      .query("claudeMemories")
-      .withIndex("by_room_and_claude_name", (q) => q.eq("roomId", roomId))
-      .take(100);
-    if (memories.length === 0) break;
-    for (const memory of memories) {
-      await ctx.db.delete(memory._id);
-    }
-  }
-
   await ctx.db.delete(roomId);
 }
 
@@ -136,8 +125,8 @@ export const joinRoom = mutation({
       if (existing.systemPrompt !== systemPrompt) {
         const staleMemory = await ctx.db
           .query("claudeMemories")
-          .withIndex("by_room_and_claude_name", (q) =>
-            q.eq("roomId", roomId).eq("claudeName", existing.claudeName)
+          .withIndex("by_owner_and_claude_name", (q) =>
+            q.eq("ownerUserId", userId).eq("claudeName", existing.claudeName)
           )
           .unique();
         if (staleMemory) await ctx.db.delete(staleMemory._id);
@@ -275,12 +264,12 @@ export const getMyParticipantInRoom = query({
   },
 });
 
-export const getClaudeMemoriesForRoom = query({
-  args: { roomId: v.id("rooms") },
-  handler: async (ctx, { roomId }) => {
+export const getClaudeMemoriesForOwner = query({
+  args: { ownerUserId: v.string() },
+  handler: async (ctx, { ownerUserId }) => {
     const memories = await ctx.db
       .query("claudeMemories")
-      .withIndex("by_room_and_claude_name", (q) => q.eq("roomId", roomId))
+      .withIndex("by_owner_and_claude_name", (q) => q.eq("ownerUserId", ownerUserId))
       .take(50);
     return Object.fromEntries(memories.map((m) => [m.claudeName, m]));
   },
@@ -288,7 +277,7 @@ export const getClaudeMemoriesForRoom = query({
 
 export const upsertClaudeMemory = mutation({
   args: {
-    roomId: v.id("rooms"),
+    ownerUserId: v.string(),
     claudeName: v.string(),
     summary: v.string(),
     messageCount: v.number(),
@@ -296,8 +285,8 @@ export const upsertClaudeMemory = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("claudeMemories")
-      .withIndex("by_room_and_claude_name", (q) =>
-        q.eq("roomId", args.roomId).eq("claudeName", args.claudeName)
+      .withIndex("by_owner_and_claude_name", (q) =>
+        q.eq("ownerUserId", args.ownerUserId).eq("claudeName", args.claudeName)
       )
       .unique();
     if (existing) {
