@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, fetchQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
@@ -198,6 +198,7 @@ function RoomContent() {
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
   const updateParticipantColor = useMutation(api.rooms.updateParticipantColor);
   const upsertClaudeMemory = useMutation(api.rooms.upsertClaudeMemory);
+  const touchClaudeMemory = useMutation(api.rooms.touchClaudeMemory);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Always-current snapshot of messages for use inside async chains
@@ -321,7 +322,9 @@ function RoomContent() {
     setThinkingClaudes((prev) => new Set(prev).add(claudeName));
     try {
       const memoryContext = claudeMemories?.[claudeName]?.summary;
-      console.log("[memory] inject check — claudeName:", claudeName, "| memoriesKeys:", Object.keys(claudeMemories ?? {}), "| memoryContext:", memoryContext ? memoryContext.slice(0, 60) : "NONE");
+      if (memoryContext) {
+        touchClaudeMemory({ ownerUserId: owner.userId, claudeName }).catch(() => {});
+      }
       const reply = await callClaude({
         apiKey,
         systemPrompt: owner.systemPrompt,
@@ -410,7 +413,6 @@ function RoomContent() {
         const newSinceLast = liveMessages.length - (memory?.messageCount ?? 0);
         const thresholdMet = liveMessages.length > 8 && newSinceLast > 5;
 
-        console.log("[memory] check:", { thresholdMet, triggeredByUser, triggeredByClaude, msgCount: liveMessages.length });
         if (thresholdMet || triggeredByUser || triggeredByClaude) {
           // For explicit triggers use all messages; for threshold use all but the last 5
           const explicitTrigger = triggeredByUser || triggeredByClaude;
@@ -431,16 +433,14 @@ function RoomContent() {
               `You compress Cha(t)os chat logs into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
             messages: [{ role: "user", content: summaryPrompt }],
           })
-            .then((summary) => {
-              console.log("[memory] summary generated, saving to Convex:", summary.slice(0, 80));
-              return upsertClaudeMemory({
+            .then((summary) =>
+              upsertClaudeMemory({
                 ownerUserId: owner.userId,
                 claudeName,
                 summary,
                 messageCount: liveMessages.length,
-              });
-            })
-            .then(() => console.log("[memory] Convex write succeeded"))
+              })
+            )
             .catch((err) => console.error("[memory] update failed:", err));
         }
       }
@@ -553,7 +553,27 @@ function RoomContent() {
         }
 
         let callMessages = history;
-        
+
+        // Session search: detect "search [my history] for X" trigger
+        const SEARCH_TRIGGER = /\bsearch(?:\s+my\s+(?:history|sessions?))?\s+(?:for\s+)?(.+)/i;
+        const searchMatch = content.match(SEARCH_TRIGGER);
+        if (searchMatch && currentUserId) {
+          const results = await fetchQuery(api.messages.searchUserMessages, {
+            fromUserId: currentUserId,
+            searchQuery: searchMatch[1].trim(),
+          });
+          if (results.length > 0) {
+            const contextBlock = results
+              .map((m) => `[${new Date(m.createdAt).toLocaleDateString()}] ${m.content}`)
+              .join("\n");
+            callMessages = [
+              { role: "user" as const, content: `[Relevant past messages found]\n${contextBlock}` },
+              { role: "assistant" as const, content: "I can see those past messages." },
+              ...callMessages,
+            ];
+          }
+        }
+
         if (!alreadyInHistory) {
           // Construct the current message block manually ONLY if it's not in the history yet
           let currentMsgContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;

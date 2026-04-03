@@ -6,5 +6,8 @@ const crons = cronJobs();
 // Sweep expired guest rooms in small batches.
 crons.interval("cleanup inactive guest rooms", { hours: 1 }, internal.rooms.cleanupInactiveGuestRooms, {});
 
+// Purge Claude memories not accessed in 30 days (every Sunday at 03:00 UTC).
+crons.cron("audit stale claude memories", "0 3 * * 0", internal.rooms.auditClaudeMemories, {});
+
 export default crons;
 

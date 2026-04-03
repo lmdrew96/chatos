@@ -47,7 +47,11 @@ export default defineSchema({
     mentions: v.array(v.string()),
     mentionDepth: v.optional(v.number()),
     createdAt: v.number(),
-  }).index("by_room", ["roomId"]),
+  }).index("by_room", ["roomId"])
+    .searchIndex("search_content", {
+      searchField: "content",
+      filterFields: ["fromUserId"],
+    }),
 
   users: defineTable({
     tokenIdentifier: v.string(),
@@ -79,6 +83,8 @@ export default defineSchema({
     claudeName: v.string(),
     summary: v.string(),
     updatedAt: v.number(),
+    lastAccessedAt: v.optional(v.number()),
     messageCount: v.number(),
-  }).index("by_owner_and_claude_name", ["ownerUserId", "claudeName"]),
+  }).index("by_owner_and_claude_name", ["ownerUserId", "claudeName"])
+    .index("by_last_accessed", ["lastAccessedAt"]),
 });

@@ -283,6 +283,7 @@ export const upsertClaudeMemory = mutation({
     messageCount: v.number(),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
     const existing = await ctx.db
       .query("claudeMemories")
       .withIndex("by_owner_and_claude_name", (q) =>
@@ -292,12 +293,44 @@ export const upsertClaudeMemory = mutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         summary: args.summary,
-        updatedAt: Date.now(),
+        updatedAt: now,
+        lastAccessedAt: now,
         messageCount: args.messageCount,
       });
     } else {
-      await ctx.db.insert("claudeMemories", { ...args, updatedAt: Date.now() });
+      await ctx.db.insert("claudeMemories", { ...args, updatedAt: now, lastAccessedAt: now });
     }
+  },
+});
+
+export const touchClaudeMemory = mutation({
+  args: { ownerUserId: v.string(), claudeName: v.string() },
+  handler: async (ctx, { ownerUserId, claudeName }) => {
+    const existing = await ctx.db
+      .query("claudeMemories")
+      .withIndex("by_owner_and_claude_name", (q) =>
+        q.eq("ownerUserId", ownerUserId).eq("claudeName", claudeName)
+      )
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, { lastAccessedAt: Date.now() });
+    }
+  },
+});
+
+export const auditClaudeMemories = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const stale = await ctx.db
+      .query("claudeMemories")
+      .withIndex("by_last_accessed", (q) => q.lte("lastAccessedAt", cutoff))
+      .take(50);
+    for (const m of stale) await ctx.db.delete(m._id);
+    if (stale.length === 50) {
+      await ctx.scheduler.runAfter(0, internal.rooms.auditClaudeMemories, {});
+    }
+    return { deleted: stale.length };
   },
 });
 

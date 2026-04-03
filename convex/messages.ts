@@ -37,6 +37,18 @@ export const sendMessage = mutation({
   },
 });
 
+export const searchUserMessages = query({
+  args: { fromUserId: v.string(), searchQuery: v.string() },
+  handler: async (ctx, { fromUserId, searchQuery }) => {
+    return await ctx.db
+      .query("messages")
+      .withSearchIndex("search_content", (q) =>
+        q.search("content", searchQuery).eq("fromUserId", fromUserId)
+      )
+      .take(5);
+  },
+});
+
 export const useMessages = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, { roomId }) => {
