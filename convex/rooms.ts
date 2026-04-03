@@ -46,6 +46,17 @@ async function deleteRoomCascade(ctx: MutationCtx, roomId: Id<"rooms">) {
     }
   }
 
+  while (true) {
+    const memories = await ctx.db
+      .query("claudeMemories")
+      .withIndex("by_room_and_claude_name", (q) => q.eq("roomId", roomId))
+      .take(100);
+    if (memories.length === 0) break;
+    for (const memory of memories) {
+      await ctx.db.delete(memory._id);
+    }
+  }
+
   await ctx.db.delete(roomId);
 }
 
@@ -121,6 +132,16 @@ export const joinRoom = mutation({
       .unique();
 
     if (existing) {
+      // If the system prompt changed, the old memory is stale — wipe it
+      if (existing.systemPrompt !== systemPrompt) {
+        const staleMemory = await ctx.db
+          .query("claudeMemories")
+          .withIndex("by_room_and_claude_name", (q) =>
+            q.eq("roomId", roomId).eq("claudeName", existing.claudeName)
+          )
+          .unique();
+        if (staleMemory) await ctx.db.delete(staleMemory._id);
+      }
       await ctx.db.patch(existing._id, { isOnline: true, displayName, claudeName, systemPrompt, tokenIdentifier });
       await ctx.db.patch(roomId, { lastActivityAt: Date.now() });
       return existing._id;
