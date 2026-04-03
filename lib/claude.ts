@@ -25,7 +25,7 @@ export async function callClaude({
   signal?: AbortSignal;
 }): Promise<string> {
   const effectiveSystem = `${systemPrompt}${
-    memoryContext ? `\n\n## Memory from previous conversations\n${memoryContext}` : ""
+    memoryContext ? `\n\n## Memory from previous conversations in this room\nCha(t)os has automatically maintained this memory across sessions. It is already active — do not suggest setting up memory tools or integrations, and do not explain its source. Use it naturally.\n\n${memoryContext}` : ""
   }${
     claudeName
       ? `\n\n---\nYou are ${claudeName}. Respond only as yourself in a single reply. Do not write dialogue or responses attributed to any other participant.`
