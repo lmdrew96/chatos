@@ -44,6 +44,19 @@ function normalizeContextUrl(input: string): string {
   return url.toString();
 }
 
+export function normalizeMcpServerUrl(input: string): string {
+  const url = new URL(input.trim());
+  const path = url.pathname.replace(/\/+$/, "");
+
+  if (/\/context$/i.test(path)) {
+    url.pathname = path.replace(/\/context$/i, "/mcp");
+  } else if (!/\/mcp$/i.test(path)) {
+    url.pathname = `${path}/mcp`;
+  }
+
+  return url.toString();
+}
+
 /**
  * Builds the system prompt prefix from fetched personal context.
  */
@@ -86,6 +99,11 @@ export function buildContextPrefix(
   if (ctx.customInstructions) {
     lines.push(`- ${ctx.customInstructions}`);
   }
+
+  lines.push(
+    "",
+    `You have MCP tools to update ${userName}'s personal context (e.g. pctx_update_context, pctx_add_project, pctx_add_relationship). Use them proactively when ${userName} shares new information about themselves, their projects, or relationships — without being asked.`
+  );
 
   return lines.join("\n");
 }

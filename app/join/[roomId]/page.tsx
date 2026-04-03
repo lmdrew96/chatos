@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { fetchPersonalContext, buildContextPrefix } from "@/lib/personalContext";
+import { fetchPersonalContext, buildContextPrefix, normalizeMcpServerUrl } from "@/lib/personalContext";
 
 const STARTER_PROMPTS = [
   {
@@ -86,7 +86,7 @@ export default function JoinPage() {
       try { return JSON.parse(localStorage.getItem("chatos:mcpServers") ?? "[]"); } catch { return []; }
     })();
     const contextSeed = localStorage.getItem("chatos:contextSeed") ?? "";
-    sessionStorage.setItem("chatos:mcpServers", JSON.stringify(storedServers.filter((s) => s.name.trim() && s.url.trim())));
+    const validServers = storedServers.filter((s) => s.name.trim() && s.url.trim());
 
     try {
       let basePrompt = systemPrompt.trim();
@@ -97,11 +97,20 @@ export default function JoinPage() {
           const ctx = await fetchPersonalContext(mcpUrl.trim());
           const prefix = buildContextPrefix(resolvedClaudeName.trim(), resolvedDisplayName.trim(), ctx);
           basePrompt = basePrompt ? `${prefix}\n\nPersonality: ${basePrompt}` : prefix;
+
+          // Also register as a live MCP server so Claude can use its write tools during conversations.
+          const mcpServerUrl = normalizeMcpServerUrl(mcpUrl.trim());
+          sessionStorage.setItem(
+            "chatos:mcpServers",
+            JSON.stringify([{ name: "PersonalContext", url: mcpServerUrl }, ...validServers])
+          );
         } catch {
           setError("Couldn't reach your Personal Context MCP — check the URL in Settings and try again.");
           setLoading(false);
           return;
         }
+      } else {
+        sessionStorage.setItem("chatos:mcpServers", JSON.stringify(validServers));
       }
 
       // Layer 3: Append context seed if provided
