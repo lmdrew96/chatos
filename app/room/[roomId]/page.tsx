@@ -518,10 +518,11 @@ function RoomContent() {
         const lastMsgTurn = history[history.length - 1];
         let alreadyInHistory = false;
         if (lastMsgTurn && lastMsgTurn.role === "user") {
+          const needle = content.toLowerCase();
           if (typeof lastMsgTurn.content === "string") {
-             alreadyInHistory = lastMsgTurn.content.includes(content);
+             alreadyInHistory = lastMsgTurn.content.toLowerCase().includes(needle);
           } else if (Array.isArray(lastMsgTurn.content)) {
-             alreadyInHistory = lastMsgTurn.content.some(c => c.type === "text" && c.text.includes(content));
+             alreadyInHistory = lastMsgTurn.content.some(c => c.type === "text" && c.text.toLowerCase().includes(needle));
           }
         }
 
