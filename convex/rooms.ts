@@ -254,3 +254,40 @@ export const getMyParticipantInRoom = query({
   },
 });
 
+export const getClaudeMemoriesForRoom = query({
+  args: { roomId: v.id("rooms") },
+  handler: async (ctx, { roomId }) => {
+    const memories = await ctx.db
+      .query("claudeMemories")
+      .withIndex("by_room_and_claude_name", (q) => q.eq("roomId", roomId))
+      .take(50);
+    return Object.fromEntries(memories.map((m) => [m.claudeName, m]));
+  },
+});
+
+export const upsertClaudeMemory = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    claudeName: v.string(),
+    summary: v.string(),
+    messageCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("claudeMemories")
+      .withIndex("by_room_and_claude_name", (q) =>
+        q.eq("roomId", args.roomId).eq("claudeName", args.claudeName)
+      )
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        summary: args.summary,
+        updatedAt: Date.now(),
+        messageCount: args.messageCount,
+      });
+    } else {
+      await ctx.db.insert("claudeMemories", { ...args, updatedAt: Date.now() });
+    }
+  },
+});
+

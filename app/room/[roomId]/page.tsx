@@ -190,9 +190,11 @@ function RoomContent() {
   const messages = useQuery(api.messages.useMessages, { roomId });
   const participants = useQuery(api.rooms.useParticipants, { roomId });
   const myParticipant = useQuery(api.rooms.getMyParticipantInRoom, { roomId });
+  const claudeMemories = useQuery(api.rooms.getClaudeMemoriesForRoom, { roomId });
   const sendMessage = useMutation(api.messages.sendMessage);
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
   const updateParticipantColor = useMutation(api.rooms.updateParticipantColor);
+  const upsertClaudeMemory = useMutation(api.rooms.upsertClaudeMemory);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Always-current snapshot of messages for use inside async chains
@@ -315,12 +317,25 @@ function RoomContent() {
 
     setThinkingClaudes((prev) => new Set(prev).add(claudeName));
     try {
+      const memoryContext = claudeMemories?.[claudeName]?.summary;
       const reply = await callClaude({
         apiKey,
         systemPrompt: owner.systemPrompt,
         messages: callMessages,
         mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
         claudeName,
+        memoryContext,
+        onToolUse: (toolName) => {
+          sendMessage({
+            roomId,
+            fromUserId: "system",
+            fromDisplayName: "system",
+            type: "system",
+            content: `🔧 ${claudeName} used ${toolName}`,
+            mentions: [],
+            mentionDepth: depth,
+          });
+        },
         signal,
       });
 
@@ -369,6 +384,38 @@ function RoomContent() {
             chainStartHumanCount,
             signal,
           });
+        }
+      }
+
+      // Fire-and-forget memory update (only at depth 0 to avoid thrashing)
+      if (depth === 0) {
+        const liveMessages = messagesRef.current ?? [];
+        const memory = claudeMemories?.[claudeName];
+        const newSinceLast = liveMessages.length - (memory?.messageCount ?? 0);
+        if (liveMessages.length > 25 && newSinceLast > 15) {
+          const olderMessages = liveMessages.slice(0, -15);
+          const formatted = olderMessages
+            .filter((m) => m.type !== "system")
+            .map((m) => `${m.fromDisplayName}: ${m.content}`)
+            .join("\n");
+          const summaryPrompt = memory?.summary
+            ? `Update this existing summary:\n${memory.summary}\n\nNew messages:\n${formatted}`
+            : formatted;
+          callClaude({
+            apiKey,
+            systemPrompt:
+              "You create concise memory summaries. Capture key facts, ongoing topics, user preferences, and important context — things that would help continuity in future conversations. Be compact (under 300 words).",
+            messages: [{ role: "user", content: summaryPrompt }],
+          })
+            .then((summary) =>
+              upsertClaudeMemory({
+                roomId,
+                claudeName,
+                summary,
+                messageCount: liveMessages.length,
+              })
+            )
+            .catch(() => {});
         }
       }
 

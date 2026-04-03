@@ -73,4 +73,12 @@ export default defineSchema({
   }).index("by_to_and_status", ["toId", "status"])
     .index("by_room_and_to", ["roomId", "toId"])
     .index("by_room", ["roomId"]),
+
+  claudeMemories: defineTable({
+    roomId: v.id("rooms"),
+    claudeName: v.string(),
+    summary: v.string(),
+    updatedAt: v.number(),
+    messageCount: v.number(),
+  }).index("by_room_and_claude_name", ["roomId", "claudeName"]),
 });
