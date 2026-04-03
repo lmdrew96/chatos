@@ -146,6 +146,19 @@ async function buildHistory(
 }
 
 export default function RoomPage() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <div className="min-h-screen bg-[#110e1b]" />;
+  }
+
+  return <RoomContent />;
+}
+
+function RoomContent() {
   const params = useParams();
   const roomId = params.roomId as Id<"rooms">;
   const router = useRouter();
@@ -276,7 +289,7 @@ export default function RoomPage() {
         signal,
       });
 
-      const subMentions = detectMentions(reply, allParticipants).filter(
+      const mentions = detectMentions(reply, allParticipants).filter(
         (name) => name !== claudeName
       );
 
@@ -288,17 +301,17 @@ export default function RoomPage() {
         claudeName,
         ownerUserId: owner.userId,
         content: reply,
-        mentions: subMentions,
+        mentions,
         mentionDepth: depth,
       });
 
       // Guard: if the reply @-addresses a human by display name, yield to them
       const addressesHuman = allParticipants.some((p) =>
-        reply.includes(`@${p.displayName}`)
+        reply.toLowerCase().includes(`@${p.displayName.toLowerCase()}`)
       );
 
       if (!addressesHuman) {
-        for (const subName of subMentions) {
+        for (const subName of mentions) {
           const subOwner = allParticipants.find((p) => p.claudeName === subName);
           if (!subOwner) continue;
           const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
