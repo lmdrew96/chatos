@@ -91,7 +91,7 @@ async function buildHistory(
         if (!a.url) continue;
         try {
           const { data, mediaType } = await fetchAsBase64(a.url);
-          if (mediaType.startsWith("image/")) {
+          if (mediaType?.startsWith("image/")) {
             contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
           } else if (mediaType === "application/pdf") {
             contentArray.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
@@ -101,7 +101,11 @@ async function buildHistory(
         }
       }
       
-      contentArray.push({ type: "text", text: typeof content === "string" ? content : "" });
+      const text = (typeof content === "string" ? content : "").trim();
+      if (text) {
+        contentArray.push({ type: "text", text });
+      }
+      
       content = contentArray;
     }
 

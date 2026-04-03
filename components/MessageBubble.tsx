@@ -41,7 +41,7 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
     <div className="flex flex-col gap-2 mt-3">
       {attachments.map((file, i) => (
         <div key={i} className="max-w-full overflow-hidden">
-          {file.contentType.startsWith("image/") ? (
+          {file.contentType?.startsWith("image/") ? (
             <a href={file.url} target="_blank" rel="noopener noreferrer" className="block relative group">
               <img
                 src={file.url}
