@@ -22,6 +22,7 @@ Multiple users and multiple Claudes exist in the same thread. Claudes are addres
 ## Core Features (MVP)
 
 - 🔑 **BYOK** — API keys stay client-side, never touch the server
+- 🖼️ **Multimodal support** — upload images and PDFs directly into the chat for Claude's analysis
 - 🤖 **Named Claude personas** — each user configures their Claude's name and system prompt
 - 💬 **@mention routing** — `@NaeClaude` or `@AshleyClaude` triggers the correct Claude
 - 🔄 **Sequential-aware dual responses** — when both Claudes are @mentioned, the second sees the first's reply
@@ -124,6 +125,8 @@ Cha(t)os is a project under the **ADHDesigns** brand (adhdesigns.dev).
 
 ## Status
 
-🧪 **Prototype complete** — core @mention routing, dual-Claude awareness, and real-time UI validated in a Claude.ai artifact.
+🧪 **Prototype complete** — core @mention routing, dual-Claude awareness, and real-time UI validated.
+
+🖼️ **Multimodal Support Live** — Claude can now analyze uploaded images and PDFs in real-time.
 
 🔨 **MVP in active development**
