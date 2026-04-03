@@ -66,24 +66,21 @@ export async function callClaude({
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stream = (client.messages as any).stream(requestParams, {
+  const response = await (client.messages as any).create(requestParams, {
     headers: { "anthropic-beta": betas.join(",") },
     signal,
   });
 
+  if (response.error) {
+    throw new Error(response.error.message ?? `API error`);
+  }
+
   let text = "";
-  for await (const event of stream) {
-    if (
-      event.type === "content_block_start" &&
-      event.content_block?.type === "tool_use"
-    ) {
-      onToolUse?.(event.content_block.name, {});
-    }
-    if (
-      event.type === "content_block_delta" &&
-      event.delta?.type === "text_delta"
-    ) {
-      text += event.delta.text;
+  for (const block of response.content ?? []) {
+    if (block.type === "tool_use") {
+      onToolUse?.(block.name, block.input ?? {});
+    } else if (block.type === "text") {
+      text += block.text;
     }
   }
 
