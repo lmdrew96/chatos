@@ -46,11 +46,17 @@ export async function callClaude({
   };
 
   if (mcpServers && mcpServers.length > 0) {
-    body.mcp_servers = mcpServers.map((s) => ({
-      type: "url",
-      url: s.url,
-      name: s.name,
-    }));
+    body.mcp_servers = mcpServers.map((s) => {
+      try {
+        const parsed = new URL(s.url);
+        const token = parsed.searchParams.get("token");
+        if (token) {
+          parsed.searchParams.delete("token");
+          return { type: "url", url: parsed.toString(), name: s.name, authorization_token: token };
+        }
+      } catch {}
+      return { type: "url", url: s.url, name: s.name };
+    });
   }
 
   const betas: string[] = [];
