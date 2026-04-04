@@ -11,10 +11,11 @@
   --lavender: #DBD5E2;
   --off-white: #F7F5FA;
   --deep-dark: #1E1830;
+  --purple: #A78BFA;
   --topbar-offset: 5rem;
 
   /* Semantic tokens — dark defaults */
-  --bg: var(--deep-dark);
+            --bg: var(--deep-dark);
   --fg: var(--off-white);
   --surface: rgba(255,255,255,0.04);
   --surface-raised: rgba(255,255,255,0.03);
@@ -90,12 +91,33 @@ body {
   50% { opacity: 0.65; }
 }
 
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) rotate(180deg);
+    opacity: 0;
+  }
+}
+
 .animate-fade-up {
   animation: fade-up 0.6s ease forwards;
 }
 
 .animate-glow-pulse {
   animation: glow-pulse 4s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 12s ease-in-out infinite;
 }
 
 .page-topbar-offset {
