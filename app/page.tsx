@@ -105,6 +105,15 @@ const features = [
     labelColor: "text-teal-400",
   }
 ];
+const iconBgMap: Record<string, string> = {
+  "text-amber-400":   "rgba(245,158,11,0.15)",
+  "text-sky-400":     "rgba(56,189,248,0.15)",
+  "text-violet-400":  "rgba(167,139,250,0.15)",
+  "text-emerald-400": "rgba(52,211,153,0.15)",
+  "text-rose-400":    "rgba(251,113,133,0.15)",
+  "text-teal-400":    "rgba(45,212,191,0.15)",
+};
+
 export default function Home() {
   const createRoom = useMutation(api.rooms.createRoom);
   const { isLoading: isAuthLoading } = useConvexAuth();
@@ -169,9 +178,38 @@ export default function Home() {
         }}
         delay={8}
       />
+      <FloatingOrb
+        className="w-64 h-64 opacity-10"
+        style={{
+          background: "var(--mauve)",
+          top: "20%",
+          left: "10%",
+        }}
+        delay={2}
+      />
+      <FloatingOrb
+        className="w-48 h-48 opacity-10"
+        style={{
+          background: "var(--soft-green)",
+          top: "60%",
+          right: "5%",
+        }}
+        delay={6}
+      />
 
       {/* Hero Section */}
       <section className="relative z-10 flex flex-col items-center justify-center min-h-[75vh] px-6 text-center">
+        {/* Hero spotlight glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+          style={{
+            width: "800px",
+            height: "500px",
+            background: "radial-gradient(ellipse at center, rgba(223,166,73,0.13) 0%, rgba(167,139,250,0.06) 40%, transparent 70%)",
+            filter: "blur(40px)",
+          }}
+        />
         {/* Logo / wordmark */}
         <div
           className="animate-fade-up"
@@ -182,7 +220,7 @@ export default function Home() {
             style={{ fontFamily: "var(--font-super-bakery)" }}
           >
             Cha
-            <span style={{ color: "var(--amber)" }}>(t)</span>
+            <span style={{ color: "var(--amber)", textShadow: "0 0 40px rgba(223,166,73,0.6), 0 0 80px rgba(223,166,73,0.3)" }}>(t)</span>
             os
           </h1>
         </div>
@@ -201,6 +239,29 @@ export default function Home() {
           <br />
           Everyone brings their own AI — and their own key.
         </p>
+
+        {/* Hero CTA */}
+        <div
+          className="animate-fade-up flex items-center gap-4 mt-10"
+          style={{ animationDelay: "240ms", opacity: 0, animationFillMode: "forwards" }}
+        >
+          <button
+            onClick={handleCreate}
+            disabled={isCreatingDisabled}
+            className={`px-8 h-12 font-bold rounded-full transition-all duration-200 active:scale-95 text-base ${!isCreatingDisabled ? "btn-shimmer" : ""}`}
+            style={{
+              background: isCreatingDisabled ? "rgba(223,166,73,0.6)" : undefined,
+              color: "var(--deep-dark)",
+              fontFamily: "var(--font-super-bakery)",
+              cursor: isCreatingDisabled ? "not-allowed" : "pointer",
+              boxShadow: "0 0 40px rgba(223,166,73,0.35), 0 8px 32px rgba(223,166,73,0.2)",
+            }}
+          >
+            Create a room
+            <ArrowRight className="ml-2 h-4 w-4 inline-block" />
+          </button>
+          <span className="text-sm" style={{ color: "var(--text-dim)" }}>No signup required</span>
+        </div>
       </section>
 
       {/* Marquee */}
@@ -240,15 +301,14 @@ export default function Home() {
           {features.map((feature, index) => (
             <FadeIn key={feature.title} delay={index * 0.07}>
               <div
-                className="group relative h-full p-6 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
+                className={`group relative h-full p-6 rounded-2xl transition-all duration-300 hover:scale-[1.02] hover:shadow-xl bg-gradient-to-br ${feature.accent}`}
                 style={{
-                  background: "rgba(255,255,255,0.02)",
                   border: "1px solid rgba(255,255,255,0.05)",
                 }}
               >
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{
-                    background: `color-mix(in srgb, ${feature.labelColor.replace('text-', '').replace('-400', '')} 15%, transparent)`
+                    background: iconBgMap[feature.labelColor] ?? "rgba(255,255,255,0.08)"
                   }}>
                     {feature.icon}
                   </div>
@@ -274,8 +334,8 @@ export default function Home() {
         >
           <span
             className="text-[160px] md:text-[240px] font-black whitespace-nowrap tracking-[-0.05em] leading-none"
-            style={{ 
-              color: "rgba(255,255,255,0.02)",
+            style={{
+              color: "rgba(223,166,73,0.04)",
               fontFamily: "var(--font-super-bakery)"
             }}
           >
@@ -329,11 +389,12 @@ export default function Home() {
       {/* CTA Footer Section */}
       <section className="relative z-10 w-full py-28 px-6">
         <FadeIn>
-          <div 
+          <div
             className="max-w-2xl mx-auto text-center p-10 md:p-14 rounded-3xl overflow-hidden"
             style={{
-              background: "linear-gradient(135deg, rgba(223,166,73,0.12) 0%, rgba(140,189,185,0.05) 100%)",
-              border: "1px solid rgba(223,166,73,0.2)"
+              background: "linear-gradient(135deg, rgba(223,166,73,0.14) 0%, rgba(140,189,185,0.06) 50%, rgba(167,139,250,0.06) 100%)",
+              border: "1px solid rgba(223,166,73,0.3)",
+              boxShadow: "0 0 80px rgba(223,166,73,0.1), inset 0 1px 0 rgba(223,166,73,0.15)",
             }}
           >
             <div className="text-5xl mb-8">⚡</div>
@@ -354,9 +415,9 @@ export default function Home() {
             <button
               onClick={handleCreate}
               disabled={isCreatingDisabled}
-              className="px-12 h-14 font-bold rounded-full transition-all duration-200 active:scale-95 text-lg"
+              className={`px-12 h-14 font-bold rounded-full transition-all duration-200 active:scale-95 text-lg ${!isCreatingDisabled ? "btn-shimmer" : ""}`}
               style={{
-                background: isCreatingDisabled ? "rgba(223,166,73,0.6)" : "var(--amber)",
+                background: isCreatingDisabled ? "rgba(223,166,73,0.6)" : undefined,
                 color: "var(--deep-dark)",
                 fontFamily: "var(--font-super-bakery)",
                 cursor: isCreatingDisabled ? "not-allowed" : "pointer",
