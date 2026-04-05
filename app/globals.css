@@ -22,7 +22,7 @@
   --border: rgba(247,245,250,0.08);
   --border-subtle: rgba(247,245,250,0.06);
   --text-muted: rgba(247,245,250,0.35);
-  --text-dim: rgba(247,245,250,0.15);
+  --text-dim: rgba(247,245,250,0.30);
   --popover: rgba(20,16,36,0.98);
   --header-bg: rgba(30,24,48,0.8);
 }
@@ -35,7 +35,7 @@
   --border: rgba(30,24,48,0.1);
   --border-subtle: rgba(30,24,48,0.06);
   --text-muted: rgba(30,24,48,0.5);
-  --text-dim: rgba(30,24,48,0.2);
+  --text-dim: rgba(30,24,48,0.38);
   --popover: rgba(240,237,247,0.98);
   --header-bg: rgba(240,237,247,0.85);
 }
