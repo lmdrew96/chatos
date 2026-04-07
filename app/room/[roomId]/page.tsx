@@ -11,6 +11,7 @@ import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
 import { MessageContent } from "@/lib/claude";
 import { FloatingOrb } from "@/components/FloatingOrb";
+import { playPing } from "@/lib/sounds";
 
 async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: string }> {
   const res = await fetch(url);
@@ -268,6 +269,20 @@ function RoomContent() {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Ping when a new non-own message arrives and the tab is not in focus
+  const prevMsgCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!messages) return;
+    const count = messages.length;
+    if (prevMsgCountRef.current !== null && count > prevMsgCountRef.current) {
+      const latest = messages[messages.length - 1];
+      if (latest && latest.fromUserId !== currentUserId && document.hidden) {
+        playPing();
+      }
+    }
+    prevMsgCountRef.current = count;
+  }, [messages, currentUserId]);
 
   // Auto-scroll to latest message
   useEffect(() => {

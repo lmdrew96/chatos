@@ -5,6 +5,7 @@ import { useConvexAuth } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
+import { playPing } from "@/lib/sounds";
 
 export function NotificationBell() {
   const { isAuthenticated } = useConvexAuth();
@@ -17,6 +18,12 @@ export function NotificationBell() {
 
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const prevTotalRef = useRef<number | null>(null);
+
+  const requestCount = incomingRequests?.length ?? 0;
+  const inviteCount = pendingInvites?.length ?? 0;
+  const unreadCount = unreadRooms?.length ?? 0;
+  const totalCount = requestCount + inviteCount + unreadCount;
 
   useEffect(() => {
     if (!open) return;
@@ -27,12 +34,15 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  if (!isAuthenticated) return null;
+  // Ping when new notifications arrive and the tab is not in focus
+  useEffect(() => {
+    if (prevTotalRef.current !== null && totalCount > prevTotalRef.current && document.hidden) {
+      playPing();
+    }
+    prevTotalRef.current = totalCount;
+  }, [totalCount]);
 
-  const requestCount = incomingRequests?.length ?? 0;
-  const inviteCount = pendingInvites?.length ?? 0;
-  const unreadCount = unreadRooms?.length ?? 0;
-  const totalCount = requestCount + inviteCount + unreadCount;
+  if (!isAuthenticated) return null;
 
   return (
     <div className="relative" ref={ref}>

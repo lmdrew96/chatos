@@ -1,7 +1,11 @@
-import { useState, useRef, KeyboardEvent, ChangeEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from "react";
+import dynamic from "next/dynamic";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+
+// Lazy-load the heavy emoji picker bundle
+const Picker = dynamic(() => import("@emoji-mart/react"), { ssr: false });
 
 interface Attachment {
   storageId: Id<"_storage">;
@@ -31,15 +35,29 @@ export default function MentionInput({
   const [atPos, setAtPos] = useState(-1);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
 
   const claudeNames = participants.map((p) => p.claudeName);
 
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showEmojiPicker]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -99,6 +117,24 @@ export default function MentionInput({
         const pos = before.length + name.length + 2;
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(pos, pos);
+      }
+    }, 0);
+  };
+
+  const insertEmoji = (emoji: { native: string }) => {
+    const textarea = textareaRef.current;
+    const cursor = textarea?.selectionStart ?? value.length;
+    const before = value.slice(0, cursor);
+    const after = value.slice(cursor);
+    const newVal = before + emoji.native + after;
+    setValue(newVal);
+    setShowEmojiPicker(false);
+
+    setTimeout(() => {
+      if (textarea) {
+        const pos = cursor + emoji.native.length;
+        textarea.focus();
+        textarea.setSelectionRange(pos, pos);
       }
     }, 0);
   };
@@ -170,6 +206,11 @@ export default function MentionInput({
       }
     }
 
+    if (e.key === "Escape" && showEmojiPicker) {
+      setShowEmojiPicker(false);
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -222,6 +263,24 @@ export default function MentionInput({
               )}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Emoji picker */}
+      {showEmojiPicker && (
+        <div
+          ref={emojiPickerRef}
+          className="absolute bottom-full mb-2 right-0 z-20"
+        >
+          <Picker
+            data={async () => (await import("@emoji-mart/data")).default}
+            onEmojiSelect={insertEmoji}
+            theme="dark"
+            previewPosition="none"
+            skinTonePosition="none"
+            set="native"
+            perLine={8}
+          />
         </div>
       )}
 
@@ -313,6 +372,27 @@ export default function MentionInput({
               multiple
               className="hidden"
             />
+
+            {/* Emoji button */}
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker((v) => !v)}
+              disabled={disabled || isUploading}
+              className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 hover:bg-white/5"
+              style={{
+                color: showEmojiPicker ? "var(--amber)" : "var(--text-muted)",
+              }}
+              title="Emoji"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 13s1.5 2 4 2 4-2 4-2" />
+                <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3" strokeLinecap="round" />
+                <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            </button>
+
+            {/* Attach button */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -328,6 +408,7 @@ export default function MentionInput({
               </svg>
             </button>
 
+            {/* Send button */}
             <button
               type="button"
               onClick={send}
