@@ -14,6 +14,7 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
 
   const [open, setOpen] = useState(false);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
+  const [errorId, setErrorId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,8 +27,14 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
   }, [open]);
 
   const handleInvite = async (toId: Id<"users">) => {
-    await sendInvite({ roomId, toId });
-    setInvitedIds((prev) => new Set(prev).add(toId));
+    setErrorId(null);
+    try {
+      await sendInvite({ roomId, toId });
+      setInvitedIds((prev) => new Set(prev).add(toId));
+    } catch (err) {
+      console.error("[InviteButton] sendRoomInvite failed:", err);
+      setErrorId(toId);
+    }
   };
 
   return (
@@ -113,12 +120,18 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
                     style={{
                       background: invitedIds.has(f._id)
                         ? "rgba(151,209,129,0.1)"
+                        : errorId === f._id
+                        ? "rgba(255,100,100,0.1)"
                         : "rgba(223,166,73,0.15)",
-                      color: invitedIds.has(f._id) ? "var(--soft-green)" : "var(--amber)",
+                      color: invitedIds.has(f._id)
+                        ? "var(--soft-green)"
+                        : errorId === f._id
+                        ? "#FF9090"
+                        : "var(--amber)",
                       cursor: invitedIds.has(f._id) ? "default" : "pointer",
                     }}
                   >
-                    {invitedIds.has(f._id) ? "Invited ✓" : "Invite"}
+                    {invitedIds.has(f._id) ? "Invited ✓" : errorId === f._id ? "Failed — retry?" : "Invite"}
                   </button>
                 </div>
               ))
