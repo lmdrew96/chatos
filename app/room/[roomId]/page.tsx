@@ -327,11 +327,16 @@ function RoomContent() {
       if (memoryContext) {
         touchClaudeMemory({ ownerUserId: owner.userId, claudeName }).catch(() => {});
       }
+      // Only pass MCP servers for the current user's own Claude.
+      // Never expose one user's MCP servers (which may have write tools) to
+      // a Claude owned by a different user — they run in the invoker's browser
+      // with no way to access the owner's servers anyway.
+      const isOwnClaude = owner.userId === currentUserId;
       const reply = await callClaude({
         apiKey,
         systemPrompt: owner.systemPrompt,
         messages: callMessages,
-        mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
+        mcpServers: isOwnClaude && mcpServers.length > 0 ? mcpServers : undefined,
         claudeName,
         memoryContext,
         onToolUse: (toolName) => {
