@@ -17,12 +17,14 @@ export const sendRoomInvite = mutation({
     const me = await resolveMe(ctx);
     if (!me) throw new Error("Not authenticated");
 
-    // Deduplicate — don't send if a pending invite already exists
+    // Deduplicate — don't send if a pending invite already exists.
+    // Use collect() instead of unique() because prior accepted/declined invites
+    // mean multiple rows can match the index, and unique() would throw.
     const existing = await ctx.db
       .query("roomInvites")
       .withIndex("by_room_and_to", (q) => q.eq("roomId", roomId).eq("toId", toId))
-      .unique();
-    if (existing?.status === "pending") return; // already invited
+      .collect();
+    if (existing.some((inv) => inv.status === "pending")) return;
 
     await ctx.db.insert("roomInvites", {
       roomId,

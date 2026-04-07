@@ -67,6 +67,7 @@ export default function RootLayout({
     <ClerkProvider appearance={{ baseTheme: dark }}>
       <html
         lang="en"
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} ${superBakery.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
