@@ -690,7 +690,7 @@ function RoomContent() {
 
       {/* Header */}
       <header
-        className="relative z-10 page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
+        className="page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
         style={{
           borderColor: "var(--border-subtle)",
           background: "var(--header-bg)",
@@ -743,7 +743,7 @@ function RoomContent() {
       </header>
 
       {/* Messages */}
-      <div className="relative z-10 flex-1 overflow-y-auto px-4 py-5 space-y-2">
+      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-4 select-none">
             <div
@@ -841,7 +841,7 @@ function RoomContent() {
 
       {/* Input */}
       <div
-        className="relative z-10 shrink-0 px-4 pb-4 pt-3 border-t"
+        className="shrink-0 px-4 pb-4 pt-3 border-t"
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <MentionInput
