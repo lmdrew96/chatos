@@ -6,6 +6,7 @@ import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { FloatingOrb } from "@/components/FloatingOrb";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -72,7 +73,7 @@ export default function DashboardPage() {
   if (!isAuthenticated) {
     return (
       <main
-        className="relative min-h-screen flex flex-col items-center justify-center"
+        className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
         style={{ background: "var(--bg)" }}
       >
         <div
@@ -81,6 +82,16 @@ export default function DashboardPage() {
             background:
               "radial-gradient(ellipse 60% 40% at 50% 40%, rgba(36,73,82,0.4) 0%, transparent 70%)",
           }}
+        />
+        <FloatingOrb
+          className="w-[320px] h-[320px] opacity-[0.07]"
+          style={{ background: "var(--amber)", top: "-8%", right: "-6%" }}
+          delay={0}
+        />
+        <FloatingOrb
+          className="w-48 h-48 opacity-[0.05]"
+          style={{ background: "var(--purple)", bottom: "10%", left: "-4%" }}
+          delay={6}
         />
         <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6">
           <h1 className="text-3xl font-extrabold" style={{ fontFamily: "var(--font-super-bakery)" }}>
@@ -111,13 +122,32 @@ export default function DashboardPage() {
   const offlineFriends = friends?.filter((f) => !f.isOnline) ?? [];
 
   return (
-    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--bg)" }}>
+    <main className="relative min-h-screen px-4 pb-8 overflow-hidden" style={{ background: "var(--bg)" }}>
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
           background:
             "radial-gradient(ellipse 60% 40% at 50% 40%, rgba(36,73,82,0.35) 0%, transparent 70%)",
         }}
+      />
+      {/* Grain */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 opacity-[0.018]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          backgroundSize: "120px",
+        }}
+      />
+      <FloatingOrb
+        className="w-[360px] h-[360px] opacity-[0.06]"
+        style={{ background: "var(--amber)", top: "-8%", right: "-6%" }}
+        delay={0}
+      />
+      <FloatingOrb
+        className="w-56 h-56 opacity-[0.05]"
+        style={{ background: "var(--mauve)", bottom: "10%", left: "-4%" }}
+        delay={7}
       />
 
       <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
@@ -148,11 +178,13 @@ export default function DashboardPage() {
                 {[...onlineFriends, ...offlineFriends].map((f) => (
                   <div
                     key={f._id}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-150"
                     style={{
                       background: "rgba(255,255,255,0.03)",
                       border: "1px solid var(--border-subtle)",
                     }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
                   >
                     <div
                       className="w-2 h-2 rounded-full shrink-0"
@@ -212,11 +244,13 @@ export default function DashboardPage() {
                 {rooms!.map((r) => (
                   <div
                     key={r!.roomId}
-                    className="rounded-xl"
+                    className="rounded-xl transition-colors duration-150"
                     style={{
                       background: "rgba(255,255,255,0.03)",
                       border: "1px solid var(--border-subtle)",
                     }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
                   >
                     <div className="flex items-center justify-between gap-2 px-4 pt-3">
                       <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="text-left">

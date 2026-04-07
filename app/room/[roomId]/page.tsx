@@ -10,6 +10,7 @@ import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
 import { MessageContent } from "@/lib/claude";
+import { FloatingOrb } from "@/components/FloatingOrb";
 
 async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: string }> {
   const res = await fetch(url);
@@ -660,9 +661,36 @@ function RoomContent() {
       className="relative flex flex-col h-screen"
       style={{ background: "var(--bg)" }}
     >
+      {/* Ambient background */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div
+          aria-hidden
+          className="absolute inset-0 opacity-[0.018]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+            backgroundSize: "120px",
+          }}
+        />
+        <FloatingOrb
+          className="w-[400px] h-[400px] opacity-[0.06]"
+          style={{ background: "var(--amber)", top: "-8%", right: "-6%" }}
+          delay={0}
+        />
+        <FloatingOrb
+          className="w-64 h-64 opacity-[0.04]"
+          style={{ background: "var(--purple)", bottom: "8%", left: "-4%" }}
+          delay={6}
+        />
+        <FloatingOrb
+          className="w-48 h-48 opacity-[0.04]"
+          style={{ background: "var(--sage-teal)", top: "45%", right: "5%" }}
+          delay={10}
+        />
+      </div>
+
       {/* Header */}
       <header
-        className="page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
+        className="relative z-10 page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
         style={{
           borderColor: "var(--border-subtle)",
           background: "var(--header-bg)",
@@ -715,14 +743,33 @@ function RoomContent() {
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
+      <div className="relative z-10 flex-1 overflow-y-auto px-4 py-5 space-y-2">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-2 select-none">
-            <p className="text-sm" style={{ color: "var(--text-dim)" }}>
-              No messages yet. Say hello — or{" "}
-              <span style={{ color: "var(--sage-teal)" }}>@mention</span> a Claude to
-              get things started.
-            </p>
+          <div className="flex flex-col items-center justify-center h-full gap-4 select-none">
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center animate-glow-pulse"
+              style={{
+                background: "rgba(139,189,185,0.07)",
+                border: "1px solid rgba(139,189,185,0.15)",
+                boxShadow: "0 0 32px rgba(139,189,185,0.08)",
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ color: "var(--sage-teal)" }}>
+                <rect x="2" y="8" width="20" height="14" rx="4" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M8 8V6a4 4 0 0 1 8 0v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="8.5" cy="15" r="1.5" fill="currentColor" />
+                <circle cx="15.5" cy="15" r="1.5" fill="currentColor" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+                The room is quiet.
+              </p>
+              <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+                Say hello, or{" "}
+                <span style={{ color: "var(--sage-teal)" }}>@mention</span> a Claude to get things started.
+              </p>
+            </div>
           </div>
         )}
 
@@ -764,7 +811,7 @@ function RoomContent() {
                   </button>
                 </div>
                 <div
-                  className="px-4 py-3 text-sm flex items-center gap-1"
+                  className="px-4 py-3.5 text-sm flex items-center gap-1.5"
                   style={{
                     background: bgColor,
                     border: `1px solid ${textColor}22`,
@@ -774,11 +821,12 @@ function RoomContent() {
                   {[0, 1, 2].map((i) => (
                     <div
                       key={i}
-                      className="w-1.5 h-1.5 rounded-full animate-bounce"
+                      className="w-1.5 rounded-full"
                       style={{
                         background: textColor,
-                        animationDelay: `${i * 150}ms`,
-                        opacity: 0.7,
+                        opacity: 0.6,
+                        height: "6px",
+                        animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
                       }}
                     />
                   ))}
@@ -793,7 +841,7 @@ function RoomContent() {
 
       {/* Input */}
       <div
-        className="shrink-0 px-4 pb-4 pt-3 border-t"
+        className="relative z-10 shrink-0 px-4 pb-4 pt-3 border-t"
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <MentionInput

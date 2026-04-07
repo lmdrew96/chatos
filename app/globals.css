@@ -145,3 +145,8 @@ body {
   margin-top: var(--topbar-offset);
 }
 
+@keyframes thinking-wave {
+  0%, 60%, 100% { transform: scaleY(1); opacity: 0.5; }
+  30% { transform: scaleY(1.8); opacity: 0.9; }
+}
+

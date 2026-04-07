@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { fetchPersonalContext, buildContextPrefix, normalizeMcpServerUrl } from "@/lib/personalContext";
+import { FloatingOrb } from "@/components/FloatingOrb";
 
 const STARTER_PROMPTS = [
   {
@@ -163,7 +164,7 @@ export default function JoinPage() {
 
   return (
     <main
-      className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12"
+      className="relative min-h-screen flex flex-col items-center justify-center px-4 py-12 overflow-hidden"
       style={{ background: "var(--bg)" }}
     >
 
@@ -176,7 +177,34 @@ export default function JoinPage() {
         }}
       />
 
-      <div className="relative z-10 w-full max-w-2xl animate-fade-up page-topbar-offset">
+      {/* Grain */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-[1] opacity-[0.02]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          backgroundSize: "120px",
+        }}
+      />
+
+      {/* Floating orbs */}
+      <FloatingOrb
+        className="w-[340px] h-[340px] opacity-[0.08]"
+        style={{ background: "var(--amber)", top: "-10%", right: "-8%" }}
+        delay={0}
+      />
+      <FloatingOrb
+        className="w-56 h-56 opacity-[0.06]"
+        style={{ background: "var(--purple)", bottom: "5%", left: "-5%" }}
+        delay={5}
+      />
+      <FloatingOrb
+        className="w-40 h-40 opacity-[0.05]"
+        style={{ background: "var(--sage-teal)", top: "60%", right: "8%" }}
+        delay={9}
+      />
+
+      <div className="relative z-10 w-full max-w-2xl animate-fade-up page-topbar-offset" style={{ isolation: "isolate" }}>
 
         {/* Room badge */}
         <div className="flex items-center gap-2 mb-8">

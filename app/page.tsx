@@ -8,26 +8,7 @@ import { useState, useRef } from "react";
 import { useConvexAuth } from "convex/react";
 import { motion, useInView } from "framer-motion";
 import { ArrowRight, Users, Zap, Lock, Eye, Share2, Key, AtSign, Bot } from "lucide-react";
-
-function FloatingOrb({ className, delay = 0, style }: { className: string; delay?: number; style?: React.CSSProperties }) {
-  return (
-    <motion.div
-      className={`absolute rounded-full blur-3xl pointer-events-none ${className}`}
-      style={style}
-      animate={{
-        x: [0, 28, -18, 10, 0],
-        y: [0, -18, 26, -10, 0],
-        scale: [1, 1.08, 0.96, 1.04, 1],
-      }}
-      transition={{
-        duration: 14,
-        delay,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
-    />
-  );
-}
+import { FloatingOrb } from "@/components/FloatingOrb";
 
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null);
@@ -220,7 +201,7 @@ export default function Home() {
             style={{ fontFamily: "var(--font-super-bakery)" }}
           >
             Cha
-            <span style={{ color: "var(--amber)", textShadow: "0 0 40px rgba(223,166,73,0.6), 0 0 80px rgba(223,166,73,0.3)" }}>(t)</span>
+            <span style={{ color: "var(--amber)" }}>(t)</span>
             os
           </h1>
         </div>

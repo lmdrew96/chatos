@@ -35,6 +35,18 @@ function BotIcon({ color }: { color: string }) {
   );
 }
 
+function Timestamp({ ts }: { ts: number }) {
+  const time = new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    <span
+      className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[10px] select-none"
+      style={{ color: "var(--text-dim)" }}
+    >
+      {time}
+    </span>
+  );
+}
+
 function AttachmentList({ attachments }: { attachments: MessageWithAttachments["attachments"] }) {
   if (!attachments || attachments.length === 0) return null;
 
@@ -43,14 +55,14 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
       {attachments.map((file, i) => (
         <div key={i} className="max-w-full overflow-hidden">
           {file.contentType?.startsWith("image/") ? (
-            <a href={file.url} target="_blank" rel="noopener noreferrer" className="block relative group">
+            <a href={file.url} target="_blank" rel="noopener noreferrer" className="block relative group/img">
               <img
                 src={file.url}
                 alt={file.fileName}
                 className="max-h-80 rounded-lg object-contain"
                 style={{ border: "1px solid var(--border)" }}
               />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
                 <span className="text-white text-xs font-medium px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-full">
                   View Full Size
                 </span>
@@ -61,7 +73,7 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
               href={file.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 p-3 rounded-xl transition-colors group"
+              className="flex items-center gap-3 p-3 rounded-xl transition-colors group/doc"
               style={{
                 background: "var(--surface-raised)",
                 border: "1px solid var(--border-subtle)",
@@ -124,16 +136,17 @@ export default function MessageBubble({
     const bgColor = color?.bg ?? "rgba(139,189,185,0.08)";
 
     return (
-      <div className="flex justify-start">
+      <div className="flex justify-start group">
         <div style={{ maxWidth: "72%" }}>
           <div className="flex items-center gap-1.5 mb-1 px-1">
             <BotIcon color={textColor} />
             <span className="text-xs font-medium" style={{ color: textColor }}>
               {message.claudeName}
             </span>
+            <Timestamp ts={message._creationTime} />
           </div>
           <div
-            className="px-4 py-3 rounded-2xl text-sm leading-relaxed prose prose-invert prose-sm max-w-none"
+            className="px-4 py-3 text-sm leading-relaxed prose prose-invert prose-sm max-w-none transition-shadow duration-200"
             style={{
               background: bgColor,
               color: "var(--fg)",
@@ -156,11 +169,12 @@ export default function MessageBubble({
   const bgColor = color?.bg ?? "rgba(223,166,73,0.1)";
 
   return (
-    <div className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
+    <div className={`flex group ${isSelf ? "justify-end" : "justify-start"}`}>
       <div style={{ maxWidth: "72%" }}>
         {!isSelf && (
-          <div className="text-xs mb-1 px-1 font-medium" style={{ color: textColor }}>
-            {message.fromDisplayName}
+          <div className="flex items-center gap-1.5 text-xs mb-1 px-1 font-medium">
+            <span style={{ color: textColor }}>{message.fromDisplayName}</span>
+            <Timestamp ts={message._creationTime} />
           </div>
         )}
         <div
@@ -175,6 +189,11 @@ export default function MessageBubble({
           {message.content}
           <AttachmentList attachments={message.attachments} />
         </div>
+        {isSelf && (
+          <div className="flex justify-end mt-1 px-1">
+            <Timestamp ts={message._creationTime} />
+          </div>
+        )}
       </div>
     </div>
   );
