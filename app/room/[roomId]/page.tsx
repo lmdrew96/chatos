@@ -73,6 +73,9 @@ const COLORS = [
 ];
 
 function detectMentions(content: string, participants: Doc<"participants">[]): string[] {
+  if (/@everyone(?!\w)/i.test(content)) {
+    return participants.map((p) => p.claudeName);
+  }
   return participants
     .map((p) => p.claudeName)
     .filter((name) => new RegExp(`@${name}(?![\\w])`, "i").test(content));

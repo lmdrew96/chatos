@@ -10,6 +10,7 @@ export function NotificationBell() {
   const { isAuthenticated } = useConvexAuth();
   const incomingRequests = useQuery(api.friends.getIncomingRequests);
   const pendingInvites = useQuery(api.invites.getPendingInvites);
+  const unreadRooms = useQuery(api.dashboard.getUnreadRooms);
   const respondToRequest = useMutation(api.friends.respondToFriendRequest);
   const respondToInvite = useMutation(api.invites.respondToRoomInvite);
   const router = useRouter();
@@ -30,7 +31,8 @@ export function NotificationBell() {
 
   const requestCount = incomingRequests?.length ?? 0;
   const inviteCount = pendingInvites?.length ?? 0;
-  const totalCount = requestCount + inviteCount;
+  const unreadCount = unreadRooms?.length ?? 0;
+  const totalCount = requestCount + inviteCount + unreadCount;
 
   return (
     <div className="relative" ref={ref}>
@@ -190,6 +192,50 @@ export function NotificationBell() {
                       </button>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
+
+            {/* Unread room activity */}
+            {unreadCount > 0 && (
+              <div>
+                <p
+                  className="px-4 pt-3 pb-1 text-xs font-medium tracking-wide uppercase"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Room Activity
+                </p>
+                {unreadRooms!.map((r) => (
+                  <button
+                    key={r.roomId}
+                    onClick={() => {
+                      sessionStorage.setItem("userId", r.userId);
+                      sessionStorage.setItem("displayName", r.displayName);
+                      sessionStorage.setItem("claudeName", r.claudeName);
+                      setOpen(false);
+                      router.push(`/room/${r.roomId}`);
+                    }}
+                    className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left transition-colors hover:bg-white/5"
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse"
+                        style={{ background: "var(--soft-green)" }}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: "var(--fg)" }}>
+                          New messages
+                        </p>
+                        <p className="text-xs font-mono" style={{ color: "var(--sage-teal)" }}>
+                          {r.roomCode}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs shrink-0" style={{ color: "var(--amber)" }}>
+                      Go →
+                    </span>
+                  </button>
                 ))}
               </div>
             )}

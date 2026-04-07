@@ -70,7 +70,8 @@ export default function MentionInput({
     if (lastAt !== -1) {
       const query = before.slice(lastAt + 1);
       if (!query.includes(" ") && !query.includes("\n")) {
-        const matches = claudeNames.filter((n) =>
+        const allOptions = ["everyone", ...claudeNames];
+        const matches = allOptions.filter((n) =>
           n.toLowerCase().startsWith(query.toLowerCase())
         );
         if (matches.length > 0) {
@@ -201,13 +202,24 @@ export default function MentionInput({
               className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors"
               style={{
                 background:
-                  i === mentionIndex ? "rgba(139,189,185,0.12)" : "transparent",
+                  i === mentionIndex
+                    ? name === "everyone"
+                      ? "rgba(223,166,73,0.1)"
+                      : "rgba(139,189,185,0.12)"
+                    : "transparent",
                 color: "var(--fg)",
               }}
               onMouseEnter={() => setMentionIndex(i)}
             >
-              <span style={{ color: "var(--sage-teal)" }}>@</span>
-              {name}
+              <span style={{ color: name === "everyone" ? "var(--amber)" : "var(--sage-teal)" }}>@</span>
+              <span style={{ color: name === "everyone" ? "var(--amber)" : undefined }}>
+                {name}
+              </span>
+              {name === "everyone" && (
+                <span className="ml-auto text-[10px]" style={{ color: "var(--text-dim)" }}>
+                  all Claudes
+                </span>
+              )}
             </button>
           ))}
         </div>

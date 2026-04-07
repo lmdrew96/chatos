@@ -175,7 +175,9 @@ export const setOnlineStatus = mutation({
       .unique();
 
     if (participant) {
-      await ctx.db.patch(participant._id, { isOnline });
+      // Always stamp lastSeenAt so we know the last time the user was present.
+      // Going online = they're seeing messages now; going offline = last moment they saw them.
+      await ctx.db.patch(participant._id, { isOnline, lastSeenAt: Date.now() });
       if (isOnline) {
         await ctx.db.patch(roomId, { lastActivityAt: Date.now() });
       }

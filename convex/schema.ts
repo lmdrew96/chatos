@@ -20,6 +20,7 @@ export default defineSchema({
     systemPrompt: v.string(),
     isOnline: v.boolean(),
     color: v.optional(v.string()),
+    lastSeenAt: v.optional(v.number()),
   }).index("by_room", ["roomId"])
     .index("by_token_identifier", ["tokenIdentifier"])
     .index("by_room_and_token_identifier", ["roomId", "tokenIdentifier"])

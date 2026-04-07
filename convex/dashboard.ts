@@ -46,6 +46,42 @@ export const getFriendsWithPresence = query({
   },
 });
 
+export const getUnreadRooms = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const myParticipants = await ctx.db
+      .query("participants")
+      .withIndex("by_token_identifier", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier)
+      )
+      .take(30);
+
+    const results = [];
+    for (const p of myParticipants) {
+      if (p.isOnline) continue; // actively in room, no ping needed
+      const room = await ctx.db.get(p.roomId);
+      if (!room) continue;
+      const lastSeen = p.lastSeenAt ?? 0;
+      const lastActivity = room.lastActivityAt ?? room.createdAt;
+      if (lastActivity > lastSeen) {
+        results.push({
+          roomId: p.roomId,
+          roomCode: room.roomCode,
+          userId: p.userId,
+          displayName: p.displayName,
+          claudeName: p.claudeName,
+          lastActivityAt: lastActivity,
+        });
+      }
+    }
+    // Most recently active first
+    return results.sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+  },
+});
+
 export const getMyRooms = query({
   args: {},
   handler: async (ctx) => {
