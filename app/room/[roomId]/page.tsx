@@ -218,11 +218,13 @@ async function buildHistory(
   for (let i = result.length - 1; i >= 0 && breakpointsSet < 2; i--) {
     const msg = result[i];
     if (typeof msg.content === "string") {
+      if (!msg.content) continue; // skip empty text (e.g. streaming placeholders)
       msg.content = [{ type: "text", text: msg.content, cache_control: { type: "ephemeral" } }];
       breakpointsSet++;
     } else if (Array.isArray(msg.content) && msg.content.length > 0) {
-      // Tag the last block in the content array (often the text or the last image)
-      msg.content[msg.content.length - 1].cache_control = { type: "ephemeral" };
+      const last = msg.content[msg.content.length - 1];
+      if (last.type === "text" && !last.text) continue; // skip empty text blocks
+      last.cache_control = { type: "ephemeral" };
       breakpointsSet++;
     }
   }
