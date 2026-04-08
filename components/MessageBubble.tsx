@@ -178,24 +178,37 @@ export default function MessageBubble({
               borderRadius: "4px 18px 18px 18px",
             }}
           >
-            {message.content ? (
+            {message.isStreaming && !message.content ? (
+              /* Thinking dots — shown until first token arrives */
+              <div className="flex items-center gap-1.5 py-0.5">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="w-1.5 rounded-full"
+                    style={{
+                      background: textColor,
+                      opacity: 0.6,
+                      height: "6px",
+                      animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+            ) : message.isStreaming && message.content ? (
+              /* Streaming: render plain text to avoid Markdown layout jank */
+              <span className="whitespace-pre-wrap">{message.content}
+                <span
+                  className="inline-block w-1.5 h-3.5 rounded-sm ml-0.5 align-text-bottom"
+                  style={{
+                    background: textColor,
+                    opacity: 0.6,
+                    animation: "streaming-cursor 0.8s ease-in-out infinite",
+                  }}
+                />
+              </span>
+            ) : message.content ? (
               <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
-            ) : message.isStreaming ? (
-              <span
-                className="inline-block w-2 h-4 rounded-sm animate-pulse"
-                style={{ background: textColor, opacity: 0.5 }}
-              />
             ) : null}
-            {message.isStreaming && message.content && (
-              <span
-                className="inline-block w-1.5 h-3.5 rounded-sm ml-0.5 align-text-bottom"
-                style={{
-                  background: textColor,
-                  opacity: 0.6,
-                  animation: "streaming-cursor 0.8s ease-in-out infinite",
-                }}
-              />
-            )}
             {message.gifUrl && (
               <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
                 <img

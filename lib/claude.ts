@@ -324,7 +324,7 @@ export async function callClaudeStreaming({
 
   // Throttle onText calls to avoid hammering Convex mutations
   let lastFlush = 0;
-  const FLUSH_INTERVAL = 300; // ms
+  const FLUSH_INTERVAL = 150; // ms — lower = smoother text appearance
   let pendingFlush: ReturnType<typeof setTimeout> | null = null;
 
   const flushText = () => {

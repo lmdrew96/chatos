@@ -439,7 +439,7 @@ function RoomContent() {
       }
       const isOwnClaude = owner.userId === currentUserId;
 
-      // Create placeholder message for streaming
+      // Create placeholder message for streaming — bubble shows thinking dots
       messageId = await sendMessage({
         roomId,
         fromUserId: owner.userId,
@@ -450,9 +450,10 @@ function RoomContent() {
         content: "",
         mentions: [],
         mentionDepth: depth,
+        isStreaming: true,
       });
 
-      // Remove thinking indicator once the message bubble exists
+      // Remove standalone thinking indicator now that the bubble has its own
       setThinkingClaudes((prev) => {
         const next = new Set(prev);
         next.delete(claudeName);

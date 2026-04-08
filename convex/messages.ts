@@ -27,6 +27,7 @@ export const sendMessage = mutation({
     ),
     mentions: v.array(v.string()),
     mentionDepth: v.optional(v.number()),
+    isStreaming: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("messages", {
