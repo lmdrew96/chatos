@@ -110,7 +110,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("activity");
   const [filterBy, setFilterBy] = useState<FilterOption>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -294,7 +294,7 @@ export default function DashboardPage() {
           {/* Friends sidebar */}
           <aside
             className="dashboard-sidebar shrink-0 hidden lg:block"
-            style={{ width: sidebarOpen ? "260px" : "0px" }}
+            style={{ width: "260px" }}
           >
             <div
               className="rounded-2xl overflow-hidden"
@@ -397,7 +397,7 @@ export default function DashboardPage() {
             </div>
           </aside>
 
-          {/* Mobile friends toggle */}
+          {/* Mobile friends FAB */}
           <button
             className="lg:hidden fixed bottom-6 left-6 z-30 rounded-full p-3"
             style={{
@@ -406,51 +406,74 @@ export default function DashboardPage() {
               boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
               color: "var(--text-muted)",
             }}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label="Toggle friends panel"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open friends panel"
           >
             <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v-2" />
               <circle cx="9" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
             </svg>
+            {onlineFriends.length > 0 && (
+              <span
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
+                style={{ background: "var(--soft-green)", color: "var(--deep-dark)" }}
+              >
+                {onlineFriends.length}
+              </span>
+            )}
           </button>
 
-          {/* Mobile sidebar overlay */}
-          {sidebarOpen && (
-            <div className="lg:hidden fixed inset-0 z-20">
+          {/* Mobile friends bottom drawer */}
+          {drawerOpen && (
+            <div className="lg:hidden fixed inset-0 z-40">
               <div
                 className="absolute inset-0 bg-black/50"
-                onClick={() => setSidebarOpen(false)}
+                onClick={() => setDrawerOpen(false)}
               />
-              <aside
-                className="absolute left-0 top-0 bottom-0 w-[75vw] max-w-[280px] overflow-y-auto"
+              <div
+                className="absolute bottom-0 left-0 right-0 rounded-t-2xl overflow-hidden animate-slide-up"
                 style={{
                   background: "var(--bg)",
-                  borderRight: "1px solid var(--border)",
-                  paddingTop: "var(--topbar-offset)",
+                  borderTop: "1px solid var(--border)",
+                  maxHeight: "70vh",
                 }}
               >
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2
-                      className="text-xs font-semibold tracking-widest uppercase"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      Friends
-                      {friends && friends.length > 0 && (
-                        <span style={{ color: "var(--text-dim)" }}> · {friends.length}</span>
-                      )}
-                    </h2>
+                {/* Drawer handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div
+                    className="w-10 h-1 rounded-full"
+                    style={{ background: "var(--border)" }}
+                  />
+                </div>
+
+                <div className="px-4 pb-2 flex items-center justify-between">
+                  <h2
+                    className="text-xs font-semibold tracking-widest uppercase"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Friends
+                    {friends && friends.length > 0 && (
+                      <span style={{ color: "var(--text-dim)" }}> · {friends.length}</span>
+                    )}
+                  </h2>
+                  <div className="flex items-center gap-3">
+                    {onlineFriends.length > 0 && (
+                      <span className="text-xs font-medium" style={{ color: "var(--soft-green)" }}>
+                        {onlineFriends.length} online
+                      </span>
+                    )}
                     <button
-                      onClick={() => setSidebarOpen(false)}
-                      className="text-sm"
+                      onClick={() => setDrawerOpen(false)}
+                      className="text-sm p-1"
                       style={{ color: "var(--text-dim)" }}
                     >
                       ✕
                     </button>
                   </div>
+                </div>
 
+                <div className="overflow-y-auto px-2 pb-2" style={{ maxHeight: "calc(70vh - 80px)" }}>
                   {(friends?.length ?? 0) === 0 ? (
                     <div className="py-6 text-center">
                       <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
@@ -495,27 +518,31 @@ export default function DashboardPage() {
                       ))}
                     </div>
                   )}
-
-                  <div className="mt-4">
-                    <Link
-                      href="/friends"
-                      className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors"
-                      style={{
-                        color: "var(--sage-teal)",
-                        background: "rgba(140,189,185,0.06)",
-                        border: "1px solid rgba(140,189,185,0.1)",
-                      }}
-                    >
-                      Find &amp; invite friends
-                    </Link>
-                  </div>
                 </div>
-              </aside>
+
+                {/* Drawer footer */}
+                <div
+                  className="px-4 py-3"
+                  style={{ borderTop: "1px solid var(--border-subtle)" }}
+                >
+                  <Link
+                    href="/friends"
+                    className="flex items-center justify-center gap-2 w-full px-3 py-2.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{
+                      color: "var(--sage-teal)",
+                      background: "rgba(140,189,185,0.06)",
+                      border: "1px solid rgba(140,189,185,0.1)",
+                    }}
+                  >
+                    Find &amp; invite friends
+                  </Link>
+                </div>
+              </div>
             </div>
           )}
 
           {/* Main content — rooms */}
-          <section className="flex-1 min-w-0">
+          <section className="flex-1 min-w-0 overflow-hidden">
             {/* Sort / Filter toolbar */}
             <div className="flex flex-col gap-3 mb-5">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
@@ -656,7 +683,7 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={r!.roomId}
-                      className="room-card group rounded-2xl transition-all duration-200 cursor-pointer"
+                      className="room-card group rounded-2xl transition-all duration-200 cursor-pointer overflow-hidden min-w-0"
                       style={{
                         background: isLatest
                           ? "rgba(255,255,255,0.055)"
