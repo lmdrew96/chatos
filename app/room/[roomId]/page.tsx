@@ -131,14 +131,15 @@ function detectMentions(content: string, participants: Doc<"participants">[]): s
 
 // Collapse consecutive same-role messages and handle attachments for multimodal support
 async function buildHistory(
-  messages: MessageWithAttachments[]
+  messages: MessageWithAttachments[],
+  reactionsMap?: Record<string, { emoji: string; count: number; userIds: string[] }[]>,
 ): Promise<{ role: "user" | "assistant"; content: string | MessageContent[] }[]> {
   const result: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [];
 
   for (const m of messages) {
     if (m.type === "system") continue;
     const role: "user" | "assistant" = m.type === "claude" ? "assistant" : "user";
-    
+
     let contentText = m.type === "claude"
         ? m.content
         : `${m.fromDisplayName}: ${m.content}`;
@@ -146,6 +147,13 @@ async function buildHistory(
     // Surface GIF context so Claude knows one was shared
     if (m.gifUrl) {
       contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName} sent a GIF: ${m.gifUrl}`;
+    }
+
+    // Surface reactions so Claude can see how people responded
+    const msgReactions = reactionsMap?.[m._id];
+    if (msgReactions && msgReactions.length > 0) {
+      const reactionStr = msgReactions.map((r) => `${r.emoji}×${r.count}`).join(", ");
+      contentText += ` [Reactions: ${reactionStr}]`;
     }
 
     const attachmentBlocks: MessageContent[] = [];
@@ -855,7 +863,7 @@ function RoomContent() {
           }
         }
 
-        const history = await buildHistory(trimmed);
+        const history = await buildHistory(trimmed, groupedReactions);
 
         // Inject session summary at the top if available
         if (sessionSummaryRef.current?.summary) {
