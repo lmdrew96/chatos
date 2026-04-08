@@ -163,6 +163,32 @@ body {
   --tw-prose-td-borders: var(--border-subtle);
 }
 
+/* Dashboard room card hover */
+.room-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.room-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15), 0 0 0 1px rgba(140,189,185,0.12);
+  border-color: rgba(140,189,185,0.18) !important;
+}
+
+/* Overflow menu — always tappable on touch, visible on hover for mouse */
+.overflow-menu-trigger {
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+.overflow-menu-trigger:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.06);
+}
+
+/* Dashboard sidebar collapse transition */
+.dashboard-sidebar {
+  transition: width 0.2s ease;
+  overflow: hidden;
+}
+
 @keyframes thinking-wave {
   0%, 60%, 100% { transform: scaleY(1); opacity: 0.5; }
   30% { transform: scaleY(1.8); opacity: 0.9; }

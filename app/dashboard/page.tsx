@@ -5,7 +5,7 @@ import { SignInButton } from "@clerk/nextjs";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { FloatingOrb } from "@/components/FloatingOrb";
 
 function timeAgo(ts: number): string {
@@ -37,6 +37,67 @@ function enterRoom(
   router.push(`/room/${roomId}`);
 }
 
+function OverflowMenu({
+  onDelete,
+  deleting,
+  roomLabel,
+}: {
+  onDelete: () => void;
+  deleting: boolean;
+  roomLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+        className="overflow-menu-trigger rounded-md px-1.5 py-1 text-sm transition-colors"
+        style={{ color: "var(--text-dim)" }}
+        aria-label={`Options for ${roomLabel}`}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-1 z-20 rounded-lg py-1 min-w-[140px]"
+          style={{
+            background: "var(--popover)",
+            border: "1px solid var(--border)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+              setOpen(false);
+            }}
+            disabled={deleting}
+            className="w-full text-left px-3 py-2 text-xs transition-colors hover:bg-white/5"
+            style={{ color: "#ff9a9a", opacity: deleting ? 0.5 : 1 }}
+          >
+            {deleting ? "Deleting..." : "Delete room"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const friends = useQuery(api.dashboard.getFriendsWithPresence);
@@ -46,6 +107,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleCreateRoom = async () => {
     setCreatingRoom(true);
@@ -120,9 +182,12 @@ export default function DashboardPage() {
 
   const onlineFriends = friends?.filter((f) => f.isOnline) ?? [];
   const offlineFriends = friends?.filter((f) => !f.isOnline) ?? [];
+  const activeRoomCount = rooms?.length ?? 0;
+  const mostRecentRoomId = rooms?.[0]?.roomId;
 
   return (
-    <main className="relative min-h-screen px-4 pb-8 overflow-hidden" style={{ background: "var(--bg)" }}>
+    <main className="relative min-h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+      {/* Background effects */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -130,7 +195,6 @@ export default function DashboardPage() {
             "radial-gradient(ellipse 60% 40% at 50% 40%, rgba(36,73,82,0.35) 0%, transparent 70%)",
         }}
       />
-      {/* Grain */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 opacity-[0.018]"
@@ -150,193 +214,429 @@ export default function DashboardPage() {
         delay={7}
       />
 
-      <div className="relative z-10 max-w-2xl mx-auto page-topbar-offset">
-        <div className="grid gap-8 md:grid-cols-2">
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "var(--text-muted)" }}>
-                Friends
-                {friends && friends.length > 0 && <span style={{ color: "var(--text-dim)" }}> · {friends.length}</span>}
-              </h2>
-              {onlineFriends.length > 0 && <span className="text-xs" style={{ color: "var(--soft-green)" }}>{onlineFriends.length} online</span>}
-            </div>
+      <div className="relative z-10 max-w-[1400px] mx-auto px-4 sm:px-6 page-topbar-offset pb-8">
+        {/* Welcome bar */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1
+              className="text-2xl font-bold"
+              style={{ fontFamily: "var(--font-super-bakery)", color: "var(--fg)" }}
+            >
+              Dashboard
+            </h1>
+            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+              {activeRoomCount === 0
+                ? "No active rooms"
+                : `${activeRoomCount} active room${activeRoomCount !== 1 ? "s" : ""}`}
+            </p>
+          </div>
+          <button
+            onClick={handleCreateRoom}
+            disabled={creatingRoom}
+            className="px-4 py-2.5 rounded-xl font-semibold text-sm transition-all"
+            style={{
+              background: "var(--amber)",
+              color: "var(--deep-dark)",
+              opacity: creatingRoom ? 0.6 : 1,
+              boxShadow: "0 0 20px rgba(223,166,73,0.15)",
+            }}
+          >
+            {creatingRoom ? "Creating..." : "+ New room"}
+          </button>
+        </div>
 
-            {(friends?.length ?? 0) === 0 ? (
-              <div
-                className="px-4 py-5 rounded-xl text-center"
-                style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}
-              >
-                <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
-                  No friends yet.
-                </p>
-                <a href="/friends" className="text-xs" style={{ color: "var(--sage-teal)" }}>
-                  Add some -&gt;
-                </a>
+        {/* Sidebar + Main layout */}
+        <div className="flex gap-6">
+          {/* Friends sidebar */}
+          <aside
+            className="dashboard-sidebar shrink-0 hidden lg:block"
+            style={{ width: sidebarOpen ? "260px" : "0px" }}
+          >
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border-subtle)",
+              }}
+            >
+              <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                <h2
+                  className="text-xs font-semibold tracking-widest uppercase"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Friends
+                  {friends && friends.length > 0 && (
+                    <span style={{ color: "var(--text-dim)" }}> · {friends.length}</span>
+                  )}
+                </h2>
+                {onlineFriends.length > 0 && (
+                  <span className="text-xs font-medium" style={{ color: "var(--soft-green)" }}>
+                    {onlineFriends.length} online
+                  </span>
+                )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {[...onlineFriends, ...offlineFriends].map((f) => (
-                  <div
-                    key={f._id}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-150"
-                    style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid var(--border-subtle)",
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
-                  >
-                    <div
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{
-                        background: f.isOnline ? "var(--soft-green)" : "var(--text-dim)",
-                        boxShadow: f.isOnline ? "0 0 6px rgba(151,209,129,0.6)" : "none",
-                      }}
-                    />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: f.isOnline ? "var(--fg)" : "var(--text-muted)" }}>
-                        {f.displayName ?? f.username}
-                      </p>
-                      {f.username && <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>@{f.username}</p>}
-                    </div>
-                    <span className="ml-auto text-xs shrink-0" style={{ color: f.isOnline ? "var(--soft-green)" : "var(--text-dim)" }}>
-                      {f.isOnline ? "online" : "offline"}
-                    </span>
+
+              <div className="px-2 pb-2">
+                {(friends?.length ?? 0) === 0 ? (
+                  <div className="px-3 py-6 text-center">
+                    <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
+                      No friends yet.
+                    </p>
+                    <a href="/friends" className="text-xs" style={{ color: "var(--sage-teal)" }}>
+                      Add some -&gt;
+                    </a>
                   </div>
-                ))}
+                ) : (
+                  <div className="flex flex-col gap-0.5">
+                    {[...onlineFriends, ...offlineFriends].map((f) => (
+                      <div
+                        key={f._id}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-150 cursor-default"
+                        style={{ background: "transparent" }}
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLElement).style.background = "transparent";
+                        }}
+                      >
+                        <div
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{
+                            background: f.isOnline ? "var(--soft-green)" : "var(--text-dim)",
+                            boxShadow: f.isOnline
+                              ? "0 0 8px rgba(151,209,129,0.7)"
+                              : "none",
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className="text-sm font-medium truncate"
+                            style={{
+                              color: f.isOnline ? "var(--fg)" : "var(--text-muted)",
+                            }}
+                          >
+                            {f.displayName ?? f.username}
+                          </p>
+                          {f.username && (
+                            <p
+                              className="text-xs truncate"
+                              style={{ color: "var(--text-dim)" }}
+                            >
+                              @{f.username}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </section>
 
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-medium tracking-widest uppercase" style={{ color: "var(--text-muted)" }}>
+              {/* Sidebar footer */}
+              <div
+                className="px-4 py-3"
+                style={{ borderTop: "1px solid var(--border-subtle)" }}
+              >
+                <Link
+                  href="/friends"
+                  className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                  style={{
+                    color: "var(--sage-teal)",
+                    background: "rgba(140,189,185,0.06)",
+                    border: "1px solid rgba(140,189,185,0.1)",
+                  }}
+                >
+                  Find &amp; invite friends
+                </Link>
+              </div>
+            </div>
+          </aside>
+
+          {/* Mobile friends toggle */}
+          <button
+            className="lg:hidden fixed bottom-6 left-6 z-30 rounded-full p-3"
+            style={{
+              background: "var(--popover)",
+              border: "1px solid var(--border)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+              color: "var(--text-muted)",
+            }}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Toggle friends panel"
+          >
+            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v-2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+            </svg>
+          </button>
+
+          {/* Mobile sidebar overlay */}
+          {sidebarOpen && (
+            <div className="lg:hidden fixed inset-0 z-20">
+              <div
+                className="absolute inset-0 bg-black/50"
+                onClick={() => setSidebarOpen(false)}
+              />
+              <aside
+                className="absolute left-0 top-0 bottom-0 w-[280px] overflow-y-auto"
+                style={{
+                  background: "var(--bg)",
+                  borderRight: "1px solid var(--border)",
+                  paddingTop: "var(--topbar-offset)",
+                }}
+              >
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2
+                      className="text-xs font-semibold tracking-widest uppercase"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Friends
+                      {friends && friends.length > 0 && (
+                        <span style={{ color: "var(--text-dim)" }}> · {friends.length}</span>
+                      )}
+                    </h2>
+                    <button
+                      onClick={() => setSidebarOpen(false)}
+                      className="text-sm"
+                      style={{ color: "var(--text-dim)" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {(friends?.length ?? 0) === 0 ? (
+                    <div className="py-6 text-center">
+                      <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
+                        No friends yet.
+                      </p>
+                      <a href="/friends" className="text-xs" style={{ color: "var(--sage-teal)" }}>
+                        Add some -&gt;
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-0.5">
+                      {[...onlineFriends, ...offlineFriends].map((f) => (
+                        <div
+                          key={f._id}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                        >
+                          <div
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{
+                              background: f.isOnline ? "var(--soft-green)" : "var(--text-dim)",
+                              boxShadow: f.isOnline
+                                ? "0 0 8px rgba(151,209,129,0.7)"
+                                : "none",
+                            }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="text-sm font-medium truncate"
+                              style={{
+                                color: f.isOnline ? "var(--fg)" : "var(--text-muted)",
+                              }}
+                            >
+                              {f.displayName ?? f.username}
+                            </p>
+                            {f.username && (
+                              <p className="text-xs truncate" style={{ color: "var(--text-dim)" }}>
+                                @{f.username}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <Link
+                      href="/friends"
+                      className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                      style={{
+                        color: "var(--sage-teal)",
+                        background: "rgba(140,189,185,0.06)",
+                        border: "1px solid rgba(140,189,185,0.1)",
+                      }}
+                    >
+                      Find &amp; invite friends
+                    </Link>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          )}
+
+          {/* Main content — rooms */}
+          <section className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-5">
+              <h2
+                className="text-xs font-semibold tracking-widest uppercase"
+                style={{ color: "var(--text-muted)" }}
+              >
                 Recent rooms
               </h2>
-              <button
-                onClick={handleCreateRoom}
-                disabled={creatingRoom}
-                className="text-xs transition-colors"
-                style={{ color: "var(--sage-teal)", opacity: creatingRoom ? 0.6 : 1 }}
-              >
-                {creatingRoom ? "Creating..." : "+ New room"}
-              </button>
+              <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+                Guest rooms auto-delete after 72h inactivity
+              </p>
             </div>
-
-            <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-              Rooms created without an account auto-delete after 72 hours of inactivity.
-            </p>
 
             {(rooms?.length ?? 0) === 0 ? (
               <div
-                className="px-4 py-5 rounded-xl text-center"
-                style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)" }}
+                className="px-6 py-12 rounded-2xl text-center"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border-subtle)",
+                }}
               >
                 <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
                   No rooms yet.
                 </p>
-                <Link href="/" className="text-xs" style={{ color: "var(--sage-teal)" }}>
-                  Create one -&gt;
-                </Link>
+                <button
+                  onClick={handleCreateRoom}
+                  className="text-sm font-medium"
+                  style={{ color: "var(--sage-teal)" }}
+                >
+                  Create your first room -&gt;
+                </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                {rooms!.map((r) => (
-                  <div
-                    key={r!.roomId}
-                    className="rounded-xl transition-colors duration-150"
-                    style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid var(--border-subtle)",
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.055)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
-                  >
-                    <div className="flex items-center justify-between gap-2 px-4 pt-3">
-                      <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="text-left flex items-center gap-2">
-                        {r!.roomTitle ? (
-                          <>
-                            <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>
-                              {r!.roomTitle}
-                            </span>
-                            <span
-                              className="px-1.5 py-0.5 rounded text-[10px] font-mono"
-                              style={{
-                                background: "rgba(139,189,185,0.08)",
-                                color: "var(--text-dim)",
-                                border: "1px solid rgba(139,189,185,0.1)",
-                              }}
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {rooms!.map((r) => {
+                  const isLatest = r!.roomId === mostRecentRoomId;
+                  return (
+                    <div
+                      key={r!.roomId}
+                      className="room-card group rounded-2xl transition-all duration-200 cursor-pointer"
+                      style={{
+                        background: isLatest
+                          ? "rgba(255,255,255,0.055)"
+                          : "var(--surface)",
+                        border: isLatest
+                          ? "1px solid rgba(140,189,185,0.2)"
+                          : "1px solid var(--border-subtle)",
+                      }}
+                      onClick={() =>
+                        enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)
+                      }
+                    >
+                      <div className="p-5">
+                        {/* Header row */}
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="min-w-0 flex-1">
+                            <h3
+                              className="text-base font-bold truncate"
+                              style={{ color: "var(--fg)" }}
                             >
-                              {r!.roomCode}
-                            </span>
-                          </>
+                              {r!.roomTitle || r!.roomCode}
+                            </h3>
+                            {r!.roomTitle && (
+                              <span
+                                className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-mono"
+                                style={{
+                                  background: "rgba(139,189,185,0.06)",
+                                  color: "var(--text-dim)",
+                                  border: "1px solid rgba(139,189,185,0.08)",
+                                }}
+                              >
+                                {r!.roomCode}
+                              </span>
+                            )}
+                          </div>
+                          {r!.canDelete && (
+                            <div
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <OverflowMenu
+                                roomLabel={r!.roomTitle || r!.roomCode}
+                                deleting={deletingRoomId === r!.roomId}
+                                onDelete={async () => {
+                                  const confirmed = window.confirm(
+                                    `Delete room ${r!.roomTitle || r!.roomCode}? This cannot be undone.`,
+                                  );
+                                  if (!confirmed) return;
+                                  setDeletingRoomId(r!.roomId);
+                                  try {
+                                    await deleteRoom({ roomId: r!.roomId });
+                                  } finally {
+                                    setDeletingRoomId(null);
+                                  }
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Last message */}
+                        {r!.lastMessage ? (
+                          <div className="mb-3 min-w-0">
+                            <p
+                              className="text-sm truncate"
+                              style={{ color: "var(--text-muted)" }}
+                            >
+                              <span style={{ color: "rgba(247,245,250,0.6)" }}>
+                                {r!.lastMessage.fromDisplayName}:
+                              </span>{" "}
+                              {r!.lastMessage.content.slice(0, 80)}
+                              {r!.lastMessage.content.length > 80 ? "..." : ""}
+                            </p>
+                          </div>
                         ) : (
+                          <p
+                            className="text-sm mb-3"
+                            style={{ color: "var(--text-dim)" }}
+                          >
+                            No messages yet
+                          </p>
+                        )}
+
+                        {/* Footer metadata */}
+                        <div className="flex items-center gap-3 flex-wrap">
                           <span
-                            className="px-2 py-0.5 rounded text-xs font-mono"
+                            className="text-xs"
+                            style={{ color: "var(--text-dim)", opacity: 0.8 }}
+                          >
+                            {r!.participantCount}{" "}
+                            {r!.participantCount === 1 ? "person" : "people"}
+                          </span>
+                          {r!.lastMessage && (
+                            <span
+                              className="text-xs"
+                              style={{ color: "var(--text-dim)", opacity: 0.7 }}
+                            >
+                              {timeAgo(r!.lastMessage.createdAt)}
+                            </span>
+                          )}
+                          <span
+                            className="ml-auto text-[10px] px-2 py-0.5 rounded-full"
                             style={{
-                              background: "rgba(139,189,185,0.1)",
-                              color: "var(--sage-teal)",
-                              border: "1px solid rgba(139,189,185,0.15)",
+                              background:
+                                r!.retentionPolicy === "guest_ttl_72h"
+                                  ? "rgba(223,166,73,0.08)"
+                                  : "rgba(140,189,185,0.06)",
+                              color:
+                                r!.retentionPolicy === "guest_ttl_72h"
+                                  ? "var(--text-dim)"
+                                  : "var(--text-dim)",
+                              border:
+                                r!.retentionPolicy === "guest_ttl_72h"
+                                  ? "1px solid rgba(223,166,73,0.1)"
+                                  : "1px solid rgba(140,189,185,0.08)",
                             }}
                           >
-                            {r!.roomCode}
+                            {r!.retentionPolicy === "guest_ttl_72h"
+                              ? "72h TTL"
+                              : "Persistent"}
                           </span>
-                        )}
-                      </button>
-                      <span className="text-xs" style={{ color: "var(--text-dim)" }}>
-                        {r!.participantCount} {r!.participantCount === 1 ? "person" : "people"}
-                      </span>
-                      {r!.canDelete && (
-                        <button
-                          onClick={async () => {
-                            const confirmed = window.confirm(`Delete room ${r!.roomTitle || r!.roomCode}? This cannot be undone.`);
-                            if (!confirmed) return;
-                            setDeletingRoomId(r!.roomId);
-                            try {
-                              await deleteRoom({ roomId: r!.roomId });
-                            } finally {
-                              setDeletingRoomId(null);
-                            }
-                          }}
-                          disabled={deletingRoomId === r!.roomId}
-                          className="text-xs px-2 py-1 rounded"
-                          style={{
-                            color: "#ff9a9a",
-                            border: "1px solid rgba(255,154,154,0.25)",
-                            opacity: deletingRoomId === r!.roomId ? 0.55 : 1,
-                          }}
-                        >
-                          {deletingRoomId === r!.roomId ? "Deleting..." : "Delete"}
-                        </button>
-                      )}
-                    </div>
-
-                    <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="flex w-full flex-col gap-1.5 px-4 pb-3 pt-2 text-left">
-                      {r!.lastMessage ? (
-                        <div className="min-w-0">
-                          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
-                            <span style={{ color: "var(--fg)" }}>{r!.lastMessage.fromDisplayName}: </span>
-                            {r!.lastMessage.content.slice(0, 80)}
-                            {r!.lastMessage.content.length > 80 ? "..." : ""}
-                          </p>
-                          <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>
-                            {timeAgo(r!.lastMessage.createdAt)}
-                          </p>
                         </div>
-                      ) : (
-                        <p className="text-xs" style={{ color: "var(--text-dim)" }}>
-                          No messages yet
-                        </p>
-                      )}
-
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {r!.retentionPolicy === "guest_ttl_72h"
-                          ? `Auto-deletes after 72h inactivity (last active ${timeAgo(r!.lastActivityAt)})`
-                          : "Persistent room (account-owned)"}
-                      </p>
-                    </button>
-                  </div>
-                ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
