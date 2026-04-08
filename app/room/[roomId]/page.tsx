@@ -37,6 +37,27 @@ const SUPPORTED_MEDIA_TYPES = [
   "application/pdf",
 ];
 
+// File extensions / content types that should be fetched as plain text for Claude
+const TEXT_EXTENSIONS = new Set([
+  "ts", "tsx", "js", "jsx", "mjs", "cjs",
+  "py", "rb", "go", "rs", "java", "kt", "swift", "c", "cpp", "h", "hpp", "cs",
+  "html", "css", "scss", "less", "json", "yaml", "yml", "toml", "xml", "csv",
+  "md", "mdx", "txt", "log", "sh", "bash", "zsh", "fish",
+  "sql", "graphql", "gql", "prisma", "proto",
+  "env", "gitignore", "dockerignore", "dockerfile", "makefile",
+  "vue", "svelte", "astro",
+]);
+
+function isTextFile(fileName: string, contentType: string): boolean {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  if (TEXT_EXTENSIONS.has(ext)) return true;
+  if (contentType.startsWith("text/")) return true;
+  if (contentType === "application/json" || contentType === "application/xml") return true;
+  return false;
+}
+
+const MAX_TEXT_FILE_CHARS = 50_000; // ~50k chars to avoid blowing up context
+
 // Support the resolved URL from useMessages
 type MessageWithAttachments = Omit<Doc<"messages">, "attachments"> & {
   attachments?: {
@@ -109,12 +130,23 @@ async function buildHistory(
         const url = a.url || (a.storageId ? `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/storage/${a.storageId}` : null);
         if (!url) continue;
         try {
-          const { data, mediaType } = await fetchAsBase64(url);
-          if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
-            if (mediaType.startsWith("image/")) {
-              attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-            } else if (mediaType === "application/pdf") {
-              attachmentBlocks.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
+          if (isTextFile(a.fileName, a.contentType)) {
+            // Fetch as plain text and inline it — no multimodal block needed
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            let text = await res.text();
+            if (text.length > MAX_TEXT_FILE_CHARS) {
+              text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
+            }
+            contentText += `\n\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---`;
+          } else {
+            const { data, mediaType } = await fetchAsBase64(url);
+            if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+              if (mediaType.startsWith("image/")) {
+                attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+              } else if (mediaType === "application/pdf") {
+                attachmentBlocks.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
+              }
             }
           }
         } catch (e) {
