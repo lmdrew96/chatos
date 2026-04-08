@@ -234,8 +234,8 @@ export function ClaudiuChatbot() {
                       alt="Claudiu"
                       width={24}
                       height={24}
-                      style={{ imageRendering: "pixelated" }}
-                      className="shrink-0 mt-1"
+                      style={{ imageRendering: "pixelated", width: 24, height: 24 }}
+                      className="shrink-0 self-start mt-1"
                     />
                   )}
                   <div
