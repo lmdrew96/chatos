@@ -47,8 +47,22 @@ export default function JoinPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const hasApiKeyQuery = useQuery(api.apiKeys.hasApiKey);
+  const saveApiKeyMutation = useMutation(api.apiKeys.saveApiKey);
   const hasApiKey = hasApiKeyQuery === true;
   const [hasMcpUrl, setHasMcpUrl] = useState(false);
+
+  // Migrate localStorage key to Convex (one-time)
+  useEffect(() => {
+    if (hasApiKeyQuery === undefined) return;
+    const localKey = localStorage.getItem("chatos:apiKey");
+    if (localKey && !hasApiKeyQuery) {
+      saveApiKeyMutation({ encryptedKey: localKey })
+        .then(() => localStorage.removeItem("chatos:apiKey"))
+        .catch(() => {});
+    } else if (localKey) {
+      localStorage.removeItem("chatos:apiKey");
+    }
+  }, [hasApiKeyQuery, saveApiKeyMutation]);
 
   useEffect(() => {
     setHasMcpUrl(!!localStorage.getItem("chatos:mcpUrl")?.trim());

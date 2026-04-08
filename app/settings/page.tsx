@@ -39,12 +39,24 @@ export default function SettingsPage() {
   const [keyLoaded, setKeyLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Migrate localStorage key to Convex (one-time)
+  const [migrated, setMigrated] = useState(false);
   useEffect(() => {
-    if (savedKey !== undefined && !keyLoaded) {
+    if (migrated || savedKey === undefined) return;
+    const localKey = localStorage.getItem("chatos:apiKey");
+    if (localKey && !savedKey) {
+      saveApiKeyMutation({ encryptedKey: localKey })
+        .then(() => localStorage.removeItem("chatos:apiKey"))
+        .catch(() => {});
+      setApiKey(localKey);
+      setKeyLoaded(true);
+    } else {
       setApiKey(savedKey ?? "");
       setKeyLoaded(true);
+      if (localKey) localStorage.removeItem("chatos:apiKey");
     }
-  }, [savedKey, keyLoaded]);
+    setMigrated(true);
+  }, [savedKey, migrated, saveApiKeyMutation]);
 
   const hasKey = apiKey.trim().length > 0;
 
