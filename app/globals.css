@@ -30,14 +30,14 @@
 [data-theme="light"] {
   --bg: #F0EDF7;
   --fg: #1E1830;
-  --surface: rgba(30,24,48,0.05);
-  --surface-raised: rgba(30,24,48,0.03);
-  --border: rgba(30,24,48,0.1);
-  --border-subtle: rgba(30,24,48,0.06);
-  --text-muted: rgba(30,24,48,0.5);
-  --text-dim: rgba(30,24,48,0.38);
+  --surface: rgba(30,24,48,0.09);
+  --surface-raised: rgba(30,24,48,0.06);
+  --border: rgba(30,24,48,0.18);
+  --border-subtle: rgba(30,24,48,0.12);
+  --text-muted: rgba(30,24,48,0.55);
+  --text-dim: rgba(30,24,48,0.42);
   --popover: rgba(240,237,247,0.98);
-  --header-bg: rgba(240,237,247,0.85);
+  --header-bg: rgba(240,237,247,0.92);
 }
 
 [data-theme="light"] body {
@@ -67,6 +67,7 @@ body {
 }
 .nav-link:hover { color: var(--fg); opacity: 0.7; }
 .nav-link-active { color: rgba(247,245,250,0.75); }
+[data-theme="light"] .nav-link-active { color: rgba(30,24,48,0.75); }
 
 /* Consistent focus ring for all input fields */
 .field-focus:focus {
@@ -143,6 +144,23 @@ body {
 
 .page-topbar-margin {
   margin-top: var(--topbar-offset);
+}
+
+/* Undo prose-invert in light mode so text/code blocks stay readable */
+[data-theme="light"] .prose-invert {
+  --tw-prose-body: var(--fg);
+  --tw-prose-headings: var(--fg);
+  --tw-prose-links: var(--fg);
+  --tw-prose-bold: var(--fg);
+  --tw-prose-code: var(--fg);
+  --tw-prose-pre-code: #1E1830;
+  --tw-prose-pre-bg: rgba(30,24,48,0.06);
+  --tw-prose-quotes: var(--fg);
+  --tw-prose-counters: rgba(30,24,48,0.6);
+  --tw-prose-bullets: rgba(30,24,48,0.4);
+  --tw-prose-hr: var(--border);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border-subtle);
 }
 
 @keyframes thinking-wave {
