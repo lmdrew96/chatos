@@ -47,6 +47,28 @@ export default function MentionInput({
 
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+  // Browsers return empty or wrong MIME types for code/config files
+  const resolveContentType = (file: File): string => {
+    if (file.type && file.type !== "video/mp2t") return file.type;
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const map: Record<string, string> = {
+      ts: "text/typescript", tsx: "text/typescript",
+      js: "text/javascript", jsx: "text/javascript", mjs: "text/javascript",
+      py: "text/x-python", rb: "text/x-ruby",
+      go: "text/x-go", rs: "text/x-rust", java: "text/x-java",
+      json: "application/json", yaml: "text/yaml", yml: "text/yaml",
+      toml: "text/toml", xml: "application/xml", csv: "text/csv",
+      html: "text/html", css: "text/css", scss: "text/scss",
+      md: "text/markdown", mdx: "text/markdown", txt: "text/plain",
+      sh: "text/x-shellscript", sql: "text/x-sql",
+      graphql: "text/x-graphql", prisma: "text/plain",
+      env: "text/plain", log: "text/plain",
+      c: "text/x-c", cpp: "text/x-c++", h: "text/x-c",
+      swift: "text/x-swift", kt: "text/x-kotlin",
+    };
+    return map[ext] ?? "application/octet-stream";
+  };
+
   // Close emoji picker on outside click
   useEffect(() => {
     if (!showEmojiPicker) return;
@@ -155,17 +177,21 @@ export default function MentionInput({
           reader.readAsDataURL(file);
         });
 
+        const contentType = resolveContentType(file);
         const postUrl = await generateUploadUrl();
         const result = await fetch(postUrl, {
           method: "POST",
-          headers: { "Content-Type": file.type },
+          headers: { "Content-Type": contentType },
           body: file,
         });
+        if (!result.ok) {
+          throw new Error(`Upload failed for ${file.name}: ${result.status}`);
+        }
         const { storageId } = await result.json();
         attachments.push({
           storageId,
           fileName: file.name,
-          contentType: file.type,
+          contentType,
           size: file.size,
           data,
         });
