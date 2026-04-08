@@ -105,6 +105,14 @@ export default defineSchema({
   }).index("by_token", ["tokenIdentifier"])
     .index("by_token_and_gif_id", ["tokenIdentifier", "gifId"]),
 
+  reactions: defineTable({
+    messageId: v.id("messages"),
+    roomId: v.id("rooms"),
+    userId: v.string(),
+    emoji: v.string(),
+  }).index("by_room", ["roomId"])
+    .index("by_message_and_emoji_and_user", ["messageId", "emoji", "userId"]),
+
   pushSubscriptions: defineTable({
     tokenIdentifier: v.string(),
     endpoint: v.string(),

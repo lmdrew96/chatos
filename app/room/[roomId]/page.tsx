@@ -364,6 +364,7 @@ function RoomContent() {
     currentUserId ? { ownerUserId: currentUserId } : "skip"
   );
   const typingUsers = useQuery(api.typing.getTyping, { roomId });
+  const rawReactions = useQuery(api.reactions.getReactionsForRoom, { roomId });
   const sendMessage = useMutation(api.messages.sendMessage);
   const updateStreamingMessage = useMutation(api.messages.updateStreamingMessage);
   const updateRoomTitle = useMutation(api.rooms.updateRoomTitle);
@@ -373,6 +374,27 @@ function RoomContent() {
   const touchClaudeMemory = useMutation(api.rooms.touchClaudeMemory);
   const setTypingMutation = useMutation(api.typing.setTyping);
   const clearTypingMutation = useMutation(api.typing.clearTyping);
+  const toggleReaction = useMutation(api.reactions.toggleReaction);
+
+  // Group raw reactions by messageId → { emoji, count, userIds }[]
+  const groupedReactions = useMemo(() => {
+    if (!rawReactions) return {};
+    const map: Record<string, Record<string, string[]>> = {};
+    for (const r of rawReactions) {
+      if (!map[r.messageId]) map[r.messageId] = {};
+      if (!map[r.messageId][r.emoji]) map[r.messageId][r.emoji] = [];
+      map[r.messageId][r.emoji].push(r.userId);
+    }
+    const result: Record<string, { emoji: string; count: number; userIds: string[] }[]> = {};
+    for (const [msgId, emojis] of Object.entries(map)) {
+      result[msgId] = Object.entries(emojis).map(([emoji, userIds]) => ({
+        emoji,
+        count: userIds.length,
+        userIds,
+      }));
+    }
+    return result;
+  }, [rawReactions]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Always-current snapshot of messages for use inside async chains
@@ -1069,6 +1091,10 @@ function RoomContent() {
             message={msg}
             currentUserId={currentUserId}
             participantColors={participantColors}
+            reactions={groupedReactions[msg._id] ?? []}
+            onReaction={(emoji) =>
+              toggleReaction({ messageId: msg._id, roomId, emoji, userId: currentUserId })
+            }
           />
         ))}
 

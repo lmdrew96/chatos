@@ -1,10 +1,21 @@
+"use client";
+
+import { useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Doc, Id } from "@/convex/_generated/dataModel";
+import { ReactionBar } from "./ReactionBar";
+import { ReactionPicker } from "./ReactionPicker";
 
 interface Color {
   text: string;
   bg: string;
+}
+
+interface GroupedReaction {
+  emoji: string;
+  count: number;
+  userIds: string[];
 }
 
 // Support the resolved URL from useMessages
@@ -22,6 +33,8 @@ interface MessageBubbleProps {
   message: MessageWithAttachments;
   currentUserId: string;
   participantColors: Record<string, Color>;
+  reactions?: GroupedReaction[];
+  onReaction?: (emoji: string) => void;
 }
 
 function BotIcon({ color }: { color: string }) {
@@ -132,7 +145,11 @@ export default function MessageBubble({
   message,
   currentUserId,
   participantColors,
+  reactions = [],
+  onReaction,
 }: MessageBubbleProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const hasReactions = reactions.length > 0;
   // System message
   if (message.type === "system") {
     return (
@@ -169,62 +186,96 @@ export default function MessageBubble({
             </span>
             <Timestamp ts={message._creationTime} />
           </div>
-          <div
-            className="px-4 py-3 text-sm leading-relaxed prose prose-invert prose-sm max-w-none transition-shadow duration-200"
-            style={{
-              background: bgColor,
-              color: "var(--fg)",
-              border: `1px solid ${textColor}22`,
-              borderRadius: "4px 18px 18px 18px",
-            }}
-          >
-            {message.isStreaming && !message.content ? (
-              /* Thinking dots — shown until first token arrives */
-              <div className="flex items-center gap-1.5 py-0.5">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="w-1.5 rounded-full"
+          <div className="relative">
+            <div
+              className="px-4 py-3 text-sm leading-relaxed prose prose-invert prose-sm max-w-none transition-shadow duration-200"
+              style={{
+                background: bgColor,
+                color: "var(--fg)",
+                border: `1px solid ${textColor}22`,
+                borderRadius: "4px 18px 18px 18px",
+              }}
+            >
+              {message.isStreaming && !message.content ? (
+                /* Thinking dots — shown until first token arrives */
+                <div className="flex items-center gap-1.5 py-0.5">
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="w-1.5 rounded-full"
+                      style={{
+                        background: textColor,
+                        opacity: 0.6,
+                        height: "6px",
+                        animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : message.isStreaming && message.content ? (
+                /* Streaming: render plain text to avoid Markdown layout jank */
+                <span className="whitespace-pre-wrap">{message.content}
+                  <span
+                    className="inline-block w-1.5 h-3.5 rounded-sm ml-0.5 align-text-bottom"
                     style={{
                       background: textColor,
                       opacity: 0.6,
-                      height: "6px",
-                      animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
+                      animation: "streaming-cursor 0.8s ease-in-out infinite",
                     }}
                   />
-                ))}
-              </div>
-            ) : message.isStreaming && message.content ? (
-              /* Streaming: render plain text to avoid Markdown layout jank */
-              <span className="whitespace-pre-wrap">{message.content}
-                <span
-                  className="inline-block w-1.5 h-3.5 rounded-sm ml-0.5 align-text-bottom"
-                  style={{
-                    background: textColor,
-                    opacity: 0.6,
-                    animation: "streaming-cursor 0.8s ease-in-out infinite",
-                  }}
-                />
-              </span>
-            ) : message.content ? (
-              <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
-            ) : null}
-            {message.gifUrl && (
-              <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
-                <img
-                  src={message.gifUrl}
-                  alt="GIF"
-                  className="w-full rounded-lg"
-                  style={{ border: "1px solid var(--border)" }}
+                </span>
+              ) : message.content ? (
+                <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+              ) : null}
+              {message.gifUrl && (
+                <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
+                  <img
+                    src={message.gifUrl}
+                    alt="GIF"
+                    className="w-full rounded-lg"
+                    style={{ border: "1px solid var(--border)" }}
+                  />
+                </div>
+              )}
+              <AttachmentList
+                attachments={message.attachments}
+                senderName={message.claudeName ?? undefined}
+                senderColor={textColor}
+              />
+            </div>
+            {/* Hover add-reaction button */}
+            {onReaction && !message.isStreaming && (
+              <button
+                onClick={() => setPickerOpen((v) => !v)}
+                className={`absolute -bottom-2.5 left-2 w-5 h-5 rounded-full flex items-center justify-center transition-all ${hasReactions || pickerOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                style={{
+                  background: "var(--popover)",
+                  border: "1px solid var(--border-subtle)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <line x1="5" y1="1.5" x2="5" y2="8.5" />
+                  <line x1="1.5" y1="5" x2="8.5" y2="5" />
+                </svg>
+              </button>
+            )}
+            {pickerOpen && onReaction && (
+              <div className="absolute -bottom-2.5 left-8">
+                <ReactionPicker
+                  onSelect={(emoji) => onReaction(emoji)}
+                  onClose={() => setPickerOpen(false)}
                 />
               </div>
             )}
-            <AttachmentList
-              attachments={message.attachments}
-              senderName={message.claudeName ?? undefined}
-              senderColor={textColor}
-            />
           </div>
+          {onReaction && (
+            <ReactionBar
+              reactions={reactions}
+              currentUserId={currentUserId}
+              onToggle={onReaction}
+            />
+          )}
         </div>
       </div>
     );
@@ -245,32 +296,68 @@ export default function MessageBubble({
             <Timestamp ts={message._creationTime} />
           </div>
         )}
-        <div
-          className="px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
-          style={{
-            background: isSelf ? bgColor : "var(--surface)",
-            color: "var(--fg)",
-            border: isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
-            borderRadius: isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-          }}
-        >
-          {message.content}
-          {message.gifUrl && (
-            <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
-              <img
-                src={message.gifUrl}
-                alt="GIF"
-                className="w-full rounded-lg"
-                style={{ border: "1px solid var(--border)" }}
+        <div className="relative">
+          <div
+            className="px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
+            style={{
+              background: isSelf ? bgColor : "var(--surface)",
+              color: "var(--fg)",
+              border: isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
+              borderRadius: isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+            }}
+          >
+            {message.content}
+            {message.gifUrl && (
+              <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
+                <img
+                  src={message.gifUrl}
+                  alt="GIF"
+                  className="w-full rounded-lg"
+                  style={{ border: "1px solid var(--border)" }}
+                />
+              </div>
+            )}
+            <AttachmentList
+              attachments={message.attachments}
+              senderName={!isSelf ? message.fromDisplayName : undefined}
+              senderColor={!isSelf ? textColor : undefined}
+            />
+          </div>
+          {/* Hover add-reaction button */}
+          {onReaction && (
+            <button
+              onClick={() => setPickerOpen((v) => !v)}
+              className={`absolute -bottom-2.5 ${isSelf ? "right-2" : "left-2"} w-5 h-5 rounded-full flex items-center justify-center transition-all ${hasReactions || pickerOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+              style={{
+                background: "var(--popover)",
+                border: "1px solid var(--border-subtle)",
+                color: "var(--text-muted)",
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <line x1="5" y1="1.5" x2="5" y2="8.5" />
+                <line x1="1.5" y1="5" x2="8.5" y2="5" />
+              </svg>
+            </button>
+          )}
+          {pickerOpen && onReaction && (
+            <div className={`absolute -bottom-2.5 ${isSelf ? "right-8" : "left-8"}`}>
+              <ReactionPicker
+                onSelect={(emoji) => onReaction(emoji)}
+                onClose={() => setPickerOpen(false)}
               />
             </div>
           )}
-          <AttachmentList
-            attachments={message.attachments}
-            senderName={!isSelf ? message.fromDisplayName : undefined}
-            senderColor={!isSelf ? textColor : undefined}
-          />
         </div>
+        {onReaction && (
+          <div className={isSelf ? "flex justify-end" : ""}>
+            <ReactionBar
+              reactions={reactions}
+              currentUserId={currentUserId}
+              onToggle={onReaction}
+            />
+          </div>
+        )}
         {isSelf && (
           <div className="flex justify-end mt-1 px-1">
             <Timestamp ts={message._creationTime} />
