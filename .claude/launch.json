@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Next.js",
+      "runtimeExecutable": "/usr/local/bin/npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "Convex",
+      "runtimeExecutable": "/usr/local/bin/npx",
+      "runtimeArgs": ["convex", "dev"],
+      "port": 3210
+    }
+  ]
+}
