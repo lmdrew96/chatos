@@ -52,7 +52,7 @@ function Timestamp({ ts }: { ts: number }) {
   const time = new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
     <span
-      className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 text-[10px] select-none"
+      className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 text-[10px] select-none"
       style={{ color: "var(--text-dim)" }}
     >
       {time}
@@ -178,7 +178,7 @@ export default function MessageBubble({
 
     return (
       <div className="flex justify-start group">
-        <div style={{ maxWidth: "72%" }}>
+        <div className="max-w-[90%] sm:max-w-[72%]">
           <div className="flex items-center gap-1.5 mb-1 px-1">
             <BotIcon color={textColor} />
             <span className="text-xs font-medium" style={{ color: textColor }}>
@@ -228,7 +228,7 @@ export default function MessageBubble({
                 <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
               ) : null}
               {message.gifUrl && (
-                <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
+                <div className="mt-2 rounded-lg overflow-hidden max-w-full sm:max-w-[280px]">
                   <img
                     src={message.gifUrl}
                     alt="GIF"
@@ -247,7 +247,7 @@ export default function MessageBubble({
             {onReaction && !message.isStreaming && (
               <button
                 onClick={() => setPickerOpen((v) => !v)}
-                className={`absolute -bottom-2.5 left-2 w-5 h-5 rounded-full flex items-center justify-center transition-all ${hasReactions || pickerOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                className={`absolute -bottom-2.5 left-2 w-7 h-7 sm:w-5 sm:h-5 rounded-full flex items-center justify-center transition-all ${hasReactions || pickerOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                 style={{
                   background: "var(--popover)",
                   border: "1px solid var(--border-subtle)",
@@ -289,7 +289,7 @@ export default function MessageBubble({
 
   return (
     <div className={`flex group ${isSelf ? "justify-end" : "justify-start"}`}>
-      <div style={{ maxWidth: "72%" }}>
+      <div className="max-w-[90%] sm:max-w-[72%]">
         {!isSelf && (
           <div className="flex items-center gap-1.5 text-xs mb-1 px-1 font-medium">
             <span style={{ color: textColor }}>{message.fromDisplayName}</span>
@@ -308,7 +308,7 @@ export default function MessageBubble({
           >
             {message.content}
             {message.gifUrl && (
-              <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
+              <div className="mt-2 rounded-lg overflow-hidden max-w-full sm:max-w-[280px]">
                 <img
                   src={message.gifUrl}
                   alt="GIF"
@@ -327,7 +327,7 @@ export default function MessageBubble({
           {onReaction && (
             <button
               onClick={() => setPickerOpen((v) => !v)}
-              className={`absolute -bottom-2.5 ${isSelf ? "right-2" : "left-2"} w-5 h-5 rounded-full flex items-center justify-center transition-all ${hasReactions || pickerOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+              className={`absolute -bottom-2.5 ${isSelf ? "right-2" : "left-2"} w-7 h-7 sm:w-5 sm:h-5 rounded-full flex items-center justify-center transition-all ${hasReactions || pickerOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
               style={{
                 background: "var(--popover)",
                 border: "1px solid var(--border-subtle)",

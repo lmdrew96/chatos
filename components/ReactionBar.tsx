@@ -48,7 +48,7 @@ export function ReactionBar({ reactions, currentUserId, onToggle }: ReactionBarP
       <div className="relative">
         <button
           onClick={() => setPickerOpen((v) => !v)}
-          className="flex items-center justify-center w-6 h-6 rounded-full transition-colors"
+          className="flex items-center justify-center w-8 h-8 sm:w-6 sm:h-6 rounded-full transition-colors"
           style={{
             background: pickerOpen ? "rgba(139,189,185,0.15)" : "var(--surface)",
             border: "1px solid var(--border-subtle)",

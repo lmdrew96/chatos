@@ -13,7 +13,7 @@ export function FloatingOrb({
 }) {
   return (
     <motion.div
-      className={`absolute rounded-full blur-3xl pointer-events-none ${className}`}
+      className={`absolute rounded-full blur-3xl pointer-events-none max-w-[50vw] max-h-[50vw] sm:max-w-none sm:max-h-none ${className}`}
       style={style}
       animate={{
         x: [0, 28, -18, 10, 0],

@@ -48,7 +48,7 @@ export function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+        className="relative flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-lg transition-colors"
         style={{
           color: open ? "var(--amber)" : "var(--text-muted)",
           background: open ? "rgba(223,166,73,0.08)" : "transparent",
@@ -87,7 +87,7 @@ export function NotificationBell() {
 
       {open && (
         <div
-          className="absolute right-0 top-10 w-80 rounded-xl overflow-hidden z-50"
+          className="absolute right-0 top-10 w-[calc(100vw-2rem)] sm:w-80 max-w-[320px] rounded-xl overflow-hidden z-50"
           style={{
             background: "var(--popover)",
             border: "1px solid var(--border)",

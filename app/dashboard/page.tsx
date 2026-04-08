@@ -424,7 +424,7 @@ export default function DashboardPage() {
                 onClick={() => setSidebarOpen(false)}
               />
               <aside
-                className="absolute left-0 top-0 bottom-0 w-[280px] overflow-y-auto"
+                className="absolute left-0 top-0 bottom-0 w-[75vw] max-w-[280px] overflow-y-auto"
                 style={{
                   background: "var(--bg)",
                   borderRight: "1px solid var(--border)",
@@ -518,9 +518,9 @@ export default function DashboardPage() {
           <section className="flex-1 min-w-0">
             {/* Sort / Filter toolbar */}
             <div className="flex flex-col gap-3 mb-5">
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-wrap">
                 {/* Search */}
-                <div className="relative flex-1 min-w-[160px] max-w-[280px]">
+                <div className="relative flex-1 min-w-0 sm:min-w-[160px] sm:max-w-[280px]">
                   <svg
                     className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
                     width="14" height="14" fill="none" viewBox="0 0 24 24"
@@ -544,7 +544,8 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                {/* Sort dropdown */}
+                {/* Sort + Filter row */}
+                <div className="flex items-center gap-2 sm:contents">
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
@@ -594,6 +595,7 @@ export default function DashboardPage() {
                       {label}
                     </button>
                   ))}
+                </div>
                 </div>
               </div>
 
@@ -648,7 +650,7 @@ export default function DashboardPage() {
                 </button>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredRooms.map((r) => {
                   const isLatest = r!.roomId === mostRecentRoomId;
                   return (

@@ -282,7 +282,7 @@ export default function JoinPage() {
 
         {/* Heading */}
         <h1
-          className="text-4xl font-extrabold mb-1"
+          className="text-2xl sm:text-4xl font-extrabold mb-1"
           style={{ fontFamily: "var(--font-super-bakery)" }}
         >
           Set up your space
@@ -359,7 +359,7 @@ export default function JoinPage() {
 
           {/* System prompt */}
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
                   Your Claude&apos;s personality
@@ -377,7 +377,7 @@ export default function JoinPage() {
                   </span>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {STARTER_PROMPTS.map((s) => (
                   <button
                     key={s.label}

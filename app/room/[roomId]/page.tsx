@@ -1046,17 +1046,17 @@ function RoomContent() {
         </div>
 
         {/* Right: invite + participant dots */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <InviteButton roomId={roomId} />
-          <div className="w-px h-4" style={{ background: "var(--border)" }} />
-          <div className="flex items-center gap-1.5">
+          <div className="w-px h-4 hidden sm:block" style={{ background: "var(--border)" }} />
+          <div className="flex items-center gap-1 sm:gap-1.5">
             {participants.map((p) => {
               const color = participantColors[p.userId];
               return (
                 <div
                   key={p.userId}
                   title={`${p.displayName} · @${p.claudeName}${p.isOnline ? "" : " (offline)"}`}
-                  className="flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-opacity"
+                  className="flex items-center gap-1 sm:px-2 sm:py-1 rounded-full text-xs transition-opacity"
                   style={{
                     background: color?.bg ?? "var(--surface)",
                     border: `1px solid ${color?.text ?? "#fff"}22`,
@@ -1064,14 +1064,14 @@ function RoomContent() {
                   }}
                 >
                   <div
-                    className="w-1.5 h-1.5 rounded-full"
+                    className="w-2 h-2 sm:w-1.5 sm:h-1.5 rounded-full shrink-0"
                     style={{
                       background: p.isOnline
                         ? (color?.text ?? "#fff")
                         : "var(--text-dim)",
                     }}
                   />
-                  <span style={{ color: color?.text ?? "var(--fg)" }}>
+                  <span className="hidden sm:inline" style={{ color: color?.text ?? "var(--fg)" }}>
                     {p.displayName}
                   </span>
                 </div>

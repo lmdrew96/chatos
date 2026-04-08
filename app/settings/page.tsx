@@ -361,40 +361,41 @@ export default function SettingsPage() {
               )}
 
               {extraMcpServers.map((server, i) => (
-                <div key={i} className="flex gap-2 items-center">
+                <div key={i} className="flex flex-col sm:flex-row gap-2 sm:items-center">
                   <input
                     type="text"
                     value={server.name}
                     onChange={(e) => setExtraMcpServers((prev) => prev.map((s, j) => j === i ? { ...s, name: e.target.value } : s))}
                     placeholder="Name (e.g. ControlledChaos)"
-                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all field-focus"
-                    style={{
-                      width: "36%",
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      color: "var(--fg)",
-                    }}
-                  />
-                  <input
-                    type="url"
-                    value={server.url}
-                    onChange={(e) => setExtraMcpServers((prev) => prev.map((s, j) => j === i ? { ...s, url: e.target.value } : s))}
-                    placeholder="https://your-mcp.vercel.app/mcp"
-                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1 field-focus"
+                    className="w-full sm:w-[36%] px-3 py-2 rounded-lg text-sm outline-none transition-all field-focus"
                     style={{
                       background: "var(--surface)",
                       border: "1px solid var(--border)",
                       color: "var(--fg)",
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setExtraMcpServers((prev) => prev.filter((_, j) => j !== i))}
-                    className="text-xs px-2 py-2 rounded-lg transition-colors shrink-0"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    ✕
-                  </button>
+                  <div className="flex gap-2 flex-1 min-w-0">
+                    <input
+                      type="url"
+                      value={server.url}
+                      onChange={(e) => setExtraMcpServers((prev) => prev.map((s, j) => j === i ? { ...s, url: e.target.value } : s))}
+                      placeholder="https://your-mcp.vercel.app/mcp"
+                      className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1 min-w-0 field-focus"
+                      style={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        color: "var(--fg)",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setExtraMcpServers((prev) => prev.filter((_, j) => j !== i))}
+                      className="text-xs px-2 py-2 rounded-lg transition-colors shrink-0"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -58,7 +58,7 @@ export function InviteButton({ roomId }: { roomId: Id<"rooms"> }) {
 
       {open && (
         <div
-          className="absolute right-0 top-10 w-64 rounded-xl overflow-hidden z-50"
+          className="absolute right-0 top-10 w-[calc(100vw-2rem)] sm:w-64 max-w-[280px] rounded-xl overflow-hidden z-50"
           style={{
             background: "var(--popover)",
             border: "1px solid var(--border)",
