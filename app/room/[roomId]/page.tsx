@@ -591,7 +591,7 @@ function RoomContent() {
       messageId = await sendMessage({
         roomId,
         fromUserId: owner.userId,
-        fromDisplayName: owner.displayName,
+        fromDisplayName: claudeName,
         type: "claude",
         claudeName,
         ownerUserId: owner.userId,
