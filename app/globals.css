@@ -210,6 +210,6 @@ body {
 /* Claudiu sprite walk animation */
 @keyframes claudiu-walk {
   from { background-position: 0 0; }
-  to { background-position: -768px 0; }
+  to { background-position: -320px 0; }
 }
 

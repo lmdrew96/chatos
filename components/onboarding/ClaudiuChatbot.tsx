@@ -147,7 +147,7 @@ export function ClaudiuChatbot() {
               className="w-10 h-10 pointer-events-none"
               style={{
                 backgroundImage: "url(/claudiu/claudiu-walk-2x.png)",
-                backgroundSize: "768px 96px",
+                backgroundSize: "320px 40px",
                 imageRendering: "pixelated",
                 animation: "claudiu-walk 0.8s steps(8) infinite",
               }}
