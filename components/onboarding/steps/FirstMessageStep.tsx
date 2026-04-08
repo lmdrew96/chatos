@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -9,6 +10,11 @@ import { Check, X } from "lucide-react";
 export function FirstMessageStep({ roomCode }: { roomCode: string | null }) {
   const router = useRouter();
   const hasKey = useQuery(api.apiKeys.hasApiKey);
+  const [hasMcp, setHasMcp] = useState(false);
+
+  useEffect(() => {
+    setHasMcp(!!localStorage.getItem("chatos:mcpUrl"));
+  }, []);
 
   const handleEnterRoom = () => {
     if (roomCode) {
@@ -61,7 +67,7 @@ export function FirstMessageStep({ roomCode }: { roomCode: string | null }) {
           <SummaryItem label="API Key" done={hasKey === true} />
           <SummaryItem
             label="Personal Context MCP"
-            done={typeof window !== "undefined" && !!localStorage.getItem("chatos:mcpUrl")}
+            done={hasMcp}
           />
           <SummaryItem label="Room" done={!!roomCode} />
         </div>

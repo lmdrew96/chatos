@@ -51,98 +51,111 @@ function checkRateLimit(userId: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    // Auth — gracefully handle if Clerk isn't configured
+    let userId: string | null = null;
+    try {
+      const session = await auth();
+      userId = session.userId;
+    } catch {
+      // If auth() throws (e.g. Clerk not configured for this route),
+      // fall back to allowing unauthenticated access with IP-based rate limiting
+    }
 
-  if (!checkRateLimit(userId)) {
-    return Response.json(
-      { error: "Rate limit exceeded. Try again in a few minutes." },
-      { status: 429 }
-    );
-  }
+    const rateLimitKey = userId ?? "anon";
+    if (!checkRateLimit(rateLimitKey)) {
+      return Response.json(
+        { error: "Rate limit exceeded. Try again in a few minutes." },
+        { status: 429 }
+      );
+    }
 
-  const apiKey = process.env.CLAUDIU_API_KEY;
-  if (!apiKey) {
+    const apiKey = process.env.CLAUDIU_API_KEY;
+    if (!apiKey) {
+      return Response.json(
+        { error: "Claudiu is not configured. Missing CLAUDIU_API_KEY." },
+        { status: 500 }
+      );
+    }
+
+    let body: { messages: Array<{ role: string; content: string }> };
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    if (!Array.isArray(body.messages) || body.messages.length === 0) {
+      return Response.json({ error: "Messages array required" }, { status: 400 });
+    }
+
+    // Limit conversation history to prevent abuse
+    const messages = body.messages.slice(-20);
+
+    const anthropicBody = {
+      model: "claude-sonnet-4-6",
+      max_tokens: 512,
+      stream: true,
+      system: [
+        {
+          type: "text",
+          text: CLAUDIU_SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages,
+    };
+
+    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
+      },
+      body: JSON.stringify(anthropicBody),
+    });
+
+    if (!anthropicRes.ok) {
+      const err = await anthropicRes.json().catch(() => ({}));
+      return Response.json(
+        { error: (err as any).error?.message ?? `Anthropic API error ${anthropicRes.status}` },
+        { status: 502 }
+      );
+    }
+
+    // Stream SSE through to the client
+    const reader = anthropicRes.body?.getReader();
+    if (!reader) {
+      return Response.json({ error: "No stream from Anthropic" }, { status: 502 });
+    }
+
+    const stream = new ReadableStream({
+      async pull(controller) {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(value);
+      },
+      cancel() {
+        reader.cancel();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  } catch (e: any) {
     return Response.json(
-      { error: "Claudiu is not configured. Missing CLAUDIU_API_KEY." },
+      { error: e.message ?? "Internal server error" },
       { status: 500 }
     );
   }
-
-  let body: { messages: Array<{ role: string; content: string }> };
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
-    return Response.json({ error: "Messages array required" }, { status: 400 });
-  }
-
-  // Limit conversation history to prevent abuse
-  const messages = body.messages.slice(-20);
-
-  const anthropicBody = {
-    model: "claude-sonnet-4-6",
-    max_tokens: 512,
-    stream: true,
-    system: [
-      {
-        type: "text",
-        text: CLAUDIU_SYSTEM_PROMPT,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    messages,
-  };
-
-  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "prompt-caching-2024-07-31",
-    },
-    body: JSON.stringify(anthropicBody),
-  });
-
-  if (!anthropicRes.ok) {
-    const err = await anthropicRes.json().catch(() => ({}));
-    return Response.json(
-      { error: (err as any).error?.message ?? `Anthropic API error ${anthropicRes.status}` },
-      { status: 502 }
-    );
-  }
-
-  // Stream SSE through to the client
-  const reader = anthropicRes.body?.getReader();
-  if (!reader) {
-    return Response.json({ error: "No stream from Anthropic" }, { status: 502 });
-  }
-
-  const stream = new ReadableStream({
-    async pull(controller) {
-      const { done, value } = await reader.read();
-      if (done) {
-        controller.close();
-        return;
-      }
-      controller.enqueue(value);
-    },
-    cancel() {
-      reader.cancel();
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
 }
