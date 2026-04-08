@@ -143,24 +143,15 @@ export function ClaudiuChatbot() {
             }}
             title="Chat with Claudiu"
           >
-            <div className="w-10 h-10 overflow-hidden">
-              <Image
-                src="/claudiu/claudiu-walk-2x.png"
-                alt="Claudiu"
-                width={512}
-                height={64}
-                style={{
-                  imageRendering: "pixelated",
-                  width: "512px",
-                  height: "64px",
-                  objectFit: "none",
-                  objectPosition: "0 0",
-                  animation: "claudiu-walk 0.8s steps(8) infinite",
-                }}
-                className="pointer-events-none"
-                priority
-              />
-            </div>
+            <div
+              className="w-10 h-10 pointer-events-none"
+              style={{
+                backgroundImage: "url(/claudiu/claudiu-walk-2x.png)",
+                backgroundSize: "768px 96px",
+                imageRendering: "pixelated",
+                animation: "claudiu-walk 0.8s steps(8) infinite",
+              }}
+            />
           </motion.button>
         )}
       </AnimatePresence>

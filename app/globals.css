@@ -209,7 +209,7 @@ body {
 
 /* Claudiu sprite walk animation */
 @keyframes claudiu-walk {
-  from { transform: translateX(0); }
-  to { transform: translateX(-512px); }
+  from { background-position: 0 0; }
+  to { background-position: -768px 0; }
 }
 
