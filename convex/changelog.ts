@@ -8,8 +8,6 @@ export const syncFromGitHub = internalAction({
   handler: async (ctx) => {
     const owner = process.env.GITHUB_REPO_OWNER ?? "lmdrew96";
     const repo = process.env.GITHUB_REPO_NAME ?? "chatos";
-    const url = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=30`;
-
     const headers: Record<string, string> = {
       Accept: "application/vnd.github+json",
     };
@@ -18,27 +16,38 @@ export const syncFromGitHub = internalAction({
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      console.error(`GitHub API error: ${res.status} ${res.statusText}`);
-      return;
-    }
+    // Paginate through all commits (GitHub returns up to 100 per page)
+    let page = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const url = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=100&page=${page}`;
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        console.error(`GitHub API error: ${res.status} ${res.statusText}`);
+        return;
+      }
 
-    const commits: Array<{
-      sha: string;
-      commit: {
-        message: string;
-        author: { name: string; date: string };
-      };
-    }> = await res.json();
+      const commits: Array<{
+        sha: string;
+        commit: {
+          message: string;
+          author: { name: string; date: string };
+        };
+      }> = await res.json();
 
-    for (const c of commits) {
-      await ctx.runMutation(internal.changelog.upsertCommit, {
-        sha: c.sha,
-        message: c.commit.message.split("\n")[0], // first line only
-        author: c.commit.author.name,
-        committedAt: new Date(c.commit.author.date).getTime(),
-      });
+      if (commits.length === 0) break;
+
+      for (const c of commits) {
+        await ctx.runMutation(internal.changelog.upsertCommit, {
+          sha: c.sha,
+          message: c.commit.message.split("\n")[0],
+          author: c.commit.author.name,
+          committedAt: new Date(c.commit.author.date).getTime(),
+        });
+      }
+
+      hasMore = commits.length === 100;
+      page++;
     }
   },
 });
@@ -68,8 +77,9 @@ export const getEntries = query({
   handler: async (ctx, args) => {
     return await ctx.db
       .query("changelog")
+      .withIndex("by_committed_at")
       .order("desc")
-      .take(args.limit ?? 20);
+      .take(args.limit ?? 50);
   },
 });
 

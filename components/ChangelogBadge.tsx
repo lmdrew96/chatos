@@ -8,7 +8,7 @@ import { useState, useRef, useEffect } from "react";
 export function ChangelogBadge() {
   const { isAuthenticated } = useConvexAuth();
   const unseenCount = useQuery(api.changelog.getUnseenCount);
-  const entries = useQuery(api.changelog.getEntries, { limit: 15 });
+  const entries = useQuery(api.changelog.getEntries, {});
   const markSeen = useMutation(api.changelog.markSeen);
 
   const [open, setOpen] = useState(false);
