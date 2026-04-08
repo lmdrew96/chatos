@@ -4,7 +4,7 @@ import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { callClaude, McpServer } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
@@ -238,11 +238,14 @@ function RoomContent() {
     api.rooms.getClaudeMemoriesForOwner,
     currentUserId ? { ownerUserId: currentUserId } : "skip"
   );
+  const typingUsers = useQuery(api.typing.getTyping, { roomId });
   const sendMessage = useMutation(api.messages.sendMessage);
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
   const updateParticipantColor = useMutation(api.rooms.updateParticipantColor);
   const upsertClaudeMemory = useMutation(api.rooms.upsertClaudeMemory);
   const touchClaudeMemory = useMutation(api.rooms.touchClaudeMemory);
+  const setTypingMutation = useMutation(api.typing.setTyping);
+  const clearTypingMutation = useMutation(api.typing.clearTyping);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   // Always-current snapshot of messages for use inside async chains
@@ -549,8 +552,19 @@ function RoomContent() {
     }
   };
 
+  // Throttled typing indicator — fire at most once per 2s
+  const lastTypingRef = useRef(0);
+  const handleTyping = useCallback(() => {
+    if (!currentUserId || !currentDisplayName) return;
+    const now = Date.now();
+    if (now - lastTypingRef.current < 2000) return;
+    lastTypingRef.current = now;
+    setTypingMutation({ roomId, userId: currentUserId, displayName: currentDisplayName }).catch(() => {});
+  }, [currentUserId, currentDisplayName, roomId, setTypingMutation]);
+
   const handleSendMessage = async (content: string, attachments?: any[]) => {
     if (!currentUserId || !currentDisplayName || sending) return;
+    clearTypingMutation({ roomId, userId: currentUserId }).catch(() => {});
     setSending(true);
 
     const currentParticipants = participants ?? [];
@@ -901,11 +915,39 @@ function RoomContent() {
         className="shrink-0 px-4 pb-4 pt-3 border-t"
         style={{ borderColor: "var(--border-subtle)" }}
       >
+        {/* Typing indicator */}
+        {typingUsers && typingUsers.filter((t) => t.userId !== currentUserId).length > 0 && (
+          <div className="text-xs mb-1.5 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
+            <span className="inline-flex gap-0.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="inline-block w-1 h-1 rounded-full"
+                  style={{
+                    background: "var(--text-muted)",
+                    animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
+                  }}
+                />
+              ))}
+            </span>
+            <span>
+              {typingUsers
+                .filter((t) => t.userId !== currentUserId)
+                .map((t) => t.displayName)
+                .join(", ")}{" "}
+              {typingUsers.filter((t) => t.userId !== currentUserId).length === 1
+                ? "is"
+                : "are"}{" "}
+              typing
+            </span>
+          </div>
+        )}
         <MentionInput
           participants={participants}
           onSend={handleSendMessage}
           currentDisplayName={currentDisplayName}
           disabled={sending}
+          onTyping={handleTyping}
         />
       </div>
     </div>

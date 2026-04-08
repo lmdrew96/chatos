@@ -15,6 +15,7 @@ import type * as friends from "../friends.js";
 import type * as invites from "../invites.js";
 import type * as messages from "../messages.js";
 import type * as rooms from "../rooms.js";
+import type * as typing from "../typing.js";
 import type * as users from "../users.js";
 
 import type {
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   invites: typeof invites;
   messages: typeof messages;
   rooms: typeof rooms;
+  typing: typeof typing;
   users: typeof users;
 }>;
 

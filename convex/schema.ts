@@ -79,6 +79,14 @@ export default defineSchema({
     .index("by_room_and_to", ["roomId", "toId"])
     .index("by_room", ["roomId"]),
 
+  typingIndicators: defineTable({
+    roomId: v.id("rooms"),
+    userId: v.string(),
+    displayName: v.string(),
+    typingAt: v.number(),
+  }).index("by_room", ["roomId"])
+    .index("by_room_and_user", ["roomId", "userId"]),
+
   apiKeys: defineTable({
     tokenIdentifier: v.string(),
     encryptedKey: v.string(),

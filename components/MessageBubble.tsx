@@ -47,7 +47,15 @@ function Timestamp({ ts }: { ts: number }) {
   );
 }
 
-function AttachmentList({ attachments }: { attachments: MessageWithAttachments["attachments"] }) {
+function AttachmentList({
+  attachments,
+  senderName,
+  senderColor,
+}: {
+  attachments: MessageWithAttachments["attachments"];
+  senderName?: string;
+  senderColor?: string;
+}) {
   if (!attachments || attachments.length === 0) return null;
 
   return (
@@ -67,6 +75,17 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
                   View Full Size
                 </span>
               </div>
+              {senderName && (
+                <span
+                  className="absolute bottom-2 left-2 text-[10px] font-medium px-2 py-0.5 rounded-full backdrop-blur-md"
+                  style={{
+                    background: "rgba(0,0,0,0.55)",
+                    color: senderColor ?? "var(--fg)",
+                  }}
+                >
+                  {senderName}
+                </span>
+              )}
             </a>
           ) : (
             <a
@@ -160,7 +179,11 @@ export default function MessageBubble({
             }}
           >
             {message.content && <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>}
-            <AttachmentList attachments={message.attachments} />
+            <AttachmentList
+              attachments={message.attachments}
+              senderName={message.claudeName ?? undefined}
+              senderColor={textColor}
+            />
           </div>
         </div>
       </div>
@@ -192,7 +215,11 @@ export default function MessageBubble({
           }}
         >
           {message.content}
-          <AttachmentList attachments={message.attachments} />
+          <AttachmentList
+            attachments={message.attachments}
+            senderName={!isSelf ? message.fromDisplayName : undefined}
+            senderColor={!isSelf ? textColor : undefined}
+          />
         </div>
         {isSelf && (
           <div className="flex justify-end mt-1 px-1">

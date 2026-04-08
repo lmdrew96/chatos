@@ -20,6 +20,7 @@ interface MentionInputProps {
   onSend: (content: string, attachments?: Attachment[]) => void;
   currentDisplayName: string;
   disabled?: boolean;
+  onTyping?: () => void;
 }
 
 export default function MentionInput({
@@ -27,6 +28,7 @@ export default function MentionInput({
   onSend,
   currentDisplayName,
   disabled,
+  onTyping,
 }: MentionInputProps) {
   const [value, setValue] = useState("");
   const [showMentions, setShowMentions] = useState(false);
@@ -102,6 +104,7 @@ export default function MentionInput({
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setValue(text);
+    onTyping?.();
 
     const cursor = e.target.selectionStart ?? text.length;
     const before = text.slice(0, cursor);
@@ -234,6 +237,21 @@ export default function MentionInput({
 
     if (e.key === "Escape" && showEmojiPicker) {
       setShowEmojiPicker(false);
+      return;
+    }
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newVal = value.slice(0, start) + "\t" + value.slice(end);
+        setValue(newVal);
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + 1;
+        }, 0);
+      }
       return;
     }
 
