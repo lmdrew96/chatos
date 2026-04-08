@@ -47,6 +47,19 @@ export async function callClaude({
       ]
     : messages;
 
+  const fetchTool = {
+    name: "fetch_url",
+    description:
+      "Fetch a URL and return its contents. For images, returns the image so you can see it. For other content, returns the text. Use this to view GIFs or images shared in the chat.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        url: { type: "string" as const, description: "The URL to fetch" },
+      },
+      required: ["url"],
+    },
+  };
+
   const body: Record<string, unknown> = {
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
@@ -58,6 +71,7 @@ export async function callClaude({
       },
     ],
     messages: messagesWithMemory,
+    tools: [fetchTool],
   };
 
   if (mcpServers && mcpServers.length > 0) {
@@ -91,26 +105,88 @@ export async function callClaude({
     "anthropic-beta": betas.join(","),
   };
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal,
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error?.message ?? `API error ${res.status}`);
-  }
-
+  const MAX_TOOL_ROUNDS = 3;
+  let currentMessages = [...(body.messages as any[])];
   let text = "";
-  for (const block of data.content ?? []) {
-    if (block.type === "tool_use") {
-      onToolUse?.(block.name, block.input ?? {});
-    } else if (block.type === "text") {
-      text += block.text;
+
+  for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ ...body, messages: currentMessages }),
+      signal,
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error?.message ?? `API error ${res.status}`);
     }
+
+    // Collect text and tool_use blocks
+    const toolUseBlocks: { id: string; name: string; input: any }[] = [];
+    for (const block of data.content ?? []) {
+      if (block.type === "text") {
+        text += block.text;
+      } else if (block.type === "tool_use") {
+        toolUseBlocks.push(block);
+        onToolUse?.(block.name, block.input ?? {});
+      }
+    }
+
+    // If no tool calls or we've hit the limit, we're done
+    if (toolUseBlocks.length === 0 || data.stop_reason !== "tool_use") break;
+
+    // Execute tool calls and build tool_result messages
+    const toolResults: any[] = [];
+    for (const tool of toolUseBlocks) {
+      if (tool.name === "fetch_url") {
+        try {
+          const fetchRes = await fetch(tool.input.url, { signal });
+          const contentType = fetchRes.headers.get("content-type") ?? "";
+          if (contentType.startsWith("image/")) {
+            const buf = await fetchRes.arrayBuffer();
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+            const mediaType = contentType.split(";")[0].trim();
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: tool.id,
+              content: [
+                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+              ],
+            });
+          } else {
+            const body = await fetchRes.text();
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: tool.id,
+              content: body.slice(0, 10000),
+            });
+          }
+        } catch (e: any) {
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: tool.id,
+            content: `Fetch failed: ${e.message}`,
+            is_error: true,
+          });
+        }
+      } else {
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: tool.id,
+          content: "Unknown tool",
+          is_error: true,
+        });
+      }
+    }
+
+    // Append assistant response + tool results for next round
+    currentMessages = [
+      ...currentMessages,
+      { role: "assistant", content: data.content },
+      { role: "user", content: toolResults },
+    ];
   }
 
   return text || "…";
