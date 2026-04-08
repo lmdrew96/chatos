@@ -38,6 +38,21 @@ export const sendMessage = mutation({
   },
 });
 
+export const updateStreamingMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+    content: v.string(),
+    isStreaming: v.optional(v.boolean()),
+    mentions: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { messageId, content, isStreaming, mentions }) => {
+    const patch: { content: string; isStreaming?: boolean; mentions?: string[] } = { content };
+    if (isStreaming !== undefined) patch.isStreaming = isStreaming;
+    if (mentions !== undefined) patch.mentions = mentions;
+    await ctx.db.patch(messageId, patch);
+  },
+});
+
 export const searchUserMessages = query({
   args: { fromUserId: v.string(), searchQuery: v.string() },
   handler: async (ctx, { fromUserId, searchQuery }) => {

@@ -48,6 +48,7 @@ export default defineSchema({
     ),
     mentions: v.array(v.string()),
     mentionDepth: v.optional(v.number()),
+    isStreaming: v.optional(v.boolean()),
     createdAt: v.number(),
   }).index("by_room", ["roomId"])
     .searchIndex("search_content", {

@@ -178,7 +178,24 @@ export default function MessageBubble({
               borderRadius: "4px 18px 18px 18px",
             }}
           >
-            {message.content && <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>}
+            {message.content ? (
+              <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
+            ) : message.isStreaming ? (
+              <span
+                className="inline-block w-2 h-4 rounded-sm animate-pulse"
+                style={{ background: textColor, opacity: 0.5 }}
+              />
+            ) : null}
+            {message.isStreaming && message.content && (
+              <span
+                className="inline-block w-1.5 h-3.5 rounded-sm ml-0.5 align-text-bottom"
+                style={{
+                  background: textColor,
+                  opacity: 0.6,
+                  animation: "streaming-cursor 0.8s ease-in-out infinite",
+                }}
+              />
+            )}
             {message.gifUrl && (
               <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
                 <img

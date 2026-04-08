@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { callClaude, McpServer } from "@/lib/claude";
+import { callClaude, callClaudeStreaming, estimateTokens, McpServer } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
@@ -57,6 +57,26 @@ function isTextFile(fileName: string, contentType: string): boolean {
 }
 
 const MAX_TEXT_FILE_CHARS = 50_000; // ~50k chars to avoid blowing up context
+
+const HISTORY_TOKEN_BUDGET = 12_000; // ~48k chars — leaves room for system prompt + response
+const MIN_HISTORY_MESSAGES = 3;
+
+/** Trim messages from the oldest end until they fit within a token budget. */
+function trimToTokenBudget(msgs: MessageWithAttachments[]): MessageWithAttachments[] {
+  // Work backwards from most recent, accumulate until budget is hit
+  let tokens = 0;
+  let startIdx = msgs.length;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    const t = estimateTokens(m.content);
+    if (tokens + t > HISTORY_TOKEN_BUDGET && msgs.length - i > MIN_HISTORY_MESSAGES) {
+      break;
+    }
+    tokens += t;
+    startIdx = i;
+  }
+  return msgs.slice(startIdx);
+}
 
 // Support the resolved URL from useMessages
 type MessageWithAttachments = Omit<Doc<"messages">, "attachments"> & {
@@ -245,6 +265,7 @@ function RoomContent() {
   );
   const typingUsers = useQuery(api.typing.getTyping, { roomId });
   const sendMessage = useMutation(api.messages.sendMessage);
+  const updateStreamingMessage = useMutation(api.messages.updateStreamingMessage);
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
   const updateParticipantColor = useMutation(api.rooms.updateParticipantColor);
   const upsertClaudeMemory = useMutation(api.rooms.upsertClaudeMemory);
@@ -257,6 +278,8 @@ function RoomContent() {
   const messagesRef = useRef<Doc<"messages">[] | undefined>(undefined);
   // AbortController for the active Claude chain — replaced each user send
   const chainAbortRef = useRef<AbortController | null>(null);
+  // Session-level conversation summary for compacting older context
+  const sessionSummaryRef = useRef<{ summary: string; throughMsgCount: number } | null>(null);
 
   // Restore session from sessionStorage
   useEffect(() => {
@@ -403,23 +426,53 @@ function RoomContent() {
     }
 
     setThinkingClaudes((prev) => new Set(prev).add(claudeName));
+
+    // Create the message up-front so streaming updates fill it in progressively
+    let messageId: Id<"messages"> | null = null;
+
     try {
       const memoryContext = claudeMemories?.[claudeName]?.summary;
       if (memoryContext) {
         touchClaudeMemory({ ownerUserId: owner.userId, claudeName }).catch(() => {});
       }
-      // Only pass MCP servers for the current user's own Claude.
-      // Never expose one user's MCP servers (which may have write tools) to
-      // a Claude owned by a different user — they run in the invoker's browser
-      // with no way to access the owner's servers anyway.
       const isOwnClaude = owner.userId === currentUserId;
-      const reply = await callClaude({
+
+      // Create placeholder message for streaming
+      messageId = await sendMessage({
+        roomId,
+        fromUserId: owner.userId,
+        fromDisplayName: owner.displayName,
+        type: "claude",
+        claudeName,
+        ownerUserId: owner.userId,
+        content: "",
+        mentions: [],
+        mentionDepth: depth,
+      });
+
+      // Remove thinking indicator once the message bubble exists
+      setThinkingClaudes((prev) => {
+        const next = new Set(prev);
+        next.delete(claudeName);
+        return next;
+      });
+
+      const reply = await callClaudeStreaming({
         apiKey,
         systemPrompt: owner.systemPrompt,
         messages: callMessages,
         mcpServers: isOwnClaude && mcpServers.length > 0 ? mcpServers : undefined,
         claudeName,
         memoryContext,
+        onText: (accumulated) => {
+          if (messageId) {
+            updateStreamingMessage({
+              messageId,
+              content: accumulated,
+              isStreaming: true,
+            }).catch(() => {});
+          }
+        },
         onToolUse: (toolName) => {
           sendMessage({
             roomId,
@@ -438,17 +491,15 @@ function RoomContent() {
         (name) => name !== claudeName
       );
 
-      await sendMessage({
-        roomId,
-        fromUserId: owner.userId,
-        fromDisplayName: owner.displayName,
-        type: "claude",
-        claudeName,
-        ownerUserId: owner.userId,
-        content: reply,
-        mentions,
-        mentionDepth: depth,
-      });
+      // Final update: set complete content, mentions, and clear streaming flag
+      if (messageId) {
+        await updateStreamingMessage({
+          messageId,
+          content: reply,
+          isStreaming: false,
+          mentions,
+        });
+      }
 
       // Guard: if the reply @-addresses a human by display name, yield to them
       const addressesHuman = allParticipants.some((p) =>
@@ -501,7 +552,6 @@ function RoomContent() {
         const thresholdMet = liveMessages.length > 8 && newSinceLast > 5;
 
         if (thresholdMet || triggeredByUser || triggeredByClaude) {
-          // For explicit triggers use all messages; for threshold use all but the last 5
           const explicitTrigger = triggeredByUser || triggeredByClaude;
           const messagesToSummarize = explicitTrigger
             ? liveMessages
@@ -535,7 +585,17 @@ function RoomContent() {
       return { claudeName, content: reply };
     } catch (err) {
       // Silently drop intentional cancellations
-      if (err instanceof Error && err.name === "AbortError") return null;
+      if (err instanceof Error && err.name === "AbortError") {
+        // Clean up the placeholder message if we were aborted before any text
+        if (messageId) {
+          updateStreamingMessage({ messageId, content: "(cancelled)", isStreaming: false }).catch(() => {});
+        }
+        return null;
+      }
+      // On error, update the streaming message to clear the flag
+      if (messageId) {
+        updateStreamingMessage({ messageId, content: "", isStreaming: false }).catch(() => {});
+      }
       await sendMessage({
         roomId,
         fromUserId: "system",
@@ -630,9 +690,57 @@ function RoomContent() {
           userContent = contentArray;
         }
 
-        // 1. Get history from the current query state
-        const history = await buildHistory((messages ?? []).slice(-15) as MessageWithAttachments[]);
-        
+        // 1. Get history from the current query state (token-budget trimmed)
+        const allMsgs = (messages ?? []) as MessageWithAttachments[];
+        const trimmed = trimToTokenBudget(allMsgs);
+        const trimmedCount = allMsgs.length - trimmed.length;
+
+        // Conversation compacting: summarize dropped messages as session context
+        if (trimmedCount > 0 && owner) {
+          const existing = sessionSummaryRef.current;
+          const newSinceSummary = allMsgs.length - (existing?.throughMsgCount ?? 0);
+          // Re-summarize if we've never summarized or 10+ new messages since last
+          if (!existing || newSinceSummary >= 10) {
+            const dropped = allMsgs.slice(0, trimmedCount);
+            const formatted = dropped
+              .filter((m) => m.type !== "system")
+              .map((m) => `${m.fromDisplayName}: ${m.content}`)
+              .join("\n");
+            if (formatted.trim()) {
+              // Fire-and-forget — don't block the response on this
+              const ownerApiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
+                roomId,
+                participantUserId: owner.userId,
+              });
+              if (ownerApiKey) {
+                const base = existing?.summary
+                  ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
+                  : formatted;
+                callClaude({
+                  apiKey: ownerApiKey,
+                  systemPrompt:
+                    "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
+                  messages: [{ role: "user", content: base }],
+                })
+                  .then((summary) => {
+                    sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
+                  })
+                  .catch((err) => console.error("[compact] summary failed:", err));
+              }
+            }
+          }
+        }
+
+        const history = await buildHistory(trimmed);
+
+        // Inject session summary at the top if available
+        if (sessionSummaryRef.current?.summary) {
+          history.unshift(
+            { role: "user" as const, content: `[Earlier conversation context — auto-summarized]\n${sessionSummaryRef.current.summary}` },
+            { role: "assistant" as const, content: "Got it, I have that context." },
+          );
+        }
+
         // 2. Check if the message we just sent is already the last turn in history
         // We handle both string and multimodal array content here.
         const lastMsgTurn = history[history.length - 1];
