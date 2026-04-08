@@ -157,7 +157,7 @@ The pasted content is appended to the system prompt under a `## Recent context` 
 | Your name | ✅ | — | sessionStorage |
 | Your Claude's name | ✅ | — | sessionStorage |
 | Claude personality prompt | ✅ | — | Convex (participants) |
-| Anthropic API key | ✅ | — | localStorage (`chatos:apiKey`) |
+| Anthropic API key | ✅ | — | Convex (`apiKeys` table) |
 | Personal Context MCP URL | ⬜ optional | Layer 1 | Convex (participants) |
 | Additional MCP servers | ⬜ optional | Layer 2 | sessionStorage (`chatos:mcpServers`) |
 | Context seed (paste) | ⬜ optional | Layer 3 | Injected into system prompt at join |

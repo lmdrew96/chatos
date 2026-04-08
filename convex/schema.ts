@@ -79,6 +79,11 @@ export default defineSchema({
     .index("by_room_and_to", ["roomId", "toId"])
     .index("by_room", ["roomId"]),
 
+  apiKeys: defineTable({
+    tokenIdentifier: v.string(),
+    encryptedKey: v.string(),
+  }).index("by_token", ["tokenIdentifier"]),
+
   claudeMemories: defineTable({
     ownerUserId: v.string(),
     claudeName: v.string(),

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { useTheme } from "@/components/ThemeProvider";
 
-const KEY = "chatos:apiKey";
 const MCP_URL_KEY = "chatos:mcpUrl";
 const MCP_SERVERS_KEY = "chatos:mcpServers";
 const CONTEXT_SEED_KEY = "chatos:contextSeed";
@@ -30,10 +31,21 @@ export default function SettingsPage() {
     localStorage.setItem(COLOR_KEY, hex);
   };
 
-  const [apiKey, setApiKey] = useState(
-    () => (typeof window !== "undefined" ? localStorage.getItem(KEY) ?? "" : "")
-  );
+  const savedKey = useQuery(api.apiKeys.getMyApiKey);
+  const saveApiKeyMutation = useMutation(api.apiKeys.saveApiKey);
+  const deleteApiKeyMutation = useMutation(api.apiKeys.deleteApiKey);
+
+  const [apiKey, setApiKey] = useState("");
+  const [keyLoaded, setKeyLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (savedKey !== undefined && !keyLoaded) {
+      setApiKey(savedKey ?? "");
+      setKeyLoaded(true);
+    }
+  }, [savedKey, keyLoaded]);
+
   const hasKey = apiKey.trim().length > 0;
 
   const [mcpUrl, setMcpUrl] = useState(
@@ -48,19 +60,19 @@ export default function SettingsPage() {
   );
   const [mcpSaved, setMcpSaved] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = apiKey.trim();
     if (trimmed) {
-      localStorage.setItem(KEY, trimmed);
+      await saveApiKeyMutation({ encryptedKey: trimmed });
     } else {
-      localStorage.removeItem(KEY);
+      await deleteApiKeyMutation();
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleClear = () => {
-    localStorage.removeItem(KEY);
+  const handleClear = async () => {
+    await deleteApiKeyMutation();
     setApiKey("");
   };
 
@@ -186,7 +198,7 @@ export default function SettingsPage() {
             Anthropic API Key
           </h2>
           <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
-            Used to power your Claude in every room. Stored locally in your browser — never sent to our servers.
+            Used to power your Claude in every room. Stored securely on our servers so other participants can invoke your Claude on your behalf.
           </p>
 
           <div className="flex flex-col gap-3">
@@ -261,7 +273,7 @@ export default function SettingsPage() {
               <path d="M3 5V3.5a2.5 2.5 0 0 1 5 0V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
             <p className="text-xs" style={{ color: "var(--text-dim)" }}>
-              Your key is stored only in this browser. Each Claude always uses its owner&apos;s key.
+              Your key is stored server-side. Each Claude always uses its owner&apos;s key — never the invoker&apos;s.
             </p>
           </div>
         </section>

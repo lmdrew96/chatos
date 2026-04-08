@@ -76,7 +76,6 @@ type InvokeParams = {
   owner: Doc<"participants">;
   callMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[];
   allParticipants: Doc<"participants">[];
-  apiKey: string;
   depth: number;
   respondedSet: Set<string>;
   precedingReplies: { claudeName: string; content: string }[];
@@ -362,7 +361,6 @@ function RoomContent() {
     owner,
     callMessages,
     allParticipants,
-    apiKey,
     depth,
     respondedSet,
     precedingReplies,
@@ -377,6 +375,24 @@ function RoomContent() {
     if (liveHumanCount > chainStartHumanCount) return null;
 
     respondedSet.add(claudeName);
+
+    // Fetch the owner's API key from Convex (each Claude uses its own owner's key)
+    const apiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
+      roomId,
+      participantUserId: owner.userId,
+    });
+    if (!apiKey) {
+      await sendMessage({
+        roomId,
+        fromUserId: "system",
+        fromDisplayName: "system",
+        type: "system",
+        content: `${claudeName}'s API key isn't available — ${owner.displayName} needs to set one in Settings.`,
+        mentions: [],
+        mentionDepth: depth,
+      });
+      return null;
+    }
 
     setThinkingClaudes((prev) => new Set(prev).add(claudeName));
     try {
@@ -448,7 +464,6 @@ function RoomContent() {
             owner: subOwner,
             callMessages: subCallMessages,
             allParticipants,
-            apiKey,
             depth: depth + 1,
             respondedSet,
             precedingReplies: [...precedingReplies, { claudeName, content: reply }],
@@ -566,19 +581,6 @@ function RoomContent() {
         const owner = currentParticipants.find((p) => p.claudeName === claudeName);
         if (!owner) continue;
 
-        const apiKey = localStorage.getItem("chatos:apiKey");
-        if (!apiKey) {
-          await sendMessage({
-            roomId,
-            fromUserId: "system",
-            fromDisplayName: "system",
-            type: "system",
-            content: `${claudeName}'s API key isn't available — ${owner.displayName} needs to set one in Settings.`,
-            mentions: [],
-          });
-          continue;
-        }
-
         let userContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
 
         // Include immediate attachments — the reactive query hasn't updated yet,
@@ -672,7 +674,6 @@ function RoomContent() {
           owner,
           callMessages,
           allParticipants: currentParticipants,
-          apiKey,
           depth: 0,
           respondedSet,
           precedingReplies,

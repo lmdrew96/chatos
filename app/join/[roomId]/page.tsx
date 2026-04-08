@@ -46,11 +46,11 @@ export default function JoinPage() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const hasApiKeyQuery = useQuery(api.apiKeys.hasApiKey);
+  const hasApiKey = hasApiKeyQuery === true;
   const [hasMcpUrl, setHasMcpUrl] = useState(false);
 
   useEffect(() => {
-    setHasApiKey(!!localStorage.getItem("chatos:apiKey"));
     setHasMcpUrl(!!localStorage.getItem("chatos:mcpUrl")?.trim());
   }, []);
 

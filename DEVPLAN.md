@@ -93,7 +93,7 @@ roomInvites     — roomId, fromId, toId, status | indexes for recipient and sen
 Advanced section is **collapsed by default** so first-time users aren't overwhelmed.
 
 **On submit:**
-- API key read from `localStorage` (`chatos:apiKey`)
+- API key stored server-side in Convex (`apiKeys` table, keyed by `tokenIdentifier`)
 - userId (UUID) stored in `sessionStorage`
 - Display name, Claude name, MCP servers stored in `sessionStorage`
 - Participant written to Convex (no API key)
@@ -104,9 +104,9 @@ Advanced section is **collapsed by default** so first-time users aren't overwhel
 - Share link shown after creation
 
 **API key management (`/settings`):**
-- `localStorage` key: `chatos:apiKey`
+- Stored server-side in Convex (`apiKeys` table, keyed by `tokenIdentifier`)
 - Password input with set/clear
-- Security note: "Stored only in this browser"
+- Security note: "Stored securely on our servers — each Claude uses its owner's key"
 
 ---
 
@@ -163,7 +163,7 @@ Lives in `app/room/[roomId]/page.tsx` (client-side only).
 ```typescript
 for (const claudeName of mentions) {
   const owner = participants.find(p => p.claudeName === claudeName);
-  const apiKey = localStorage.getItem("chatos:apiKey"); // owner's key
+  const apiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, { roomId, participantUserId: owner.userId }); // owner's key from Convex
 
   const callMessages = [...history, { role: "user", content: `${sender}: ${content}` }];
 
