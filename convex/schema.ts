@@ -35,6 +35,7 @@ export default defineSchema({
     claudeName: v.optional(v.string()),
     ownerUserId: v.optional(v.string()),
     content: v.string(),
+    gifUrl: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
@@ -91,6 +92,16 @@ export default defineSchema({
     tokenIdentifier: v.string(),
     encryptedKey: v.string(),
   }).index("by_token", ["tokenIdentifier"]),
+
+  gifFavorites: defineTable({
+    tokenIdentifier: v.string(),
+    tenorId: v.string(),
+    url: v.string(),
+    previewUrl: v.string(),
+    description: v.optional(v.string()),
+    savedAt: v.number(),
+  }).index("by_token", ["tokenIdentifier"])
+    .index("by_token_and_tenor_id", ["tokenIdentifier", "tenorId"]),
 
   claudeMemories: defineTable({
     ownerUserId: v.string(),

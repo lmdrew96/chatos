@@ -179,6 +179,16 @@ export default function MessageBubble({
             }}
           >
             {message.content && <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>}
+            {message.gifUrl && (
+              <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
+                <img
+                  src={message.gifUrl}
+                  alt="GIF"
+                  className="w-full rounded-lg"
+                  style={{ border: "1px solid var(--border)" }}
+                />
+              </div>
+            )}
             <AttachmentList
               attachments={message.attachments}
               senderName={message.claudeName ?? undefined}
@@ -215,6 +225,16 @@ export default function MessageBubble({
           }}
         >
           {message.content}
+          {message.gifUrl && (
+            <div className="mt-2 rounded-lg overflow-hidden" style={{ maxWidth: "280px" }}>
+              <img
+                src={message.gifUrl}
+                alt="GIF"
+                className="w-full rounded-lg"
+                style={{ border: "1px solid var(--border)" }}
+              />
+            </div>
+          )}
           <AttachmentList
             attachments={message.attachments}
             senderName={!isSelf ? message.fromDisplayName : undefined}

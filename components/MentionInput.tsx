@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 
 // Lazy-load the heavy emoji picker bundle
 const Picker = dynamic(() => import("@emoji-mart/react"), { ssr: false });
+const GifPicker = dynamic(() => import("./GifPicker"), { ssr: false });
 
 interface Attachment {
   storageId: Id<"_storage">;
@@ -18,6 +19,7 @@ interface Attachment {
 interface MentionInputProps {
   participants: Doc<"participants">[];
   onSend: (content: string, attachments?: Attachment[]) => void;
+  onGifSend?: (gifUrl: string) => void;
   currentDisplayName: string;
   disabled?: boolean;
   onTyping?: () => void;
@@ -26,6 +28,7 @@ interface MentionInputProps {
 export default function MentionInput({
   participants,
   onSend,
+  onGifSend,
   currentDisplayName,
   disabled,
   onTyping,
@@ -38,6 +41,7 @@ export default function MentionInput({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -328,6 +332,19 @@ export default function MentionInput({
         </div>
       )}
 
+      {/* GIF picker */}
+      {showGifPicker && (
+        <div className="absolute bottom-full mb-2 right-0 z-20">
+          <GifPicker
+            onSelect={(gifUrl) => {
+              setShowGifPicker(false);
+              onGifSend?.(gifUrl);
+            }}
+            onClose={() => setShowGifPicker(false)}
+          />
+        </div>
+      )}
+
       {/* Input container */}
       <div
         className="flex flex-col gap-2 p-3 rounded-2xl transition-all"
@@ -420,7 +437,10 @@ export default function MentionInput({
             {/* Emoji button */}
             <button
               type="button"
-              onClick={() => setShowEmojiPicker((v) => !v)}
+              onClick={() => {
+                setShowEmojiPicker((v) => !v);
+                setShowGifPicker(false);
+              }}
               disabled={disabled || isUploading}
               className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 hover:bg-white/5"
               style={{
@@ -434,6 +454,23 @@ export default function MentionInput({
                 <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3" strokeLinecap="round" />
                 <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3" strokeLinecap="round" />
               </svg>
+            </button>
+
+            {/* GIF button */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowGifPicker((v) => !v);
+                setShowEmojiPicker(false);
+              }}
+              disabled={disabled || isUploading}
+              className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 hover:bg-white/5"
+              style={{
+                color: showGifPicker ? "var(--amber)" : "var(--text-muted)",
+              }}
+              title="Send GIF"
+            >
+              <span className="text-[11px] font-bold leading-none">GIF</span>
             </button>
 
             {/* Attach button */}

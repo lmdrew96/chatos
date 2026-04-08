@@ -945,6 +945,18 @@ function RoomContent() {
         <MentionInput
           participants={participants}
           onSend={handleSendMessage}
+          onGifSend={async (gifUrl) => {
+            if (!currentUserId || !currentDisplayName) return;
+            await sendMessage({
+              roomId,
+              fromUserId: currentUserId,
+              fromDisplayName: currentDisplayName,
+              type: "user",
+              content: "",
+              gifUrl,
+              mentions: [],
+            });
+          }}
           currentDisplayName={currentDisplayName}
           disabled={sending}
           onTyping={handleTyping}

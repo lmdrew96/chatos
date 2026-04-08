@@ -14,6 +14,7 @@ export const sendMessage = mutation({
     claudeName: v.optional(v.string()),
     ownerUserId: v.optional(v.string()),
     content: v.string(),
+    gifUrl: v.optional(v.string()),
     attachments: v.optional(
       v.array(
         v.object({
