@@ -149,13 +149,6 @@ async function buildHistory(
       contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName} sent a GIF: ${m.gifUrl}`;
     }
 
-    // Surface reactions so Claude can see how people responded
-    const msgReactions = reactionsMap?.[m._id];
-    if (msgReactions && msgReactions.length > 0) {
-      const reactionStr = msgReactions.map((r) => `${r.emoji}×${r.count}`).join(", ");
-      contentText += ` [Reactions: ${reactionStr}]`;
-    }
-
     const attachmentBlocks: MessageContent[] = [];
     if (m.attachments && m.attachments.length > 0) {
       for (const a of m.attachments) {
@@ -214,6 +207,32 @@ async function buildHistory(
         result.push({ role, content: contentArray });
       } else {
         result.push({ role, content: contentText });
+      }
+    }
+  }
+
+  // Inject reaction references so Claude can see how people responded to messages
+  if (reactionsMap) {
+    const reactionNotes: string[] = [];
+    for (const m of messages) {
+      const msgReactions = reactionsMap[m._id];
+      if (!msgReactions || msgReactions.length === 0) continue;
+      const snippet = m.content.slice(0, 60) + (m.content.length > 60 ? "..." : "");
+      const reactionStr = msgReactions.map((r) => `${r.emoji}×${r.count}`).join(", ");
+      reactionNotes.push(`[Reaction added: ${reactionStr} on "${snippet}"]`);
+    }
+    if (reactionNotes.length > 0) {
+      const block = reactionNotes.join("\n");
+      const last = result[result.length - 1];
+      if (last?.role === "user") {
+        // Append to existing user block
+        if (typeof last.content === "string") {
+          last.content += "\n\n" + block;
+        } else {
+          last.content.push({ type: "text", text: block });
+        }
+      } else {
+        result.push({ role: "user", content: block });
       }
     }
   }
