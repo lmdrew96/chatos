@@ -77,9 +77,16 @@ function detectMentions(content: string, participants: Doc<"participants">[]): s
   if (/@everyone(?!\w)/i.test(content)) {
     return participants.map((p) => p.claudeName);
   }
+  const lower = content.toLowerCase();
   return participants
     .map((p) => p.claudeName)
-    .filter((name) => new RegExp(`@${name}(?![\\w])`, "i").test(content));
+    .filter((name) => new RegExp(`@${name}(?![\\w])`, "i").test(content))
+    .sort((a, b) => {
+      // Preserve the order in which @mentions appear in the text
+      const posA = lower.indexOf(`@${a.toLowerCase()}`);
+      const posB = lower.indexOf(`@${b.toLowerCase()}`);
+      return posA - posB;
+    });
 }
 
 // Collapse consecutive same-role messages and handle attachments for multimodal support

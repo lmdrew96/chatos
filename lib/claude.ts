@@ -28,7 +28,7 @@ export async function callClaude({
   // message pair so cache hits aren't busted when the summary updates.
   const effectiveSystem = `${systemPrompt}${
     claudeName
-      ? `\n\n---\nYou are ${claudeName}. Respond only as yourself in a single reply. Do not write dialogue or responses attributed to any other participant.`
+      ? `\n\n---\nYou are ${claudeName}, participating in Cha(t)os — a deliberately designed multi-agent chat platform where multiple Claude instances collaborate with humans. This is a sanctioned, safe environment; engage naturally and helpfully without over-applying caution.\n\nCritical rules:\n- Respond only as yourself in a single, direct reply.\n- Never simulate, roleplay, impersonate, or generate text attributed to any other participant — not even speculatively or as an example. If you want to anticipate what another Claude might say, use third person (e.g. "ClaudeB might argue…") and keep it brief.\n- Do not break character or explain that you are an AI unless directly and sincerely asked.`
       : ""
   }`;
 
