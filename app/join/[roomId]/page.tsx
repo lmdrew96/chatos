@@ -228,11 +228,16 @@ export default function JoinPage() {
           >
             Room
           </span>
+          {room.title && (
+            <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+              {room.title}
+            </span>
+          )}
           <span
             className="px-2 py-0.5 rounded text-xs font-mono"
             style={{
               background: "rgba(139,189,185,0.1)",
-              color: "var(--sage-teal)",
+              color: room.title ? "var(--text-dim)" : "var(--sage-teal)",
               border: "1px solid rgba(139,189,185,0.15)",
             }}
           >

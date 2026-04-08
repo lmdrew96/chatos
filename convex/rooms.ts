@@ -50,19 +50,34 @@ async function deleteRoomCascade(ctx: MutationCtx, roomId: Id<"rooms">) {
 }
 
 export const createRoom = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { title: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     const now = Date.now();
     const roomCode = generateRoomCode();
     const roomId = await ctx.db.insert("rooms", {
       roomCode,
+      title: args.title || undefined,
       createdAt: now,
       ownerTokenIdentifier: identity?.tokenIdentifier,
       lastActivityAt: now,
       retentionPolicy: identity ? "persistent" : "guest_ttl_72h",
     });
     return { roomId, roomCode };
+  },
+});
+
+export const updateRoomTitle = mutation({
+  args: { roomId: v.id("rooms"), title: v.string() },
+  handler: async (ctx, { roomId, title }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const room = await ctx.db.get(roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.ownerTokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Only the room owner can rename it");
+    }
+    await ctx.db.patch(roomId, { title: title.trim() || undefined });
   },
 });
 

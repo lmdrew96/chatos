@@ -50,7 +50,7 @@ export default function DashboardPage() {
   const handleCreateRoom = async () => {
     setCreatingRoom(true);
     try {
-      const { roomId } = await createRoom();
+      const { roomId } = await createRoom({});
       router.push(`/join/${roomId}`);
     } finally {
       setCreatingRoom(false);
@@ -253,17 +253,35 @@ export default function DashboardPage() {
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)"; }}
                   >
                     <div className="flex items-center justify-between gap-2 px-4 pt-3">
-                      <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="text-left">
-                        <span
-                          className="px-2 py-0.5 rounded text-xs font-mono"
-                          style={{
-                            background: "rgba(139,189,185,0.1)",
-                            color: "var(--sage-teal)",
-                            border: "1px solid rgba(139,189,185,0.15)",
-                          }}
-                        >
-                          {r!.roomCode}
-                        </span>
+                      <button onClick={() => enterRoom(router, r!.roomId, r!.userId, r!.displayName, r!.claudeName)} className="text-left flex items-center gap-2">
+                        {r!.roomTitle ? (
+                          <>
+                            <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                              {r!.roomTitle}
+                            </span>
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+                              style={{
+                                background: "rgba(139,189,185,0.08)",
+                                color: "var(--text-dim)",
+                                border: "1px solid rgba(139,189,185,0.1)",
+                              }}
+                            >
+                              {r!.roomCode}
+                            </span>
+                          </>
+                        ) : (
+                          <span
+                            className="px-2 py-0.5 rounded text-xs font-mono"
+                            style={{
+                              background: "rgba(139,189,185,0.1)",
+                              color: "var(--sage-teal)",
+                              border: "1px solid rgba(139,189,185,0.15)",
+                            }}
+                          >
+                            {r!.roomCode}
+                          </span>
+                        )}
                       </button>
                       <span className="text-xs" style={{ color: "var(--text-dim)" }}>
                         {r!.participantCount} {r!.participantCount === 1 ? "person" : "people"}
@@ -271,7 +289,7 @@ export default function DashboardPage() {
                       {r!.canDelete && (
                         <button
                           onClick={async () => {
-                            const confirmed = window.confirm(`Delete room ${r!.roomCode}? This cannot be undone.`);
+                            const confirmed = window.confirm(`Delete room ${r!.roomTitle || r!.roomCode}? This cannot be undone.`);
                             if (!confirmed) return;
                             setDeletingRoomId(r!.roomId);
                             try {

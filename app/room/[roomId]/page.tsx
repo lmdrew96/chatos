@@ -232,6 +232,103 @@ async function buildHistory(
   return result;
 }
 
+function RoomTitle({
+  title,
+  roomCode,
+  canEdit,
+  onSave,
+}: {
+  title?: string;
+  roomCode: string;
+  canEdit: boolean;
+  onSave: (title: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed !== (title ?? "")) {
+      onSave(trimmed);
+    }
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        maxLength={60}
+        placeholder={roomCode}
+        className="text-sm font-medium bg-transparent border-b outline-none min-w-0 max-w-[200px]"
+        style={{
+          color: "var(--fg)",
+          borderColor: "var(--sage-teal)",
+          caretColor: "var(--sage-teal)",
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={canEdit ? () => { setDraft(title ?? ""); setEditing(true); } : undefined}
+      className={`flex items-center gap-2 min-w-0 ${canEdit ? "cursor-pointer group/title" : "cursor-default"}`}
+      title={canEdit ? "Click to rename room" : undefined}
+    >
+      {title ? (
+        <>
+          <span className="text-sm font-medium truncate" style={{ color: "var(--fg)" }}>
+            {title}
+          </span>
+          <span
+            className="px-1.5 py-0.5 rounded text-[10px] font-mono shrink-0"
+            style={{
+              background: "rgba(139,189,185,0.08)",
+              color: "var(--text-dim)",
+              border: "1px solid rgba(139,189,185,0.1)",
+            }}
+          >
+            {roomCode}
+          </span>
+        </>
+      ) : (
+        <span
+          className="px-2 py-0.5 rounded text-xs font-mono"
+          style={{
+            background: "rgba(139,189,185,0.1)",
+            color: "var(--sage-teal)",
+            border: "1px solid rgba(139,189,185,0.15)",
+          }}
+        >
+          {roomCode}
+        </span>
+      )}
+      {canEdit && (
+        <svg
+          width="10" height="10" viewBox="0 0 12 12" fill="none"
+          className="shrink-0 opacity-0 group-hover/title:opacity-60 transition-opacity"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export default function RoomPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -258,6 +355,7 @@ function RoomContent() {
   // Claude names currently generating a response
   const [thinkingClaudes, setThinkingClaudes] = useState<Set<string>>(new Set());
 
+  const room = useQuery(api.rooms.getRoomById, { roomId });
   const messages = useQuery(api.messages.useMessages, { roomId });
   const participants = useQuery(api.rooms.useParticipants, { roomId });
   const myParticipant = useQuery(api.rooms.getMyParticipantInRoom, { roomId });
@@ -268,6 +366,7 @@ function RoomContent() {
   const typingUsers = useQuery(api.typing.getTyping, { roomId });
   const sendMessage = useMutation(api.messages.sendMessage);
   const updateStreamingMessage = useMutation(api.messages.updateStreamingMessage);
+  const updateRoomTitle = useMutation(api.rooms.updateRoomTitle);
   const setOnlineStatus = useMutation(api.rooms.setOnlineStatus);
   const updateParticipantColor = useMutation(api.rooms.updateParticipantColor);
   const upsertClaudeMemory = useMutation(api.rooms.upsertClaudeMemory);
@@ -884,13 +983,17 @@ function RoomContent() {
           backdropFilter: "blur(12px)",
         }}
       >
-        {/* Left: room info */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {onlineCount} online
-            </span>
-          </div>
+        {/* Left: room title + info */}
+        <div className="flex items-center gap-3 min-w-0">
+          <RoomTitle
+            title={room?.title}
+            roomCode={room?.roomCode ?? ""}
+            canEdit={!!room && !!myParticipant?.tokenIdentifier && room.ownerTokenIdentifier === myParticipant.tokenIdentifier}
+            onSave={(title) => updateRoomTitle({ roomId, title })}
+          />
+          <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>
+            {onlineCount} online
+          </span>
         </div>
 
         {/* Right: invite + participant dots */}

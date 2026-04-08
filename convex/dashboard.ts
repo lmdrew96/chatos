@@ -118,6 +118,7 @@ export const getMyRooms = query({
         return {
           roomId: p.roomId,
           roomCode: room.roomCode,
+          roomTitle: room.title,
           retentionPolicy,
           lastActivityAt: room.lastActivityAt ?? room.createdAt,
           canDelete: room.ownerTokenIdentifier === tokenIdentifier,

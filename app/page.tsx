@@ -106,7 +106,7 @@ export default function Home() {
     if (isAuthLoading) return;
     setLoading(true);
     try {
-      const { roomId } = await createRoom();
+      const { roomId } = await createRoom({});
       router.push(`/join/${roomId}`);
     } catch {
       setLoading(false);

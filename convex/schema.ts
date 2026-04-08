@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export default defineSchema({
   rooms: defineTable({
     roomCode: v.string(),
+    title: v.optional(v.string()),
     createdAt: v.number(),
     ownerTokenIdentifier: v.optional(v.string()),
     lastActivityAt: v.optional(v.number()),
