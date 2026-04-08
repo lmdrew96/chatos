@@ -580,24 +580,33 @@ function RoomContent() {
         }
 
         let userContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
-        
-        // Include immediate attachments in the first AI call content array
+
+        // Include immediate attachments — the reactive query hasn't updated yet,
+        // so use the base64 data we still have from the upload
         if (attachments && attachments.length > 0) {
-          const contentArray: MessageContent[] = [];
+          const contentArray: MessageContent[] = [
+            { type: "text", text: `${currentDisplayName}: ${content}` },
+          ];
           for (const a of attachments) {
-            // We have to resolve the URL here since the mutation just happened
-            // Convex doesn't return the resolved URL immediately, so we'll 
-            // skip for now or wait for the reactive query to update.
-            // Actually, buildHistory will handle previous ones, but for the FRESH message,
-            // we should probably wait for the reactive query to pick it up or 
-            // just use the file data directly from the input if we still had it.
-            // Simplified approach: Claude will see it in the next turn or we fetch it now.
-            const url = `https://${process.env.NEXT_PUBLIC_CONVEX_URL?.split("//")[1]}/api/storage/${a.storageId}`;
-            try {
-              // Note: This URL fetching logic depends on how your deployment serves storage.
-              // For now, let's assume buildHistory will get the latest message including attachments.
-            } catch (e) {}
+            if (a.data && isTextFile(a.fileName, a.contentType)) {
+              // Decode base64 text file and inline it
+              let text: string;
+              try {
+                text = atob(a.data);
+              } catch {
+                text = a.data;
+              }
+              if (text.length > MAX_TEXT_FILE_CHARS) {
+                text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
+              }
+              contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
+            } else if (a.data && a.contentType?.startsWith("image/")) {
+              contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+            } else if (a.data && a.contentType === "application/pdf") {
+              contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+            }
           }
+          userContent = contentArray;
         }
 
         // 1. Get history from the current query state
@@ -639,27 +648,12 @@ function RoomContent() {
         }
 
         if (!alreadyInHistory) {
-          // Construct the current message block manually ONLY if it's not in the history yet
-          let currentMsgContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
-          if (attachments && attachments.length > 0) {
-            const contentArray: MessageContent[] = [];
-            for (const a of attachments) {
-              if (a.data && SUPPORTED_MEDIA_TYPES.includes(a.contentType)) {
-                if (a.contentType.startsWith("image/")) {
-                  contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
-                } else if (a.contentType === "application/pdf") {
-                  contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
-                }
-              }
-            }
-            if (content.trim()) {
-              contentArray.push({ type: "text", text: `${currentDisplayName}: ${content.trim()}` });
-            }
-            currentMsgContent = contentArray;
-          }
+          // Construct the current message block manually — the reactive query
+          // hasn't picked up the just-sent message yet, so use userContent which
+          // already has the inline file data from above
           callMessages = [
             ...history,
-            { role: "user" as const, content: currentMsgContent }
+            { role: "user" as const, content: userContent }
           ];
         }
 

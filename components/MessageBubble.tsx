@@ -93,7 +93,12 @@ function AttachmentList({ attachments }: { attachments: MessageWithAttachments["
                   {file.fileName}
                 </div>
                 <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>
-                  {(file.size / 1024 / 1024).toFixed(2)} MB · {file.contentType.split("/")[1].toUpperCase()}
+                  {file.size < 1024
+                    ? `${file.size} B`
+                    : file.size < 1024 * 1024
+                      ? `${(file.size / 1024).toFixed(1)} KB`
+                      : `${(file.size / 1024 / 1024).toFixed(2)} MB`
+                  } · {(file.contentType?.split("/")[1] ?? "file").toUpperCase()}
                 </div>
               </div>
             </a>
