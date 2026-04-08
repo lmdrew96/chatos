@@ -135,7 +135,7 @@ export function ClaudiuChatbot() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
             onClick={() => setOpen(true)}
-            className="fixed bottom-5 right-5 z-45 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
+            className="fixed bottom-20 right-5 z-45 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110"
             style={{
               background: "linear-gradient(135deg, rgba(136,115,158,0.3), rgba(140,189,185,0.3))",
               border: "2px solid rgba(136,115,158,0.4)",
@@ -165,7 +165,7 @@ export function ClaudiuChatbot() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed bottom-5 right-5 z-45 w-80 flex flex-col rounded-2xl overflow-hidden"
+            className="fixed bottom-20 right-5 z-45 w-80 flex flex-col rounded-2xl overflow-hidden"
             style={{
               background: "var(--popover)",
               border: "1px solid var(--border)",
