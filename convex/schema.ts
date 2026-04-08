@@ -95,13 +95,13 @@ export default defineSchema({
 
   gifFavorites: defineTable({
     tokenIdentifier: v.string(),
-    tenorId: v.string(),
+    gifId: v.string(),
     url: v.string(),
     previewUrl: v.string(),
     description: v.optional(v.string()),
     savedAt: v.number(),
   }).index("by_token", ["tokenIdentifier"])
-    .index("by_token_and_tenor_id", ["tokenIdentifier", "tenorId"]),
+    .index("by_token_and_gif_id", ["tokenIdentifier", "gifId"]),
 
   claudeMemories: defineTable({
     ownerUserId: v.string(),

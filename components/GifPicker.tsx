@@ -55,7 +55,7 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
     try {
       const params = new URLSearchParams({ limit: "20" });
       if (q) params.set("q", q);
-      const res = await fetch(`/api/tenor?${params}`);
+      const res = await fetch(`/api/gifs?${params}`);
       const data = await res.json();
       setResults(data.results ?? []);
     } catch {
@@ -72,15 +72,15 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
   };
 
   const isFavorited = (id: string) =>
-    favorites?.some((f) => f.tenorId === id) ?? false;
+    favorites?.some((f) => f.gifId === id) ?? false;
 
   const toggleFavorite = async (gif: TenorGif, e: React.MouseEvent) => {
     e.stopPropagation();
     if (isFavorited(gif.id)) {
-      await removeFavorite({ tenorId: gif.id });
+      await removeFavorite({ gifId: gif.id });
     } else {
       await saveFavorite({
-        tenorId: gif.id,
+        gifId: gif.id,
         url: gif.gif,
         previewUrl: gif.tinygif,
         description: gif.description,
@@ -127,7 +127,7 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
               type="text"
               value={query}
               onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search GIFs..."
+              placeholder="Search KLIPY"
               className="w-full px-3 py-2 rounded-lg text-sm outline-none"
               style={{
                 background: "var(--surface)",
@@ -215,7 +215,7 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  removeFavorite({ tenorId: fav.tenorId });
+                  removeFavorite({ gifId: fav.gifId });
                 }}
                 className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 style={{ background: "rgba(0,0,0,0.5)", color: "var(--amber)" }}
@@ -235,7 +235,7 @@ export default function GifPicker({ onSelect, onClose }: GifPickerProps) {
         className="px-3 py-1.5 text-center text-[9px] border-t"
         style={{ borderColor: "var(--border)", color: "var(--text-dim)" }}
       >
-        Powered by Tenor
+        Powered by KLIPY
       </div>
     </div>
   );

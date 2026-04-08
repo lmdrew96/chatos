@@ -3,7 +3,7 @@ import { v } from "convex/values";
 
 export const saveFavorite = mutation({
   args: {
-    tenorId: v.string(),
+    gifId: v.string(),
     url: v.string(),
     previewUrl: v.string(),
     description: v.optional(v.string()),
@@ -14,8 +14,8 @@ export const saveFavorite = mutation({
 
     const existing = await ctx.db
       .query("gifFavorites")
-      .withIndex("by_token_and_tenor_id", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier).eq("tenorId", args.tenorId)
+      .withIndex("by_token_and_gif_id", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier).eq("gifId", args.gifId)
       )
       .unique();
 
@@ -30,15 +30,15 @@ export const saveFavorite = mutation({
 });
 
 export const removeFavorite = mutation({
-  args: { tenorId: v.string() },
-  handler: async (ctx, { tenorId }) => {
+  args: { gifId: v.string() },
+  handler: async (ctx, { gifId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
     const existing = await ctx.db
       .query("gifFavorites")
-      .withIndex("by_token_and_tenor_id", (q) =>
-        q.eq("tokenIdentifier", identity.tokenIdentifier).eq("tenorId", tenorId)
+      .withIndex("by_token_and_gif_id", (q) =>
+        q.eq("tokenIdentifier", identity.tokenIdentifier).eq("gifId", gifId)
       )
       .unique();
 
