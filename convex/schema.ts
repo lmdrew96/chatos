@@ -131,4 +131,17 @@ export default defineSchema({
     messageCount: v.number(),
   }).index("by_owner_and_claude_name", ["ownerUserId", "claudeName"])
     .index("by_last_accessed", ["lastAccessedAt"]),
+
+  changelog: defineTable({
+    sha: v.string(),
+    message: v.string(),
+    author: v.string(),
+    committedAt: v.number(),
+  }).index("by_sha", ["sha"])
+    .index("by_committed_at", ["committedAt"]),
+
+  changelogSeen: defineTable({
+    tokenIdentifier: v.string(),
+    lastSeenAt: v.number(),
+  }).index("by_token_identifier", ["tokenIdentifier"]),
 });

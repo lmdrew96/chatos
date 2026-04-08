@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AccountButton } from "@/components/AccountButton";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ChangelogBadge } from "@/components/ChangelogBadge";
 import { SettingsLink } from "@/components/SettingsLink";
 
 type Page = "dashboard" | "friends" | "settings";
@@ -54,6 +55,7 @@ export function TopBar({ current }: { current?: Page }) {
 
       {/* Actions — right */}
       <div className="absolute right-0 flex items-center gap-1">
+        <ChangelogBadge />
         <SettingsLink />
         <NotificationBell />
         <AccountButton />

@@ -9,5 +9,8 @@ crons.interval("cleanup inactive guest rooms", { hours: 1 }, internal.rooms.clea
 // Purge Claude memories not accessed in 30 days (every Sunday at 03:00 UTC).
 crons.cron("audit stale claude memories", "0 3 * * 0", internal.rooms.auditClaudeMemories, {});
 
+// Sync changelog from GitHub every 30 minutes.
+crons.interval("sync changelog from github", { minutes: 30 }, internal.changelog.syncFromGitHub, {});
+
 export default crons;
 
