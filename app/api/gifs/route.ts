@@ -36,8 +36,8 @@ export async function GET(req: NextRequest) {
   const results = items.map((r: any) => ({
     id: String(r.id),
     description: r.title ?? "",
-    gif: r.files?.gif?.md?.url ?? r.files?.gif?.sm?.url ?? "",
-    tinygif: r.files?.gif?.xs?.url ?? r.files?.gif?.sm?.url ?? "",
+    gif: r.file?.hd?.gif?.url ?? r.file?.md?.gif?.url ?? "",
+    tinygif: r.file?.sm?.gif?.url ?? r.file?.md?.gif?.url ?? "",
   }));
 
   return NextResponse.json({
