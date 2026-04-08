@@ -5,6 +5,7 @@ import "./globals.css";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 import { UserSync } from "@/components/UserSync";
 import { PushSubscriptionManager } from "@/components/PushSubscriptionManager";
+import { OnboardingGate } from "@/components/OnboardingGate";
 import { TopBar } from "@/components/TopBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -76,6 +77,7 @@ export default function RootLayout({
             <ConvexClientProvider>
               <UserSync />
               <PushSubscriptionManager />
+              <OnboardingGate />
               <div className="fixed top-0 inset-x-0 z-40 px-4">
                 <TopBar />
               </div>

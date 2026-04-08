@@ -34,6 +34,13 @@ export default function SettingsPage() {
   const savedKey = useQuery(api.apiKeys.getMyApiKey);
   const saveApiKeyMutation = useMutation(api.apiKeys.saveApiKey);
   const deleteApiKeyMutation = useMutation(api.apiKeys.deleteApiKey);
+  const resetOnboarding = useMutation(api.users.resetOnboarding);
+
+  const handleRestartOnboarding = async () => {
+    await resetOnboarding();
+    localStorage.setItem("chatos:onboardingStep", "0");
+    window.location.reload();
+  };
 
   const [apiKey, setApiKey] = useState("");
   const [keyLoaded, setKeyLoaded] = useState(false);
@@ -439,6 +446,33 @@ export default function SettingsPage() {
               {mcpSaved ? "Saved ✓" : "Save MCP settings"}
             </button>
           </div>
+        </section>
+
+        {/* Divider */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        {/* Onboarding section */}
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-1"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Onboarding
+          </h2>
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            Re-run the setup wizard to reconfigure your API key, MCP, or just say hi to Claudiu again.
+          </p>
+          <button
+            onClick={handleRestartOnboarding}
+            className="px-4 py-2.5 rounded-lg text-sm transition-all"
+            style={{
+              background: "rgba(136,115,158,0.1)",
+              border: "1px solid rgba(136,115,158,0.2)",
+              color: "var(--mauve)",
+            }}
+          >
+            Restart onboarding wizard
+          </button>
         </section>
       </div>
     </main>

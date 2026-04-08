@@ -53,6 +53,66 @@ export const getMe = query({
   },
 });
 
+export const getOnboardingStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    const apiKey = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    const hasApiKey = apiKey !== null;
+
+    // Existing users who already have an API key but no onboardingCompleted field
+    // are treated as completed (grandfathered in)
+    const completed = user?.onboardingCompleted === true || (!user?.onboardingCompleted && hasApiKey);
+
+    return { completed, hasApiKey };
+  },
+});
+
+export const completeOnboarding = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    if (user) {
+      await ctx.db.patch(user._id, { onboardingCompleted: true });
+    }
+  },
+});
+
+export const resetOnboarding = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    if (user) {
+      await ctx.db.patch(user._id, { onboardingCompleted: false });
+    }
+  },
+});
+
 export const getUserByUsername = query({
   args: { username: v.string() },
   handler: async (ctx, { username }) => {

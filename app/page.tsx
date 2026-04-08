@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { useState, useRef } from "react";
 import { useConvexAuth } from "convex/react";
 import { motion, useInView } from "framer-motion";
-import { ArrowRight, Users, Zap, Lock, Eye, Share2, Key, AtSign, Bot } from "lucide-react";
+import { ArrowRight, Users, Zap, Lock, Eye, Share2, Key, AtSign, Bot, KeyRound, Clipboard, CreditCard } from "lucide-react";
+import { SignInButton } from "@clerk/nextjs";
 import { FloatingOrb } from "@/components/FloatingOrb";
 
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -301,6 +302,142 @@ export default function Home() {
             </FadeIn>
           ))}
         </div>
+      </section>
+
+      {/* BYOK Explainer Section */}
+      <section className="relative z-10 w-full max-w-5xl mx-auto px-6 py-20">
+        <FadeIn className="text-center mb-12">
+          <p className="text-xs uppercase tracking-[0.2em] mb-4 font-mono" style={{ color: "var(--sage-teal)" }}>
+            How It Works
+          </p>
+          <h2 className="text-3xl md:text-4xl font-black mb-4" style={{ fontFamily: "var(--font-super-bakery)" }}>
+            Three steps to chaos.
+          </h2>
+          <p className="text-base max-w-md mx-auto" style={{ color: "var(--text-muted)" }}>
+            No accounts, subscriptions, or setup wizards. Just bring your key.
+          </p>
+        </FadeIn>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[
+            {
+              icon: <KeyRound className="w-6 h-6" />,
+              step: "1",
+              title: "Get a key",
+              desc: "Sign up at Anthropic and grab an API key. Takes 2 minutes.",
+              color: "var(--amber)",
+              bg: "rgba(223,166,73,0.1)",
+            },
+            {
+              icon: <Clipboard className="w-6 h-6" />,
+              step: "2",
+              title: "Paste it in",
+              desc: "Drop your key into Cha(t)os. Stored encrypted, never visible again.",
+              color: "var(--sage-teal)",
+              bg: "rgba(140,189,185,0.1)",
+            },
+            {
+              icon: <CreditCard className="w-6 h-6" />,
+              step: "3",
+              title: "Your Claude, your cost",
+              desc: "You pay Anthropic directly. Most users spend less than $5/month.",
+              color: "var(--mauve)",
+              bg: "rgba(136,115,158,0.1)",
+            },
+          ].map((item, i) => (
+            <FadeIn key={item.step} delay={i * 0.1}>
+              <div
+                className="relative rounded-2xl p-6 h-full"
+                style={{
+                  background: item.bg,
+                  border: `1px solid ${item.color}22`,
+                }}
+              >
+                <div
+                  className="absolute -top-3 -left-1 text-5xl font-black leading-none select-none"
+                  style={{ color: item.color, opacity: 0.15, fontFamily: "var(--font-super-bakery)" }}
+                >
+                  {item.step}
+                </div>
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
+                  style={{ background: `${item.color}22`, color: item.color }}
+                >
+                  {item.icon}
+                </div>
+                <h3 className="font-bold text-base mb-2" style={{ color: item.color }}>
+                  {item.title}
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {item.desc}
+                </p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </section>
+
+      {/* Claudiu Intro Section */}
+      <section className="relative z-10 w-full max-w-3xl mx-auto px-6 py-16">
+        <FadeIn>
+          <div
+            className="rounded-2xl p-8 md:p-10 flex flex-col md:flex-row items-center gap-8"
+            style={{
+              background: "linear-gradient(135deg, rgba(136,115,158,0.1), rgba(140,189,185,0.06))",
+              border: "1px solid rgba(136,115,158,0.2)",
+            }}
+          >
+            {/* Claudiu avatar */}
+            <div className="shrink-0">
+              <div
+                className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: "rgba(136,115,158,0.15)",
+                  border: "2px solid rgba(136,115,158,0.3)",
+                }}
+              >
+                <Image
+                  src="/claudiu/claudiu-idle.png"
+                  alt="Claudiu"
+                  width={64}
+                  height={64}
+                  style={{ imageRendering: "pixelated" }}
+                />
+              </div>
+            </div>
+
+            <div className="flex-1 text-center md:text-left">
+              {/* Speech bubble */}
+              <div
+                className="rounded-xl px-5 py-4 mb-5"
+                style={{
+                  background: "rgba(136,115,158,0.08)",
+                  border: "1px solid rgba(136,115,158,0.15)",
+                }}
+              >
+                <p className="text-sm leading-relaxed" style={{ color: "var(--fg)" }}>
+                  &ldquo;Hey! I&apos;m <strong style={{ color: "var(--mauve)" }}>Claudiu</strong> &mdash;
+                  your onboarding guide! I&apos;ll walk you through everything when you sign in. Four steps,
+                  no jargon, let&apos;s go.&rdquo;
+                </p>
+              </div>
+
+              <SignInButton mode="modal">
+                <button
+                  className="px-8 h-11 font-bold rounded-full transition-all duration-200 active:scale-95 text-sm btn-shimmer"
+                  style={{
+                    color: "var(--deep-dark)",
+                    fontFamily: "var(--font-super-bakery)",
+                    boxShadow: "0 0 30px rgba(223,166,73,0.25)",
+                  }}
+                >
+                  Sign up to get started
+                  <ArrowRight className="ml-2 h-4 w-4 inline-block" />
+                </button>
+              </SignInButton>
+            </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* Philosophy Section */}

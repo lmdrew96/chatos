@@ -62,6 +62,7 @@ export default defineSchema({
     username: v.optional(v.string()),
     displayName: v.optional(v.string()),
     isOnline: v.optional(v.boolean()),
+    onboardingCompleted: v.optional(v.boolean()),
   }).index("by_token", ["tokenIdentifier"])
     .index("by_username", ["username"]),
 
