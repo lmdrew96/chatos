@@ -5,8 +5,11 @@ import { SignInButton } from "@clerk/nextjs";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { FloatingOrb } from "@/components/FloatingOrb";
+
+type SortOption = "activity" | "alpha" | "participants" | "newest";
+type FilterOption = "all" | "mine" | "guest" | "persistent";
 
 function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
@@ -108,6 +111,47 @@ export default function DashboardPage() {
   const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sortBy, setSortBy] = useState<SortOption>("activity");
+  const [filterBy, setFilterBy] = useState<FilterOption>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredRooms = useMemo(() => {
+    if (!rooms) return [];
+    let result = [...rooms];
+
+    // Filter
+    if (filterBy === "mine") result = result.filter((r) => r!.canDelete);
+    else if (filterBy === "guest") result = result.filter((r) => r!.retentionPolicy === "guest_ttl_72h");
+    else if (filterBy === "persistent") result = result.filter((r) => r!.retentionPolicy === "persistent");
+
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (r) =>
+          (r!.roomTitle ?? "").toLowerCase().includes(q) ||
+          r!.roomCode.toLowerCase().includes(q),
+      );
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case "activity":
+          return b!.lastActivityAt - a!.lastActivityAt;
+        case "alpha":
+          return (a!.roomTitle || a!.roomCode).localeCompare(b!.roomTitle || b!.roomCode);
+        case "participants":
+          return b!.participantCount - a!.participantCount;
+        case "newest":
+          return b!.createdAt - a!.createdAt;
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [rooms, sortBy, filterBy, searchQuery]);
 
   const handleCreateRoom = async () => {
     setCreatingRoom(true);
@@ -472,16 +516,97 @@ export default function DashboardPage() {
 
           {/* Main content — rooms */}
           <section className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-5">
-              <h2
-                className="text-xs font-semibold tracking-widest uppercase"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Recent rooms
-              </h2>
-              <p className="text-xs" style={{ color: "var(--text-dim)" }}>
-                Guest rooms auto-delete after 72h inactivity
-              </p>
+            {/* Sort / Filter toolbar */}
+            <div className="flex flex-col gap-3 mb-5">
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[160px] max-w-[280px]">
+                  <svg
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    width="14" height="14" fill="none" viewBox="0 0 24 24"
+                    stroke="var(--text-dim)" strokeWidth={2}
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search rooms..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs"
+                    style={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border-subtle)",
+                      color: "var(--fg)",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                {/* Sort dropdown */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="text-xs rounded-lg px-2.5 py-1.5 cursor-pointer"
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border-subtle)",
+                    color: "var(--text-muted)",
+                    outline: "none",
+                  }}
+                >
+                  <option value="activity">Recent activity</option>
+                  <option value="newest">Newest first</option>
+                  <option value="alpha">A → Z</option>
+                  <option value="participants">Most people</option>
+                </select>
+
+                {/* Filter pills */}
+                <div className="flex items-center gap-1.5">
+                  {(
+                    [
+                      ["all", "All"],
+                      ["mine", "My rooms"],
+                      ["persistent", "Persistent"],
+                      ["guest", "Guest"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setFilterBy(value)}
+                      className="px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
+                      style={{
+                        background:
+                          filterBy === value
+                            ? "rgba(140,189,185,0.15)"
+                            : "transparent",
+                        color:
+                          filterBy === value
+                            ? "var(--sage-teal)"
+                            : "var(--text-dim)",
+                        border:
+                          filterBy === value
+                            ? "1px solid rgba(140,189,185,0.25)"
+                            : "1px solid transparent",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+                  {filteredRooms.length === 0
+                    ? "No rooms match"
+                    : `${filteredRooms.length} room${filteredRooms.length !== 1 ? "s" : ""}`}
+                </p>
+                <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+                  Guest rooms auto-delete after 72h inactivity
+                </p>
+              </div>
             </div>
 
             {(rooms?.length ?? 0) === 0 ? (
@@ -503,9 +628,28 @@ export default function DashboardPage() {
                   Create your first room -&gt;
                 </button>
               </div>
+            ) : filteredRooms.length === 0 ? (
+              <div
+                className="px-6 py-12 rounded-2xl text-center"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <p className="text-sm mb-1" style={{ color: "var(--text-dim)" }}>
+                  No rooms match your filters.
+                </p>
+                <button
+                  onClick={() => { setFilterBy("all"); setSearchQuery(""); }}
+                  className="text-xs font-medium"
+                  style={{ color: "var(--sage-teal)" }}
+                >
+                  Clear filters
+                </button>
+              </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {rooms!.map((r) => {
+                {filteredRooms.map((r) => {
                   const isLatest = r!.roomId === mostRecentRoomId;
                   return (
                     <div

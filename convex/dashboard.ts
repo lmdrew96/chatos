@@ -120,6 +120,7 @@ export const getMyRooms = query({
           roomCode: room.roomCode,
           roomTitle: room.title,
           retentionPolicy,
+          createdAt: room.createdAt,
           lastActivityAt: room.lastActivityAt ?? room.createdAt,
           canDelete: room.ownerTokenIdentifier === tokenIdentifier,
           participantCount: allParticipants.length,
