@@ -113,12 +113,14 @@ const COLORS = [
   { text: "#DBD5E2", bg: "rgba(219,213,226,0.1)" },  // lavender
 ];
 
+const CLAUDIU_NAME = "Claudiu";
+
 function detectMentions(content: string, participants: Doc<"participants">[]): string[] {
   if (/@everyone(?!\w)/i.test(content)) {
     return participants.map((p) => p.claudeName);
   }
   const lower = content.toLowerCase();
-  return participants
+  const names = participants
     .map((p) => p.claudeName)
     .filter((name) => new RegExp(`@${name}(?![\\w])`, "i").test(content))
     .sort((a, b) => {
@@ -127,6 +129,15 @@ function detectMentions(content: string, participants: Doc<"participants">[]): s
       const posB = lower.indexOf(`@${b.toLowerCase()}`);
       return posA - posB;
     });
+  // Detect @Claudiu mention (virtual — not a participant)
+  if (new RegExp(`@${CLAUDIU_NAME}(?![\\w])`, "i").test(content) && !names.some((n) => n.toLowerCase() === CLAUDIU_NAME.toLowerCase())) {
+    const pos = lower.indexOf(`@${CLAUDIU_NAME.toLowerCase()}`);
+    // Insert in correct position to preserve mention order
+    const insertIdx = names.findIndex((n) => lower.indexOf(`@${n.toLowerCase()}`) > pos);
+    if (insertIdx === -1) names.push(CLAUDIU_NAME);
+    else names.splice(insertIdx, 0, CLAUDIU_NAME);
+  }
+  return names;
 }
 
 // Collapse consecutive same-role messages and handle attachments for multimodal support
@@ -659,6 +670,23 @@ function RoomContent() {
 
       if (!addressesHuman) {
         for (const subName of mentions) {
+          // Claudiu chain mention — route to dedicated handler
+          if (subName === CLAUDIU_NAME) {
+            if (!isClaudiuOwner) continue;
+            const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
+              ...callMessages,
+              { role: "assistant", content: reply },
+              { role: "user", content: `(${CLAUDIU_NAME}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)` },
+            ];
+            await invokeClaudiuResponse({
+              callMessages: subCallMessages,
+              allParticipants,
+              depth: depth + 1,
+              respondedSet,
+              signal,
+            });
+            continue;
+          }
           const subOwner = allParticipants.find((p) => p.claudeName === subName);
           if (!subOwner) continue;
           const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
@@ -768,6 +796,137 @@ function RoomContent() {
     }
   };
 
+  const isClaudiuOwner = myParticipant?.tokenIdentifier === process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
+
+  const invokeClaudiuResponse = async ({
+    callMessages,
+    allParticipants,
+    depth,
+    respondedSet,
+    signal,
+  }: {
+    callMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[];
+    allParticipants: Doc<"participants">[];
+    depth: number;
+    respondedSet: Set<string>;
+    signal: AbortSignal;
+  }): Promise<{ claudeName: string; content: string } | null> => {
+    if (depth >= MAX_MENTION_DEPTH) return null;
+    if (respondedSet.has(CLAUDIU_NAME)) return null;
+    if (!isClaudiuOwner) return null;
+
+    respondedSet.add(CLAUDIU_NAME);
+    setThinkingClaudes((prev) => new Set(prev).add(CLAUDIU_NAME));
+
+    let messageId: Id<"messages"> | null = null;
+
+    try {
+      messageId = await sendMessage({
+        roomId,
+        fromUserId: "claudiu-system",
+        fromDisplayName: CLAUDIU_NAME,
+        type: "claude",
+        claudeName: CLAUDIU_NAME,
+        ownerUserId: "claudiu-system",
+        content: "",
+        mentions: [],
+        mentionDepth: depth,
+        isStreaming: true,
+      });
+
+      setThinkingClaudes((prev) => {
+        const next = new Set(prev);
+        next.delete(CLAUDIU_NAME);
+        return next;
+      });
+
+      const res = await fetch("/api/claudiu/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: callMessages }),
+        signal,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? `Claudiu API error ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No stream from Claudiu");
+
+      const decoder = new TextDecoder();
+      let text = "";
+      let buffer = "";
+      let lastFlush = 0;
+      const FLUSH_INTERVAL = 150;
+
+      const flush = () => {
+        lastFlush = Date.now();
+        if (messageId) {
+          updateStreamingMessage({ messageId, content: text, isStreaming: true }).catch(() => {});
+        }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === "[DONE]") continue;
+
+          let event: any;
+          try { event = JSON.parse(jsonStr); } catch { continue; }
+
+          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+            text += event.delta.text;
+            if (Date.now() - lastFlush >= FLUSH_INTERVAL) flush();
+          }
+        }
+      }
+
+      // Final flush
+      if (messageId) {
+        const mentions = detectMentions(text, allParticipants).filter((n) => n !== CLAUDIU_NAME);
+        await updateStreamingMessage({ messageId, content: text, isStreaming: false, mentions });
+      }
+
+      return { claudeName: CLAUDIU_NAME, content: text || "..." };
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        if (messageId) {
+          updateStreamingMessage({ messageId, content: "(cancelled)", isStreaming: false }).catch(() => {});
+        }
+        return null;
+      }
+      if (messageId) {
+        updateStreamingMessage({ messageId, content: "", isStreaming: false }).catch(() => {});
+      }
+      await sendMessage({
+        roomId,
+        fromUserId: "system",
+        fromDisplayName: "system",
+        type: "system",
+        content: `Claudiu hit an error: ${err instanceof Error ? err.message : "Unknown error"}`,
+        mentions: [],
+        mentionDepth: depth,
+      });
+      return null;
+    } finally {
+      setThinkingClaudes((prev) => {
+        const next = new Set(prev);
+        next.delete(CLAUDIU_NAME);
+        return next;
+      });
+    }
+  };
+
   // Throttled typing indicator — fire at most once per 2s
   const lastTypingRef = useRef(0);
   const handleTyping = useCallback(() => {
@@ -808,6 +967,24 @@ function RoomContent() {
       chainAbortRef.current = abortController;
 
       for (const claudeName of uniqueMentions) {
+        // Claudiu is a virtual participant — route to dedicated handler
+        if (claudeName === CLAUDIU_NAME) {
+          if (!isClaudiuOwner) continue;
+          const allMsgs = (messages ?? []) as MessageWithAttachments[];
+          const trimmed = trimToTokenBudget(allMsgs);
+          const history = await buildHistory(trimmed, groupedReactions);
+          const callMessages = [...history, { role: "user" as const, content: `${currentDisplayName}: ${content}` }];
+          const result = await invokeClaudiuResponse({
+            callMessages,
+            allParticipants: currentParticipants,
+            depth: 0,
+            respondedSet,
+            signal: abortController.signal,
+          });
+          if (result) precedingReplies.push(result);
+          continue;
+        }
+
         const owner = currentParticipants.find((p) => p.claudeName === claudeName);
         if (!owner) continue;
 
@@ -1217,6 +1394,7 @@ function RoomContent() {
         <MentionInput
           participants={participants}
           onSend={handleSendMessage}
+          showClaudiu={isClaudiuOwner}
           onGifSend={async (gifUrl) => {
             if (!currentUserId || !currentDisplayName) return;
             await sendMessage({

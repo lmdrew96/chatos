@@ -23,6 +23,7 @@ interface MentionInputProps {
   currentDisplayName: string;
   disabled?: boolean;
   onTyping?: () => void;
+  showClaudiu?: boolean;
 }
 
 export default function MentionInput({
@@ -32,6 +33,7 @@ export default function MentionInput({
   currentDisplayName,
   disabled,
   onTyping,
+  showClaudiu,
 }: MentionInputProps) {
   const [value, setValue] = useState("");
   const [showMentions, setShowMentions] = useState(false);
@@ -117,7 +119,7 @@ export default function MentionInput({
     if (lastAt !== -1) {
       const query = before.slice(lastAt + 1);
       if (!query.includes(" ") && !query.includes("\n")) {
-        const allOptions = ["everyone", ...claudeNames];
+        const allOptions = ["everyone", ...(showClaudiu ? ["Claudiu"] : []), ...claudeNames];
         const matches = allOptions.filter((n) =>
           n.toLowerCase().startsWith(query.toLowerCase())
         );

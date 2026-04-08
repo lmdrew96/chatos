@@ -151,6 +151,11 @@ export const joinRoom = mutation({
       return existing._id;
     }
 
+    // "Claudiu" is reserved for the system onboarding companion
+    if (claudeName.toLowerCase() === "claudiu") {
+      throw new Error(`The name "Claudiu" is reserved.`);
+    }
+
     // Validate Claude name uniqueness in room
     const nameConflict = await ctx.db
       .query("participants")
