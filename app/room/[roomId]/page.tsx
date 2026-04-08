@@ -123,6 +123,11 @@ async function buildHistory(
         ? m.content
         : `${m.fromDisplayName}: ${m.content}`;
 
+    // Surface GIF context so Claude knows one was shared
+    if (m.gifUrl) {
+      contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName} sent a GIF: ${m.gifUrl}`;
+    }
+
     const attachmentBlocks: MessageContent[] = [];
     if (m.attachments && m.attachments.length > 0) {
       for (const a of m.attachments) {
