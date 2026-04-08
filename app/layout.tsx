@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
 import { UserSync } from "@/components/UserSync";
+import { PushSubscriptionManager } from "@/components/PushSubscriptionManager";
 import { TopBar } from "@/components/TopBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -74,6 +75,7 @@ export default function RootLayout({
           <ThemeProvider>
             <ConvexClientProvider>
               <UserSync />
+              <PushSubscriptionManager />
               <div className="fixed top-0 inset-x-0 z-40 px-4">
                 <TopBar />
               </div>

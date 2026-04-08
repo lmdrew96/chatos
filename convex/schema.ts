@@ -105,6 +105,15 @@ export default defineSchema({
   }).index("by_token", ["tokenIdentifier"])
     .index("by_token_and_gif_id", ["tokenIdentifier", "gifId"]),
 
+  pushSubscriptions: defineTable({
+    tokenIdentifier: v.string(),
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    createdAt: v.number(),
+  }).index("by_token", ["tokenIdentifier"])
+    .index("by_endpoint", ["endpoint"]),
+
   claudeMemories: defineTable({
     ownerUserId: v.string(),
     claudeName: v.string(),

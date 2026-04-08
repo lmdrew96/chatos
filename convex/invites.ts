@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { QueryCtx, MutationCtx } from "./_generated/server";
 
@@ -32,6 +33,16 @@ export const sendRoomInvite = mutation({
       toId,
       status: "pending",
     });
+
+    // Push notification to invitee
+    const recipient = await ctx.db.get(toId);
+    if (recipient?.tokenIdentifier) {
+      await ctx.scheduler.runAfter(0, internal.pushNotifications.sendPushForRoomInvite, {
+        fromUserId: me._id,
+        toTokenIdentifier: recipient.tokenIdentifier,
+        roomId,
+      });
+    }
   },
 });
 

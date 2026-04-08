@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 
@@ -36,6 +37,15 @@ export const sendFriendRequest = mutation({
     }
 
     await ctx.db.insert("friendRequests", { fromId: me._id, toId, status: "pending" });
+
+    // Push notification to recipient
+    const recipient = await ctx.db.get(toId);
+    if (recipient?.tokenIdentifier) {
+      await ctx.scheduler.runAfter(0, internal.pushNotifications.sendPushForFriendRequest, {
+        fromUserId: me._id,
+        toTokenIdentifier: recipient.tokenIdentifier,
+      });
+    }
   },
 });
 

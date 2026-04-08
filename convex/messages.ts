@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 export const generateUploadUrl = mutation(async (ctx) => {
@@ -35,6 +36,16 @@ export const sendMessage = mutation({
       createdAt: Date.now(),
     });
     await ctx.db.patch(args.roomId, { lastActivityAt: Date.now() });
+
+    // Push notifications to offline room participants
+    await ctx.scheduler.runAfter(0, internal.pushNotifications.sendPushForMessage, {
+      roomId: args.roomId,
+      senderUserId: args.fromUserId,
+      senderDisplayName: args.fromDisplayName,
+      contentPreview: args.content.slice(0, 120),
+      mentions: args.mentions,
+    });
+
     return messageId;
   },
 });
