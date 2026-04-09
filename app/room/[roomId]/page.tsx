@@ -117,7 +117,7 @@ const CLAUDIU_NAME = "Claudiu";
 
 function detectMentions(content: string, participants: Doc<"participants">[]): string[] {
   if (/@everyone(?!\w)/i.test(content)) {
-    return participants.map((p) => p.claudeName);
+    return [...participants.map((p) => p.claudeName), CLAUDIU_NAME];
   }
   const lower = content.toLowerCase();
   const names = participants
