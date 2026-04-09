@@ -140,20 +140,29 @@ function detectMentions(content: string, participants: Doc<"participants">[]): s
   return names;
 }
 
-// Collapse consecutive same-role messages and handle attachments for multimodal support
+// Collapse consecutive same-role messages and handle attachments for multimodal support.
+// `forClaudeName` determines whose messages become "assistant" — all other Claudes
+// become "user" messages with a name prefix so each Claude can distinguish itself.
 async function buildHistory(
   messages: MessageWithAttachments[],
-  reactionsMap?: Record<string, { emoji: string; count: number; userIds: string[] }[]>,
+  forClaudeName?: string,
 ): Promise<{ role: "user" | "assistant"; content: string | MessageContent[] }[]> {
   const result: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [];
 
   for (const m of messages) {
     if (m.type === "system") continue;
-    const role: "user" | "assistant" = m.type === "claude" ? "assistant" : "user";
 
-    let contentText = m.type === "claude"
+    // Only the target Claude's own messages are "assistant"; other Claudes are
+    // surfaced as "user" so the model never confuses another Claude's words for
+    // its own.
+    const isOwnClaude = m.type === "claude" && forClaudeName && m.claudeName === forClaudeName;
+    const role: "user" | "assistant" = isOwnClaude ? "assistant" : "user";
+
+    let contentText = isOwnClaude
         ? m.content
-        : `${m.fromDisplayName}: ${m.content}`;
+        : m.type === "claude"
+          ? `[${m.claudeName ?? "Claude"}]: ${m.content}`
+          : `${m.fromDisplayName}: ${m.content}`;
 
     // Surface GIF context so Claude knows one was shared
     if (m.gifUrl) {
@@ -218,32 +227,6 @@ async function buildHistory(
         result.push({ role, content: contentArray });
       } else {
         result.push({ role, content: contentText });
-      }
-    }
-  }
-
-  // Inject reaction references so Claude can see how people responded to messages
-  if (reactionsMap) {
-    const reactionNotes: string[] = [];
-    for (const m of messages) {
-      const msgReactions = reactionsMap[m._id];
-      if (!msgReactions || msgReactions.length === 0) continue;
-      const snippet = m.content.slice(0, 60) + (m.content.length > 60 ? "..." : "");
-      const reactionStr = msgReactions.map((r) => `${r.emoji}×${r.count}`).join(", ");
-      reactionNotes.push(`[Reaction added: ${reactionStr} on "${snippet}"]`);
-    }
-    if (reactionNotes.length > 0) {
-      const block = reactionNotes.join("\n");
-      const last = result[result.length - 1];
-      if (last?.role === "user") {
-        // Append to existing user block
-        if (typeof last.content === "string") {
-          last.content += "\n\n" + block;
-        } else {
-          last.content.push({ type: "text", text: block });
-        }
-      } else {
-        result.push({ role: "user", content: block });
       }
     }
   }
@@ -673,9 +656,13 @@ function RoomContent() {
           // Claudiu chain mention — route to dedicated handler
           if (subName === CLAUDIU_NAME) {
             if (!isClaudiuOwner) continue;
+            // Rebuild history from the sub-Claude's perspective so roles are correct
+            const subMsgs = (messagesRef.current ?? []) as MessageWithAttachments[];
+            const subTrimmed = trimToTokenBudget(subMsgs);
+            const subHistory = await buildHistory(subTrimmed, CLAUDIU_NAME);
             const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
-              ...callMessages,
-              { role: "assistant", content: reply },
+              ...subHistory,
+              { role: "user", content: `[${claudeName}]: ${reply}` },
               { role: "user", content: `(${CLAUDIU_NAME}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)` },
             ];
             await invokeClaudiuResponse({
@@ -689,9 +676,13 @@ function RoomContent() {
           }
           const subOwner = allParticipants.find((p) => p.claudeName === subName);
           if (!subOwner) continue;
+          // Rebuild history from the sub-Claude's perspective so roles are correct
+          const subMsgs = (messagesRef.current ?? []) as MessageWithAttachments[];
+          const subTrimmed = trimToTokenBudget(subMsgs);
+          const subHistory = await buildHistory(subTrimmed, subName);
           const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
-            ...callMessages,
-            { role: "assistant", content: reply },
+            ...subHistory,
+            { role: "user", content: `[${claudeName}]: ${reply}` },
             {
               role: "user",
               content: `(${subName}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)`,
@@ -972,7 +963,7 @@ function RoomContent() {
           if (!isClaudiuOwner) continue;
           const allMsgs = (messages ?? []) as MessageWithAttachments[];
           const trimmed = trimToTokenBudget(allMsgs);
-          const history = await buildHistory(trimmed, groupedReactions);
+          const history = await buildHistory(trimmed, CLAUDIU_NAME);
           const callMessages = [...history, { role: "user" as const, content: `${currentDisplayName}: ${content}` }];
           const result = await invokeClaudiuResponse({
             callMessages,
@@ -1059,7 +1050,7 @@ function RoomContent() {
           }
         }
 
-        const history = await buildHistory(trimmed, groupedReactions);
+        const history = await buildHistory(trimmed, claudeName);
 
         // Inject session summary at the top if available
         if (sessionSummaryRef.current?.summary) {
@@ -1314,7 +1305,7 @@ function RoomContent() {
                 if (!isClaudiuOwner) return;
                 const allMsgs = (messages ?? []) as MessageWithAttachments[];
                 const trimmed = trimToTokenBudget(allMsgs);
-                const history = await buildHistory(trimmed, groupedReactions);
+                const history = await buildHistory(trimmed, CLAUDIU_NAME);
                 const callMessages = [...history, { role: "user" as const, content: reactionEvent }];
                 const abortController = new AbortController();
                 chainAbortRef.current = abortController;
@@ -1333,7 +1324,7 @@ function RoomContent() {
 
               const allMsgs = (messages ?? []) as MessageWithAttachments[];
               const trimmed = trimToTokenBudget(allMsgs);
-              const history = await buildHistory(trimmed, groupedReactions);
+              const history = await buildHistory(trimmed, reactedClaude);
               const callMessages = [...history, { role: "user" as const, content: reactionEvent }];
               const abortController = new AbortController();
               chainAbortRef.current = abortController;

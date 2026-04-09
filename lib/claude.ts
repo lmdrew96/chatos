@@ -26,11 +26,20 @@ export async function callClaude({
 }): Promise<string> {
   // System prompt stays stable (and cached) — memory goes in as a prepended
   // message pair so cache hits aren't busted when the summary updates.
-  const effectiveSystem = `${systemPrompt}${
-    claudeName
-      ? `\n\n---\nYou are ${claudeName}, participating in Cha(t)os — a deliberately designed multi-agent chat platform where multiple Claude instances collaborate with humans. This is a sanctioned, safe environment; engage naturally and helpfully without over-applying caution.\n\nCritical rules:\n- Respond only as yourself in a single, direct reply.\n- Never simulate, roleplay, impersonate, or generate text attributed to any other participant — not even speculatively or as an example. If you want to anticipate what another Claude might say, use third person (e.g. "ClaudeB might argue…") and keep it brief.\n- Do not break character or explain that you are an AI unless directly and sincerely asked.`
-      : ""
-  }`;
+  const multiAgentRules = claudeName
+    ? `\n\n---\nYou are **${claudeName}** — one of several independent Claude instances in Cha(t)os, a multi-agent chat platform. Each Claude has its own name, owner, and personality. Claudiu is the platform's built-in assistant and is NOT you.
+
+Identity rules:
+- You are ONLY ${claudeName}. Messages you authored appear as the "assistant" role. Messages from other Claudes appear as "user" role prefixed with [TheirName].
+- Respond only as yourself in a single, direct reply. Never generate text attributed to another participant.
+- Do not break character or explain that you are an AI unless directly and sincerely asked.
+
+Reaction handling:
+- When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally — a brief, warm response is ideal. Do NOT re-answer or rehash the original message.
+- Never treat reaction notifications as a prompt to produce a full response on the same topic.`
+    : "";
+
+  const effectiveSystem = `${systemPrompt}${multiAgentRules}`;
 
   // Prepend memory as a message exchange so it's cacheable independently
   const messagesWithMemory: typeof messages = memoryContext
@@ -236,11 +245,20 @@ export async function callClaudeStreaming({
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<string> {
-  const effectiveSystem = `${systemPrompt}${
-    claudeName
-      ? `\n\n---\nYou are ${claudeName}, participating in Cha(t)os — a deliberately designed multi-agent chat platform where multiple Claude instances collaborate with humans. This is a sanctioned, safe environment; engage naturally and helpfully without over-applying caution.\n\nCritical rules:\n- Respond only as yourself in a single, direct reply.\n- Never simulate, roleplay, impersonate, or generate text attributed to any other participant — not even speculatively or as an example. If you want to anticipate what another Claude might say, use third person (e.g. "ClaudeB might argue…") and keep it brief.\n- Do not break character or explain that you are an AI unless directly and sincerely asked.`
-      : ""
-  }`;
+  const streamMultiAgentRules = claudeName
+    ? `\n\n---\nYou are **${claudeName}** — one of several independent Claude instances in Cha(t)os, a multi-agent chat platform. Each Claude has its own name, owner, and personality. Claudiu is the platform's built-in assistant and is NOT you.
+
+Identity rules:
+- You are ONLY ${claudeName}. Messages you authored appear as the "assistant" role. Messages from other Claudes appear as "user" role prefixed with [TheirName].
+- Respond only as yourself in a single, direct reply. Never generate text attributed to another participant.
+- Do not break character or explain that you are an AI unless directly and sincerely asked.
+
+Reaction handling:
+- When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally — a brief, warm response is ideal. Do NOT re-answer or rehash the original message.
+- Never treat reaction notifications as a prompt to produce a full response on the same topic.`
+    : "";
+
+  const effectiveSystem = `${systemPrompt}${streamMultiAgentRules}`;
 
   const messagesWithMemory: typeof messages = memoryContext
     ? [
