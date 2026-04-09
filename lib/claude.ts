@@ -2,7 +2,7 @@ export type McpServer = { name: string; url: string };
 
 export type MessageContent =
   | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string }; cache_control?: { type: "ephemeral" } }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string }; cache_control?: { type: "ephemeral" } }
   | { type: "document"; source: { type: "base64"; media_type: string; data: string }; cache_control?: { type: "ephemeral" } };
 
 function formatTimeForTimezone(timezone?: string): string {

@@ -16,6 +16,8 @@ import { playPing } from "@/lib/sounds";
 // Cache fetched attachments so mention chains and re-renders don't re-fetch
 const base64Cache = new Map<string, Promise<{ data: string; mediaType: string }>>();
 const textFileCache = new Map<string, Promise<string>>();
+// Cache uploaded oversized GIF URLs (gifUrl → Convex storage URL)
+const gifUploadCache = new Map<string, Promise<string>>();
 
 async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: string }> {
   const cached = base64Cache.get(url);
@@ -228,6 +230,7 @@ function detectMentions(content: string, participants: Doc<"participants">[]): s
 async function buildHistory(
   messages: MessageWithAttachments[],
   forClaudeName?: string,
+  uploadBlob?: (blob: Blob) => Promise<string>,
 ): Promise<{ role: "user" | "assistant"; content: string | MessageContent[] }[]> {
   const result: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [];
 
@@ -249,34 +252,37 @@ async function buildHistory(
     const attachmentBlocks: MessageContent[] = [];
 
     // Inline GIF as an image block so Claude can see it directly.
-    // Small GIFs: embed as base64 (preserves animation). Large GIFs: pass URL
-    // for fetch_url so we don't hit the 5MB API limit or lose animation to compression.
+    // Small GIFs: embed as base64 (preserves animation).
+    // Large GIFs: upload to Convex storage and pass a URL source so the API
+    // server fetches it — no 5MB limit, full animation preserved.
     if (m.gifUrl) {
+      const gifUrl = m.gifUrl;
       try {
-        const res = await fetch(m.gifUrl);
-        if (!res.ok) throw new Error(res.statusText);
-        const blob = await res.blob();
-        if (blob.size <= MAX_BASE64_BYTES) {
-          const { data, mediaType } = await new Promise<{ data: string; mediaType: string }>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const result = reader.result as string;
-              resolve({ data: result.split(",")[1], mediaType: blob.type });
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
+        const { data, mediaType } = await fetchAsBase64(gifUrl);
+        const byteSize = Math.ceil(data.length * 3 / 4);
+        if (byteSize <= MAX_BASE64_BYTES) {
           attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-          if (!contentText.trim()) {
-            contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
+        } else if (uploadBlob) {
+          // Upload to Convex storage — Anthropic's API fetches the public URL directly
+          if (!gifUploadCache.has(gifUrl)) {
+            const promise = (async () => {
+              const raw = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+              const blob = new Blob([raw], { type: mediaType });
+              return uploadBlob(blob);
+            })();
+            gifUploadCache.set(gifUrl, promise);
+            promise.catch(() => gifUploadCache.delete(gifUrl));
           }
+          const storageUrl = await gifUploadCache.get(gifUrl)!;
+          attachmentBlocks.push({ type: "image", source: { type: "url", url: storageUrl } });
         } else {
-          // Too large to inline — include URL so Claude can use fetch_url
-          const label = contentText.trim() ? "" : `${m.fromDisplayName ?? "Someone"} sent a GIF. `;
-          contentText += `${label}[GIF: ${m.gifUrl} — use fetch_url to view it]`;
+          contentText += contentText.trim() ? ` [GIF: ${gifUrl}]` : `${m.fromDisplayName ?? "Someone"} sent a GIF: ${gifUrl}`;
+        }
+        if (attachmentBlocks.length > 0 && !contentText.trim()) {
+          contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
         }
       } catch {
-        contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName ?? "Someone"} sent a GIF: ${m.gifUrl}`;
+        contentText += contentText.trim() ? ` [sent a GIF: ${gifUrl}]` : `${m.fromDisplayName ?? "Someone"} sent a GIF: ${gifUrl}`;
       }
     }
     if (m.attachments && m.attachments.length > 0) {
@@ -513,6 +519,22 @@ function RoomContent() {
   const setTypingMutation = useMutation(api.typing.setTyping);
   const clearTypingMutation = useMutation(api.typing.clearTyping);
   const toggleReaction = useMutation(api.reactions.toggleReaction);
+  const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
+
+  // Upload a blob to Convex storage and return the public URL
+  const uploadBlobToStorage = useCallback(async (blob: Blob): Promise<string> => {
+    const postUrl = await generateUploadUrl();
+    const res = await fetch(postUrl, {
+      method: "POST",
+      headers: { "Content-Type": blob.type },
+      body: blob,
+    });
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+    const { storageId } = await res.json();
+    const url = await convex.query(api.messages.getStorageUrl, { storageId });
+    if (!url) throw new Error("Failed to get storage URL");
+    return url;
+  }, [generateUploadUrl, convex]);
 
   // Group raw reactions by messageId → { emoji, count, userIds }[]
   const groupedReactions = useMemo(() => {
@@ -781,7 +803,7 @@ function RoomContent() {
             // Rebuild history from the sub-Claude's perspective so roles are correct
             const subMsgs = (messagesRef.current ?? []) as MessageWithAttachments[];
             const subTrimmed = trimToTokenBudget(subMsgs);
-            const subHistory = await buildHistory(subTrimmed, CLAUDIU_NAME);
+            const subHistory = await buildHistory(subTrimmed, CLAUDIU_NAME, uploadBlobToStorage);
             const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
               ...subHistory,
               { role: "user", content: `[${claudeName}]: ${reply}` },
@@ -801,7 +823,7 @@ function RoomContent() {
           // Rebuild history from the sub-Claude's perspective so roles are correct
           const subMsgs = (messagesRef.current ?? []) as MessageWithAttachments[];
           const subTrimmed = trimToTokenBudget(subMsgs);
-          const subHistory = await buildHistory(subTrimmed, subName);
+          const subHistory = await buildHistory(subTrimmed, subName, uploadBlobToStorage);
           const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
             ...subHistory,
             { role: "user", content: `[${claudeName}]: ${reply}` },
@@ -1020,7 +1042,7 @@ function RoomContent() {
           if (!subOwner) continue;
           const subMsgs = (messagesRef.current ?? []) as MessageWithAttachments[];
           const subTrimmed = trimToTokenBudget(subMsgs);
-          const subHistory = await buildHistory(subTrimmed, subName);
+          const subHistory = await buildHistory(subTrimmed, subName, uploadBlobToStorage);
           const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
             ...subHistory,
             { role: "user", content: `[${CLAUDIU_NAME}]: ${text}` },
@@ -1115,7 +1137,7 @@ function RoomContent() {
           if (!claudiuOwnerInRoom) continue;
           const allMsgs = (messages ?? []) as MessageWithAttachments[];
           const trimmed = trimToTokenBudget(allMsgs);
-          const history = await buildHistory(trimmed, CLAUDIU_NAME);
+          const history = await buildHistory(trimmed, CLAUDIU_NAME, uploadBlobToStorage);
           const callMessages = [...history, { role: "user" as const, content: `${currentDisplayName}: ${content}` }];
           const result = await invokeClaudiuResponse({
             callMessages,
@@ -1219,7 +1241,7 @@ function RoomContent() {
           }
         }
 
-        const history = await buildHistory(trimmed, claudeName);
+        const history = await buildHistory(trimmed, claudeName, uploadBlobToStorage);
 
         // Inject session summary at the top if available
         if (sessionSummaryRef.current?.summary) {
@@ -1474,7 +1496,7 @@ function RoomContent() {
                 if (!claudiuOwnerInRoom) return;
                 const allMsgs = (messages ?? []) as MessageWithAttachments[];
                 const trimmed = trimToTokenBudget(allMsgs);
-                const history = await buildHistory(trimmed, CLAUDIU_NAME);
+                const history = await buildHistory(trimmed, CLAUDIU_NAME, uploadBlobToStorage);
                 const callMessages = [...history, { role: "user" as const, content: reactionEvent }];
                 const abortController = new AbortController();
                 chainAbortRef.current = abortController;
@@ -1493,7 +1515,7 @@ function RoomContent() {
 
               const allMsgs = (messages ?? []) as MessageWithAttachments[];
               const trimmed = trimToTokenBudget(allMsgs);
-              const history = await buildHistory(trimmed, reactedClaude);
+              const history = await buildHistory(trimmed, reactedClaude, uploadBlobToStorage);
               const callMessages = [...history, { role: "user" as const, content: reactionEvent }];
               const abortController = new AbortController();
               chainAbortRef.current = abortController;
