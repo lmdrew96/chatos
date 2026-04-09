@@ -886,9 +886,39 @@ function RoomContent() {
       }
 
       // Final flush
+      const mentions = detectMentions(text, allParticipants).filter((n) => n !== CLAUDIU_NAME);
       if (messageId) {
-        const mentions = detectMentions(text, allParticipants).filter((n) => n !== CLAUDIU_NAME);
         await updateStreamingMessage({ messageId, content: text, isStreaming: false, mentions });
+      }
+
+      // Chain: invoke any Claudes that Claudiu mentioned in its response
+      const addressesHuman = allParticipants.some((p) =>
+        text.toLowerCase().includes(`@${p.displayName.toLowerCase()}`)
+      );
+      if (!addressesHuman) {
+        for (const subName of mentions) {
+          const subOwner = allParticipants.find((p) => p.claudeName === subName);
+          if (!subOwner) continue;
+          const subMsgs = (messagesRef.current ?? []) as MessageWithAttachments[];
+          const subTrimmed = trimToTokenBudget(subMsgs);
+          const subHistory = await buildHistory(subTrimmed, subName);
+          const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
+            ...subHistory,
+            { role: "user", content: `[${CLAUDIU_NAME}]: ${text}` },
+            { role: "user", content: `(${subName}, you were mentioned by ${CLAUDIU_NAME} above. Respond to them or the conversation.)` },
+          ];
+          await invokeClaudeResponse({
+            claudeName: subName,
+            owner: subOwner,
+            callMessages: subCallMessages,
+            allParticipants,
+            depth: depth + 1,
+            respondedSet,
+            precedingReplies: [{ claudeName: CLAUDIU_NAME, content: text }],
+            chainStartHumanCount: ((messagesRef.current ?? []).filter((m) => m.type === "user").length),
+            signal,
+          });
+        }
       }
 
       return { claudeName: CLAUDIU_NAME, content: text || "..." };
