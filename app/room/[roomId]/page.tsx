@@ -1296,9 +1296,60 @@ function RoomContent() {
             currentUserId={currentUserId}
             participantColors={participantColors}
             reactions={groupedReactions[msg._id] ?? []}
-            onReaction={(emoji) =>
-              toggleReaction({ messageId: msg._id, roomId, emoji, userId: currentUserId })
-            }
+            onReaction={async (emoji) => {
+              const result = await toggleReaction({ messageId: msg._id, roomId, emoji, userId: currentUserId });
+              if (result.action !== "added") return;
+
+              // Reaction was added — trigger the Claude who authored this message (if any)
+              const reactedClaude = msg.type === "claude" ? msg.claudeName : null;
+              if (!reactedClaude) return;
+
+              const snippet = msg.content.slice(0, 80) + (msg.content.length > 80 ? "..." : "");
+              const reactorName = currentDisplayName || "Someone";
+              const reactionEvent = `[${reactorName} just reacted with ${emoji} to your message: "${snippet}"]`;
+
+              const currentParticipants = participants ?? [];
+
+              if (reactedClaude === CLAUDIU_NAME) {
+                if (!isClaudiuOwner) return;
+                const allMsgs = (messages ?? []) as MessageWithAttachments[];
+                const trimmed = trimToTokenBudget(allMsgs);
+                const history = await buildHistory(trimmed, groupedReactions);
+                const callMessages = [...history, { role: "user" as const, content: reactionEvent }];
+                const abortController = new AbortController();
+                chainAbortRef.current = abortController;
+                await invokeClaudiuResponse({
+                  callMessages,
+                  allParticipants: currentParticipants,
+                  depth: 0,
+                  respondedSet: new Set<string>(),
+                  signal: abortController.signal,
+                });
+                return;
+              }
+
+              const owner = currentParticipants.find((p) => p.claudeName === reactedClaude);
+              if (!owner) return;
+
+              const allMsgs = (messages ?? []) as MessageWithAttachments[];
+              const trimmed = trimToTokenBudget(allMsgs);
+              const history = await buildHistory(trimmed, groupedReactions);
+              const callMessages = [...history, { role: "user" as const, content: reactionEvent }];
+              const abortController = new AbortController();
+              chainAbortRef.current = abortController;
+              const chainStartHumanCount = ((messages ?? []).filter((m) => m.type === "user").length);
+              await invokeClaudeResponse({
+                claudeName: reactedClaude,
+                owner,
+                callMessages,
+                allParticipants: currentParticipants,
+                depth: 0,
+                respondedSet: new Set<string>(),
+                precedingReplies: [],
+                chainStartHumanCount,
+                signal: abortController.signal,
+              });
+            }}
           />
         ))}
 
