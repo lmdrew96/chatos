@@ -72,6 +72,7 @@ const MAX_TEXT_FILE_CHARS = 50_000; // ~50k chars to avoid blowing up context
 
 const HISTORY_TOKEN_BUDGET = 12_000; // ~48k chars — leaves room for system prompt + response
 const MIN_HISTORY_MESSAGES = 3;
+const MAX_BASE64_BYTES = 5_242_880; // Anthropic 5MB limit for inline images
 
 /** Estimate tokens for a message including prefix overhead and attachments. */
 function estimateMessageTokens(m: MessageWithAttachments): number {
@@ -210,11 +211,14 @@ async function buildHistory(
     if (m.gifUrl) {
       try {
         const { data, mediaType } = await fetchAsBase64(m.gifUrl);
-        if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+        const byteSize = Math.ceil(data.length * 3 / 4); // base64 → raw bytes
+        if (SUPPORTED_MEDIA_TYPES.includes(mediaType) && byteSize <= MAX_BASE64_BYTES) {
           attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
           if (!contentText.trim()) {
             contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
           }
+        } else {
+          contentText += contentText.trim() ? ` [sent a GIF]` : `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
         }
       } catch {
         // Fallback to text reference if fetch fails
@@ -246,7 +250,8 @@ async function buildHistory(
             } catch { continue; }
           } else {
             const { data, mediaType } = await fetchAsBase64(url);
-            if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+            const byteSize = Math.ceil(data.length * 3 / 4);
+            if (SUPPORTED_MEDIA_TYPES.includes(mediaType) && byteSize <= MAX_BASE64_BYTES) {
               if (mediaType.startsWith("image/")) {
                 attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
               } else if (mediaType === "application/pdf") {
@@ -1095,10 +1100,12 @@ function RoomContent() {
                 text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
               }
               contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
-            } else if (a.data && a.contentType?.startsWith("image/")) {
-              contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
-            } else if (a.data && a.contentType === "application/pdf") {
-              contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+            } else if (a.data && Math.ceil(a.data.length * 3 / 4) <= MAX_BASE64_BYTES) {
+              if (a.contentType?.startsWith("image/")) {
+                contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+              } else if (a.contentType === "application/pdf") {
+                contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+              }
             }
           }
           userContent = contentArray;
