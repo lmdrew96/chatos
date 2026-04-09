@@ -78,13 +78,16 @@ export const searchUserMessages = query({
 });
 
 export const useMessages = query({
-  args: { roomId: v.id("rooms") },
-  handler: async (ctx, { roomId }) => {
+  args: { roomId: v.id("rooms"), limit: v.optional(v.number()) },
+  handler: async (ctx, { roomId, limit }) => {
+    // Fetch newest-first so we can cap the result set, then reverse to asc order
+    const cap = limit ?? 200;
     const messages = await ctx.db
       .query("messages")
       .withIndex("by_room", (q) => q.eq("roomId", roomId))
-      .order("asc")
-      .collect();
+      .order("desc")
+      .take(cap);
+    messages.reverse();
 
     return await Promise.all(
       messages.map(async (msg) => ({

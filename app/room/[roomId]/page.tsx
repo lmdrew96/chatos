@@ -13,20 +13,32 @@ import { MessageContent } from "@/lib/claude";
 import { FloatingOrb } from "@/components/FloatingOrb";
 import { playPing } from "@/lib/sounds";
 
+// Cache fetched attachments so mention chains and re-renders don't re-fetch
+const base64Cache = new Map<string, Promise<{ data: string; mediaType: string }>>();
+const textFileCache = new Map<string, Promise<string>>();
+
 async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: string }> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch attachment: ${res.statusText}`);
-  const blob = await res.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      const base64 = result.split(",")[1];
-      resolve({ data: base64, mediaType: blob.type });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  const cached = base64Cache.get(url);
+  if (cached) return cached;
+  const promise = (async () => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch attachment: ${res.statusText}`);
+    const blob = await res.blob();
+    return new Promise<{ data: string; mediaType: string }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        resolve({ data: base64, mediaType: blob.type });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  })();
+  base64Cache.set(url, promise);
+  // Evict on failure so retries work
+  promise.catch(() => base64Cache.delete(url));
+  return promise;
 }
 
 const SUPPORTED_MEDIA_TYPES = [
@@ -61,14 +73,42 @@ const MAX_TEXT_FILE_CHARS = 50_000; // ~50k chars to avoid blowing up context
 const HISTORY_TOKEN_BUDGET = 12_000; // ~48k chars — leaves room for system prompt + response
 const MIN_HISTORY_MESSAGES = 3;
 
+/** Estimate tokens for a message including prefix overhead and attachments. */
+function estimateMessageTokens(m: MessageWithAttachments): number {
+  // Base text content (~4 chars/token)
+  let tokens = estimateTokens(m.content);
+
+  // Account for name prefix added by buildHistory (e.g. "[ClaudeName]: " or "DisplayName: ")
+  const prefixLen = (m.type === "claude" ? (m.claudeName?.length ?? 6) + 4 : (m.fromDisplayName?.length ?? 4) + 2);
+  tokens += Math.ceil(prefixLen / 4);
+
+  // Account for attachments
+  if (m.attachments) {
+    for (const a of m.attachments) {
+      if (isTextFile(a.fileName, a.contentType)) {
+        // Text files are inlined — estimate from file size, capped at MAX_TEXT_FILE_CHARS
+        tokens += Math.ceil(Math.min(a.size, MAX_TEXT_FILE_CHARS) / 4);
+      } else if (a.contentType.startsWith("image/")) {
+        // Images: Anthropic charges based on dimensions; file size is a rough proxy.
+        // ~1 token per 750 bytes for typical compressed images, min 300 tokens.
+        tokens += Math.max(300, Math.ceil(a.size / 750));
+      } else if (a.contentType === "application/pdf") {
+        // PDFs: ~800 tokens per page; estimate ~2KB per page of content
+        tokens += Math.max(800, Math.ceil(a.size / 2000) * 800);
+      }
+    }
+  }
+
+  return tokens;
+}
+
 /** Trim messages from the oldest end until they fit within a token budget. */
 function trimToTokenBudget(msgs: MessageWithAttachments[]): MessageWithAttachments[] {
   // Work backwards from most recent, accumulate until budget is hit
   let tokens = 0;
   let startIdx = msgs.length;
   for (let i = msgs.length - 1; i >= 0; i--) {
-    const m = msgs[i];
-    const t = estimateTokens(m.content);
+    const t = estimateMessageTokens(msgs[i]);
     if (tokens + t > HISTORY_TOKEN_BUDGET && msgs.length - i > MIN_HISTORY_MESSAGES) {
       break;
     }
@@ -164,6 +204,8 @@ async function buildHistory(
           ? `[${m.claudeName ?? "Claude"}]: ${m.content}`
           : `${m.fromDisplayName}: ${m.content}`;
 
+    const attachmentBlocks: MessageContent[] = [];
+
     // Inline GIF as an image block so Claude can see it directly
     if (m.gifUrl) {
       try {
@@ -179,8 +221,6 @@ async function buildHistory(
         contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName} sent a GIF: ${m.gifUrl}`;
       }
     }
-
-    const attachmentBlocks: MessageContent[] = [];
     if (m.attachments && m.attachments.length > 0) {
       for (const a of m.attachments) {
         const url = a.url || (a.storageId ? `${process.env.NEXT_PUBLIC_CONVEX_URL}/api/storage/${a.storageId}` : null);
@@ -188,13 +228,22 @@ async function buildHistory(
         try {
           if (isTextFile(a.fileName, a.contentType)) {
             // Fetch as plain text and inline it — no multimodal block needed
-            const res = await fetch(url);
-            if (!res.ok) continue;
-            let text = await res.text();
-            if (text.length > MAX_TEXT_FILE_CHARS) {
-              text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
+            if (!textFileCache.has(url)) {
+              const promise = fetch(url).then(async (res) => {
+                if (!res.ok) throw new Error(res.statusText);
+                let text = await res.text();
+                if (text.length > MAX_TEXT_FILE_CHARS) {
+                  text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
+                }
+                return text;
+              });
+              textFileCache.set(url, promise);
+              promise.catch(() => textFileCache.delete(url));
             }
-            contentText += `\n\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---`;
+            try {
+              const text = await textFileCache.get(url)!;
+              contentText += `\n\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---`;
+            } catch { continue; }
           } else {
             const { data, mediaType } = await fetchAsBase64(url);
             if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
@@ -1072,7 +1121,6 @@ function RoomContent() {
               .map((m) => `${m.fromDisplayName}: ${m.content}`)
               .join("\n");
             if (formatted.trim()) {
-              // Fire-and-forget — don't block the response on this
               const ownerApiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
                 roomId,
                 participantUserId: owner.userId,
@@ -1081,7 +1129,7 @@ function RoomContent() {
                 const base = existing?.summary
                   ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
                   : formatted;
-                callClaude({
+                const summaryPromise = callClaude({
                   apiKey: ownerApiKey,
                   systemPrompt:
                     "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
@@ -1091,6 +1139,11 @@ function RoomContent() {
                     sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
                   })
                   .catch((err) => console.error("[compact] summary failed:", err));
+                // First summary: await so the response has context for dropped messages.
+                // Re-summarizations: fire-and-forget since we already have a usable summary.
+                if (!existing) {
+                  await summaryPromise;
+                }
               }
             }
           }
