@@ -36,6 +36,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
   const [keySaved, setKeySaved] = useState(false);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const completeOnboarding = useMutation(api.users.completeOnboarding);
+  const setTimezone = useMutation(api.users.setTimezone);
   const backdropRef = useRef<HTMLDivElement>(null);
 
   const goTo = useCallback(
@@ -60,12 +61,15 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
   const handleFinish = useCallback(async () => {
     try {
       await completeOnboarding();
+      // Auto-detect and save the user's timezone
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      await setTimezone({ timezone: tz });
     } catch {}
     if (typeof window !== "undefined") {
       localStorage.removeItem(STEP_KEY);
     }
     onComplete();
-  }, [completeOnboarding, onComplete]);
+  }, [completeOnboarding, setTimezone, onComplete]);
 
   const handleSkip = useCallback(async () => {
     await handleFinish();

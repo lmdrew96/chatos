@@ -548,11 +548,18 @@ function RoomContent() {
     const liveHumanCount = (messagesRef.current ?? []).filter((m) => m.type === "user").length;
     if (liveHumanCount > chainStartHumanCount) return null;
 
-    // Fetch the owner's API key from Convex (each Claude uses its own owner's key)
-    const apiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
-      roomId,
-      participantUserId: owner.userId,
-    });
+    // Fetch the owner's API key and timezone from Convex
+    const [apiKey, ownerTimezone] = await Promise.all([
+      convex.query(api.apiKeys.getApiKeyForParticipant, {
+        roomId,
+        participantUserId: owner.userId,
+      }),
+      owner.tokenIdentifier
+        ? convex.query(api.users.getTimezoneByTokenIdentifier, {
+            tokenIdentifier: owner.tokenIdentifier,
+          })
+        : null,
+    ]);
     if (!apiKey) {
       await sendMessage({
         roomId,
@@ -606,6 +613,7 @@ function RoomContent() {
         mcpServers: isOwnClaude && mcpServers.length > 0 ? mcpServers : undefined,
         claudeName,
         memoryContext,
+        ownerTimezone: ownerTimezone ?? undefined,
         onText: (accumulated) => {
           if (messageId) {
             updateStreamingMessage({
@@ -831,7 +839,7 @@ function RoomContent() {
       const res = await fetch("/api/claudiu/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, messages: callMessages }),
+        body: JSON.stringify({ roomId, messages: callMessages, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
         signal,
       });
 

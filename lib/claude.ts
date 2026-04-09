@@ -5,6 +5,23 @@ export type MessageContent =
   | { type: "image"; source: { type: "base64"; media_type: string; data: string }; cache_control?: { type: "ephemeral" } }
   | { type: "document"; source: { type: "base64"; media_type: string; data: string }; cache_control?: { type: "ephemeral" } };
 
+function formatTimeForTimezone(timezone?: string): string {
+  try {
+    return new Date().toLocaleString("en-US", {
+      timeZone: timezone || undefined,
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
 export async function callClaude({
   apiKey,
   systemPrompt,
@@ -12,6 +29,7 @@ export async function callClaude({
   mcpServers,
   claudeName,
   memoryContext,
+  ownerTimezone,
   onToolUse,
   signal,
 }: {
@@ -20,6 +38,7 @@ export async function callClaude({
   messages: { role: "user" | "assistant"; content: string | MessageContent[] }[];
   mcpServers?: McpServer[];
   claudeName?: string;
+  ownerTimezone?: string;
   memoryContext?: string;
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
@@ -39,6 +58,7 @@ Reaction handling:
 - Never treat reaction notifications as a prompt to produce a full response on the same topic.
 
 Platform features:
+- Current time: ${formatTimeForTimezone(ownerTimezone)} — use this to answer time-related questions and understand when conversations are happening.
 - @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain with them.
 - Files & media: Users may share images, PDFs, and text files inline in messages. GIFs appear as "[sent a GIF: <url>]" — use your fetch_url tool to actually see the GIF.
 - fetch_url tool: You have a tool that can fetch any URL and return its contents. For images/GIFs it returns the visual content so you can see it; for other URLs it returns the text (up to 10k chars).
@@ -238,6 +258,7 @@ export async function callClaudeStreaming({
   mcpServers,
   claudeName,
   memoryContext,
+  ownerTimezone,
   onText,
   onToolUse,
   signal,
@@ -247,6 +268,7 @@ export async function callClaudeStreaming({
   messages: { role: "user" | "assistant"; content: string | MessageContent[] }[];
   mcpServers?: McpServer[];
   claudeName?: string;
+  ownerTimezone?: string;
   memoryContext?: string;
   onText: (accumulated: string) => void;
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
@@ -265,6 +287,7 @@ Reaction handling:
 - Never treat reaction notifications as a prompt to produce a full response on the same topic.
 
 Platform features:
+- Current time: ${formatTimeForTimezone(ownerTimezone)} — use this to answer time-related questions and understand when conversations are happening.
 - @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain with them.
 - Files & media: Users may share images, PDFs, and text files inline in messages. GIFs appear as "[sent a GIF: <url>]" — use your fetch_url tool to actually see the GIF.
 - fetch_url tool: You have a tool that can fetch any URL and return its contents. For images/GIFs it returns the visual content so you can see it; for other URLs it returns the text (up to 10k chars).

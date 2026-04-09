@@ -113,6 +113,34 @@ export const resetOnboarding = mutation({
   },
 });
 
+export const setTimezone = mutation({
+  args: { timezone: v.string() },
+  handler: async (ctx, { timezone }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    if (user) {
+      await ctx.db.patch(user._id, { timezone });
+    }
+  },
+});
+
+export const getTimezoneByTokenIdentifier = query({
+  args: { tokenIdentifier: v.string() },
+  handler: async (ctx, { tokenIdentifier }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", tokenIdentifier))
+      .unique();
+    return user?.timezone ?? null;
+  },
+});
+
 export const getUserByUsername = query({
   args: { username: v.string() },
   handler: async (ctx, { username }) => {

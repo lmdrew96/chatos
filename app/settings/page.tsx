@@ -22,6 +22,30 @@ const COLOR_SWATCHES = [
 export default function SettingsPage() {
   const { theme, toggle } = useTheme();
 
+  const me = useQuery(api.users.getMe);
+  const setTimezoneMutation = useMutation(api.users.setTimezone);
+
+  const detectedTz = typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+  const [timezone, setTimezone] = useState(detectedTz);
+  const [tzSynced, setTzSynced] = useState(false);
+
+  // Sync timezone from server or auto-detect on first load
+  useEffect(() => {
+    if (tzSynced || me === undefined) return;
+    if (me?.timezone) {
+      setTimezone(me.timezone);
+    } else if (me) {
+      // First time: auto-save detected timezone
+      setTimezoneMutation({ timezone: detectedTz }).catch(() => {});
+    }
+    setTzSynced(true);
+  }, [me, tzSynced, detectedTz, setTimezoneMutation]);
+
+  const handleTimezoneChange = (tz: string) => {
+    setTimezone(tz);
+    setTimezoneMutation({ timezone: tz }).catch(() => {});
+  };
+
   const [preferredColor, setPreferredColor] = useState(
     () => (typeof window !== "undefined" ? localStorage.getItem(COLOR_KEY) ?? "" : "")
   );
@@ -201,6 +225,30 @@ export default function SettingsPage() {
                   </button>
                 )}
               </div>
+            </div>
+            {/* Timezone picker */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Timezone
+              </label>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Your Claude uses this to know the current time. Auto-detected from your browser.
+              </p>
+              <select
+                value={timezone}
+                onChange={(e) => handleTimezoneChange(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all field-focus"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                  appearance: "none",
+                }}
+              >
+                {Intl.supportedValuesOf("timeZone").map((tz) => (
+                  <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+                ))}
+              </select>
             </div>
           </div>
         </section>

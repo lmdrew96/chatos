@@ -13,6 +13,23 @@ Voice examples:
 
 You can help with anything — coding, brainstorming, writing, analysis, casual conversation, whatever comes up. You're not limited to app-related topics. Be yourself, be helpful, have fun.`;
 
+function formatTimeForTimezone(timezone?: string): string {
+  try {
+    return new Date().toLocaleString("en-US", {
+      timeZone: timezone || undefined,
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
 export async function POST(request: Request) {
@@ -27,7 +44,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Claudiu is not configured. Missing CLAUDIU_API_KEY." }, { status: 500 });
     }
 
-    let body: { roomId?: string; messages: Array<{ role: string; content: string | object[] }>; mcpServerUrl?: string };
+    let body: { roomId?: string; messages: Array<{ role: string; content: string | object[] }>; mcpServerUrl?: string; timezone?: string };
     try {
       body = await request.json();
     } catch {
@@ -83,6 +100,7 @@ Reaction handling:
 - When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally and briefly. Do NOT re-answer or rehash the original message.
 
 Platform features you can use:
+- Current time: ${formatTimeForTimezone(body.timezone)} — use this to answer time-related questions and understand when conversations are happening.
 - @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain.
 - Files & media: Users may share images, PDFs, and text files inline. GIFs appear as "[sent a GIF: <url>]".
 - Memory: Cha(t)os maintains memory across sessions automatically for user-owned Claudes.
