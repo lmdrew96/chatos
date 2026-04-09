@@ -24,6 +24,10 @@ async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: st
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch attachment: ${res.statusText}`);
     const blob = await res.blob();
+    // If oversized image, compress via canvas downscaling
+    if (blob.type.startsWith("image/") && blob.size > MAX_BASE64_BYTES) {
+      return compressImageToFit(blob);
+    }
     return new Promise<{ data: string; mediaType: string }>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -73,6 +77,43 @@ const MAX_TEXT_FILE_CHARS = 50_000; // ~50k chars to avoid blowing up context
 const HISTORY_TOKEN_BUDGET = 12_000; // ~48k chars — leaves room for system prompt + response
 const MIN_HISTORY_MESSAGES = 3;
 const MAX_BASE64_BYTES = 5_242_880; // Anthropic 5MB limit for inline images
+const MAX_UPLOAD_BYTES = 10_485_760; // 10MB upload limit — we'll resize to fit the API limit
+
+/**
+ * Compress an image blob to fit under MAX_BASE64_BYTES using canvas downscaling.
+ * Returns base64 data + media type. For animated GIFs this captures the first frame.
+ */
+async function compressImageToFit(blob: Blob): Promise<{ data: string; mediaType: string }> {
+  const bmp = await createImageBitmap(blob);
+  let { width, height } = bmp;
+  // Iteratively scale down until the JPEG output fits
+  let quality = 0.85;
+  let scale = 1;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const w = Math.round(width * scale);
+    const h = Math.round(height * scale);
+    const canvas = new OffscreenCanvas(w, h);
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(bmp, 0, 0, w, h);
+    const outBlob = await canvas.convertToBlob({ type: "image/jpeg", quality });
+    if (outBlob.size <= MAX_BASE64_BYTES) {
+      bmp.close();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve({ data: (reader.result as string).split(",")[1], mediaType: "image/jpeg" });
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(outBlob);
+      });
+    }
+    // Reduce dimensions by ~30% each round, plus lower quality
+    scale *= 0.7;
+    quality = Math.max(0.5, quality - 0.1);
+  }
+  bmp.close();
+  throw new Error("Could not compress image to fit 5MB limit");
+}
 
 /** Estimate tokens for a message including prefix overhead and attachments. */
 function estimateMessageTokens(m: MessageWithAttachments): number {
@@ -208,21 +249,17 @@ async function buildHistory(
     const attachmentBlocks: MessageContent[] = [];
 
     // Inline GIF as an image block so Claude can see it directly
+    // fetchAsBase64 auto-compresses oversized images via canvas
     if (m.gifUrl) {
       try {
         const { data, mediaType } = await fetchAsBase64(m.gifUrl);
-        const byteSize = Math.ceil(data.length * 3 / 4); // base64 → raw bytes
-        if (SUPPORTED_MEDIA_TYPES.includes(mediaType) && byteSize <= MAX_BASE64_BYTES) {
-          attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-          if (!contentText.trim()) {
-            contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
-          }
-        } else {
-          contentText += contentText.trim() ? ` [sent a GIF]` : `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
+        attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+        if (!contentText.trim()) {
+          contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
         }
       } catch {
-        // Fallback to text reference if fetch fails
-        contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName} sent a GIF: ${m.gifUrl}`;
+        // Fallback to text reference if fetch/compression fails
+        contentText += contentText.trim() ? ` [sent a GIF]` : `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
       }
     }
     if (m.attachments && m.attachments.length > 0) {
@@ -249,14 +286,12 @@ async function buildHistory(
               contentText += `\n\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---`;
             } catch { continue; }
           } else {
+            // fetchAsBase64 auto-compresses oversized images via canvas
             const { data, mediaType } = await fetchAsBase64(url);
-            const byteSize = Math.ceil(data.length * 3 / 4);
-            if (SUPPORTED_MEDIA_TYPES.includes(mediaType) && byteSize <= MAX_BASE64_BYTES) {
-              if (mediaType.startsWith("image/")) {
-                attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-              } else if (mediaType === "application/pdf") {
-                attachmentBlocks.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
-              }
+            if (mediaType.startsWith("image/")) {
+              attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+            } else if (mediaType === "application/pdf" && Math.ceil(data.length * 3 / 4) <= MAX_BASE64_BYTES) {
+              attachmentBlocks.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
             }
           }
         } catch (e) {
@@ -1100,11 +1135,22 @@ function RoomContent() {
                 text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
               }
               contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
-            } else if (a.data && Math.ceil(a.data.length * 3 / 4) <= MAX_BASE64_BYTES) {
-              if (a.contentType?.startsWith("image/")) {
-                contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
-              } else if (a.contentType === "application/pdf") {
-                contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+            } else if (a.data) {
+              const byteSize = Math.ceil(a.data.length * 3 / 4);
+              if (a.contentType?.startsWith("image/") && byteSize > MAX_BASE64_BYTES) {
+                // Oversized image — compress via canvas
+                try {
+                  const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
+                  const blob = new Blob([raw], { type: a.contentType });
+                  const { data, mediaType } = await compressImageToFit(blob);
+                  contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+                } catch { /* skip if compression fails */ }
+              } else if (byteSize <= MAX_BASE64_BYTES) {
+                if (a.contentType?.startsWith("image/")) {
+                  contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                } else if (a.contentType === "application/pdf") {
+                  contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                }
               }
             }
           }
