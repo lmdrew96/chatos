@@ -1,4 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "@/convex/_generated/api";
 
 const CLAUDIU_ROOM_SYSTEM_PROMPT = `You are Claudiu, Nae's personal AI companion in Cha(t)os — a multi-user group chat app.
 
@@ -11,7 +13,7 @@ Voice examples:
 
 You can help with anything — coding, brainstorming, writing, analysis, casual conversation, whatever comes up. You're not limited to app-related topics. Be yourself, be helpful, have fun.`;
 
-const ADMIN_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
+const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
 export async function POST(request: Request) {
   try {
@@ -20,23 +22,35 @@ export async function POST(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify the caller is the Claudiu owner by checking their token identifier
-    // The Clerk token identifier format is: https://domain|user_id
-    const callerToken = `https://clerk.chatos.adhdesigns.dev|${session.userId}`;
-    if (callerToken !== ADMIN_TOKEN) {
-      return Response.json({ error: "Only the Claudiu owner can invoke this endpoint." }, { status: 403 });
-    }
-
     const apiKey = process.env.CLAUDIU_API_KEY;
     if (!apiKey) {
       return Response.json({ error: "Claudiu is not configured. Missing CLAUDIU_API_KEY." }, { status: 500 });
     }
 
-    let body: { messages: Array<{ role: string; content: string | object[] }>; mcpServerUrl?: string };
+    let body: { roomId?: string; messages: Array<{ role: string; content: string | object[] }>; mcpServerUrl?: string };
     try {
       body = await request.json();
     } catch {
       return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    // Any authenticated user can invoke Claudiu, but only if the Claudiu owner
+    // is a participant in the same room. The caller passes the roomId for verification.
+    if (body.roomId && OWNER_TOKEN) {
+      const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+      const ownerPresent = await convex.query(api.rooms.isClaudiuOwnerInRoom, {
+        roomId: body.roomId as any,
+        ownerToken: OWNER_TOKEN,
+      });
+      if (!ownerPresent) {
+        return Response.json({ error: "Claudiu's owner is not in this room." }, { status: 403 });
+      }
+    } else if (!body.roomId) {
+      // Fallback: if no roomId provided, only the owner can call directly
+      const callerToken = `https://clerk.chatos.adhdesigns.dev|${session.userId}`;
+      if (callerToken !== OWNER_TOKEN) {
+        return Response.json({ error: "Only the Claudiu owner can invoke this endpoint without a room context." }, { status: 403 });
+      }
     }
 
     if (!Array.isArray(body.messages) || body.messages.length === 0) {

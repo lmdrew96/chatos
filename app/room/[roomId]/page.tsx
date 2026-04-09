@@ -655,7 +655,7 @@ function RoomContent() {
         for (const subName of mentions) {
           // Claudiu chain mention — route to dedicated handler
           if (subName === CLAUDIU_NAME) {
-            if (!isClaudiuOwner) continue;
+            if (!claudiuOwnerInRoom) continue;
             // Rebuild history from the sub-Claude's perspective so roles are correct
             const subMsgs = (messagesRef.current ?? []) as MessageWithAttachments[];
             const subTrimmed = trimToTokenBudget(subMsgs);
@@ -787,7 +787,10 @@ function RoomContent() {
     }
   };
 
-  const isClaudiuOwner = myParticipant?.tokenIdentifier === process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
+  // Claudiu can respond whenever the owner is present in the room — not just when the current user IS the owner
+  const claudiuOwnerInRoom = (participants ?? []).some(
+    (p) => p.tokenIdentifier === process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN && p.isOnline
+  );
 
   const invokeClaudiuResponse = async ({
     callMessages,
@@ -804,7 +807,7 @@ function RoomContent() {
   }): Promise<{ claudeName: string; content: string } | null> => {
     if (depth >= MAX_MENTION_DEPTH) return null;
     if (respondedSet.has(CLAUDIU_NAME)) return null;
-    if (!isClaudiuOwner) return null;
+    if (!claudiuOwnerInRoom) return null;
 
     respondedSet.add(CLAUDIU_NAME);
     setThinkingClaudes((prev) => new Set(prev).add(CLAUDIU_NAME));
@@ -834,7 +837,7 @@ function RoomContent() {
       const res = await fetch("/api/claudiu/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: callMessages }),
+        body: JSON.stringify({ roomId, messages: callMessages }),
         signal,
       });
 
@@ -960,7 +963,7 @@ function RoomContent() {
       for (const claudeName of uniqueMentions) {
         // Claudiu is a virtual participant — route to dedicated handler
         if (claudeName === CLAUDIU_NAME) {
-          if (!isClaudiuOwner) continue;
+          if (!claudiuOwnerInRoom) continue;
           const allMsgs = (messages ?? []) as MessageWithAttachments[];
           const trimmed = trimToTokenBudget(allMsgs);
           const history = await buildHistory(trimmed, CLAUDIU_NAME);
@@ -1302,7 +1305,7 @@ function RoomContent() {
               const currentParticipants = participants ?? [];
 
               if (reactedClaude === CLAUDIU_NAME) {
-                if (!isClaudiuOwner) return;
+                if (!claudiuOwnerInRoom) return;
                 const allMsgs = (messages ?? []) as MessageWithAttachments[];
                 const trimmed = trimToTokenBudget(allMsgs);
                 const history = await buildHistory(trimmed, CLAUDIU_NAME);
@@ -1436,7 +1439,7 @@ function RoomContent() {
         <MentionInput
           participants={participants}
           onSend={handleSendMessage}
-          showClaudiu={isClaudiuOwner}
+          showClaudiu={claudiuOwnerInRoom}
           onGifSend={async (gifUrl) => {
             if (!currentUserId || !currentDisplayName) return;
             await sendMessage({

@@ -286,6 +286,19 @@ export const getMyParticipantInRoom = query({
   },
 });
 
+export const isClaudiuOwnerInRoom = query({
+  args: { roomId: v.id("rooms"), ownerToken: v.string() },
+  handler: async (ctx, { roomId, ownerToken }) => {
+    const match = await ctx.db
+      .query("participants")
+      .withIndex("by_room_and_token_identifier", (q) =>
+        q.eq("roomId", roomId).eq("tokenIdentifier", ownerToken)
+      )
+      .unique();
+    return match !== null && match.isOnline;
+  },
+});
+
 export const getClaudeMemoriesForOwner = query({
   args: { ownerUserId: v.string() },
   handler: async (ctx, { ownerUserId }) => {
