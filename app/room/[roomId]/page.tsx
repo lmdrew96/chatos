@@ -248,18 +248,35 @@ async function buildHistory(
 
     const attachmentBlocks: MessageContent[] = [];
 
-    // Inline GIF as an image block so Claude can see it directly
-    // fetchAsBase64 auto-compresses oversized images via canvas
+    // Inline GIF as an image block so Claude can see it directly.
+    // Small GIFs: embed as base64 (preserves animation). Large GIFs: pass URL
+    // for fetch_url so we don't hit the 5MB API limit or lose animation to compression.
     if (m.gifUrl) {
       try {
-        const { data, mediaType } = await fetchAsBase64(m.gifUrl);
-        attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-        if (!contentText.trim()) {
-          contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
+        const res = await fetch(m.gifUrl);
+        if (!res.ok) throw new Error(res.statusText);
+        const blob = await res.blob();
+        if (blob.size <= MAX_BASE64_BYTES) {
+          const { data, mediaType } = await new Promise<{ data: string; mediaType: string }>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve({ data: result.split(",")[1], mediaType: blob.type });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+          if (!contentText.trim()) {
+            contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
+          }
+        } else {
+          // Too large to inline — include URL so Claude can use fetch_url
+          const label = contentText.trim() ? "" : `${m.fromDisplayName ?? "Someone"} sent a GIF. `;
+          contentText += `${label}[GIF: ${m.gifUrl} — use fetch_url to view it]`;
         }
       } catch {
-        // Fallback to text reference if fetch/compression fails
-        contentText += contentText.trim() ? ` [sent a GIF]` : `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
+        contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName ?? "Someone"} sent a GIF: ${m.gifUrl}`;
       }
     }
     if (m.attachments && m.attachments.length > 0) {
