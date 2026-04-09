@@ -89,7 +89,7 @@ type MessageWithAttachments = Omit<Doc<"messages">, "attachments"> & {
   }[];
 };
 
-const MAX_MENTION_DEPTH = 3;
+const MAX_MENTION_DEPTH = 5;
 
 type InvokeParams = {
   claudeName: string;
