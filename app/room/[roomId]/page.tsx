@@ -164,9 +164,20 @@ async function buildHistory(
           ? `[${m.claudeName ?? "Claude"}]: ${m.content}`
           : `${m.fromDisplayName}: ${m.content}`;
 
-    // Surface GIF context so Claude knows one was shared
+    // Inline GIF as an image block so Claude can see it directly
     if (m.gifUrl) {
-      contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName} sent a GIF: ${m.gifUrl}`;
+      try {
+        const { data, mediaType } = await fetchAsBase64(m.gifUrl);
+        if (SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+          attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+          if (!contentText.trim()) {
+            contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
+          }
+        }
+      } catch {
+        // Fallback to text reference if fetch fails
+        contentText += contentText.trim() ? ` [sent a GIF: ${m.gifUrl}]` : `${m.fromDisplayName} sent a GIF: ${m.gifUrl}`;
+      }
     }
 
     const attachmentBlocks: MessageContent[] = [];

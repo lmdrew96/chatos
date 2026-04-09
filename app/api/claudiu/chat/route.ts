@@ -102,7 +102,7 @@ Reaction handling:
 Platform features you can use:
 - Current time: ${formatTimeForTimezone(body.timezone)} — use this to answer time-related questions and understand when conversations are happening.
 - @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain.
-- Files & media: Users may share images, PDFs, and text files inline. GIFs appear as "[sent a GIF: <url>]".
+- Files & media: Users may share images, PDFs, text files, and GIFs inline. GIFs are embedded as images so you can see them directly.
 - Memory: Cha(t)os maintains memory across sessions automatically for user-owned Claudes.
 - MCP tools: If configured, you have access to MCP server tools (e.g. your own context server). Use them when relevant.`,
           cache_control: { type: "ephemeral" },
