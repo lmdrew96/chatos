@@ -543,13 +543,10 @@ function RoomContent() {
     signal,
   }: InvokeParams): Promise<{ claudeName: string; content: string } | null> => {
     if (depth >= MAX_MENTION_DEPTH) return null;
-    if (respondedSet.has(claudeName)) return null;
 
     // Guard: a human has sent a message since this chain started — yield to them
     const liveHumanCount = (messagesRef.current ?? []).filter((m) => m.type === "user").length;
     if (liveHumanCount > chainStartHumanCount) return null;
-
-    respondedSet.add(claudeName);
 
     // Fetch the owner's API key from Convex (each Claude uses its own owner's key)
     const apiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
@@ -806,10 +803,7 @@ function RoomContent() {
     signal: AbortSignal;
   }): Promise<{ claudeName: string; content: string } | null> => {
     if (depth >= MAX_MENTION_DEPTH) return null;
-    if (respondedSet.has(CLAUDIU_NAME)) return null;
     if (!claudiuOwnerInRoom) return null;
-
-    respondedSet.add(CLAUDIU_NAME);
     setThinkingClaudes((prev) => new Set(prev).add(CLAUDIU_NAME));
 
     let messageId: Id<"messages"> | null = null;
