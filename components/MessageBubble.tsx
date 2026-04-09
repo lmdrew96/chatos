@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Doc, Id } from "@/convex/_generated/dataModel";
@@ -49,7 +49,10 @@ function BotIcon({ color }: { color: string }) {
 }
 
 function Timestamp({ ts }: { ts: number }) {
-  const time = new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const [time, setTime] = useState("");
+  useEffect(() => {
+    setTime(new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  }, [ts]);
   return (
     <span
       className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 text-[10px] select-none"
