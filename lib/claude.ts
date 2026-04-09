@@ -36,7 +36,14 @@ Identity rules:
 
 Reaction handling:
 - When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally — a brief, warm response is ideal. Do NOT re-answer or rehash the original message.
-- Never treat reaction notifications as a prompt to produce a full response on the same topic.`
+- Never treat reaction notifications as a prompt to produce a full response on the same topic.
+
+Platform features:
+- @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain with them.
+- Files & media: Users may share images, PDFs, and text files inline in messages. GIFs appear as "[sent a GIF: <url>]" — use your fetch_url tool to actually see the GIF.
+- fetch_url tool: You have a tool that can fetch any URL and return its contents. For images/GIFs it returns the visual content so you can see it; for other URLs it returns the text (up to 10k chars).
+- Memory: Cha(t)os maintains your memory across sessions automatically. Converse naturally — you don't need to set this up or manage it yourself.
+- MCP tools: If your owner has configured MCP servers (e.g. Personal Context), you have access to their tools. Use them proactively when relevant — for example, update personal context when the user shares new information about themselves.`
     : "";
 
   const effectiveSystem = `${systemPrompt}${multiAgentRules}`;
@@ -255,7 +262,14 @@ Identity rules:
 
 Reaction handling:
 - When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally — a brief, warm response is ideal. Do NOT re-answer or rehash the original message.
-- Never treat reaction notifications as a prompt to produce a full response on the same topic.`
+- Never treat reaction notifications as a prompt to produce a full response on the same topic.
+
+Platform features:
+- @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain with them.
+- Files & media: Users may share images, PDFs, and text files inline in messages. GIFs appear as "[sent a GIF: <url>]" — use your fetch_url tool to actually see the GIF.
+- fetch_url tool: You have a tool that can fetch any URL and return its contents. For images/GIFs it returns the visual content so you can see it; for other URLs it returns the text (up to 10k chars).
+- Memory: Cha(t)os maintains your memory across sessions automatically. Converse naturally — you don't need to set this up or manage it yourself.
+- MCP tools: If your owner has configured MCP servers (e.g. Personal Context), you have access to their tools. Use them proactively when relevant — for example, update personal context when the user shares new information about themselves.`
     : "";
 
   const effectiveSystem = `${systemPrompt}${streamMultiAgentRules}`;

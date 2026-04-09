@@ -36,20 +36,24 @@ export async function POST(request: Request) {
 
     // Any authenticated user can invoke Claudiu, but only if the Claudiu owner
     // is a participant in the same room. The caller passes the roomId for verification.
-    if (body.roomId && OWNER_TOKEN) {
-      const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const callerToken = `https://clerk.chatos.adhdesigns.dev|${session.userId}`;
+    const callerIsOwner = callerToken === OWNER_TOKEN;
+
+    if (!callerIsOwner) {
+      if (!body.roomId || !OWNER_TOKEN) {
+        return Response.json({ error: "Claudiu can only be invoked in a room where the owner is present." }, { status: 403 });
+      }
+      const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+      if (!convexUrl) {
+        return Response.json({ error: "Server misconfiguration: missing CONVEX_URL." }, { status: 500 });
+      }
+      const convex = new ConvexHttpClient(convexUrl);
       const ownerPresent = await convex.query(api.rooms.isClaudiuOwnerInRoom, {
         roomId: body.roomId as any,
         ownerToken: OWNER_TOKEN,
       });
       if (!ownerPresent) {
         return Response.json({ error: "Claudiu's owner is not in this room." }, { status: 403 });
-      }
-    } else if (!body.roomId) {
-      // Fallback: if no roomId provided, only the owner can call directly
-      const callerToken = `https://clerk.chatos.adhdesigns.dev|${session.userId}`;
-      if (callerToken !== OWNER_TOKEN) {
-        return Response.json({ error: "Only the Claudiu owner can invoke this endpoint without a room context." }, { status: 403 });
       }
     }
 
@@ -76,7 +80,13 @@ Identity rules:
 - Do not break character or explain that you are an AI unless directly and sincerely asked.
 
 Reaction handling:
-- When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally and briefly. Do NOT re-answer or rehash the original message.`,
+- When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally and briefly. Do NOT re-answer or rehash the original message.
+
+Platform features you can use:
+- @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain.
+- Files & media: Users may share images, PDFs, and text files inline. GIFs appear as "[sent a GIF: <url>]".
+- Memory: Cha(t)os maintains memory across sessions automatically for user-owned Claudes.
+- MCP tools: If configured, you have access to MCP server tools (e.g. your own context server). Use them when relevant.`,
           cache_control: { type: "ephemeral" },
         },
       ],
