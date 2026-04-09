@@ -173,6 +173,41 @@ type MessageWithAttachments = Omit<Doc<"messages">, "attachments"> & {
   }[];
 };
 
+/**
+ * Convert any base64 image/document blocks in messages to URL sources by
+ * uploading to Convex storage. This keeps the payload small when proxying
+ * messages through API routes (e.g. the Claudiu endpoint).
+ */
+async function externalizeBase64Blocks(
+  messages: { role: "user" | "assistant"; content: string | MessageContent[] }[],
+  uploadBlob: (blob: Blob) => Promise<string>,
+): Promise<{ role: "user" | "assistant"; content: string | MessageContent[] }[]> {
+  return Promise.all(
+    messages.map(async (msg) => {
+      if (typeof msg.content === "string") return msg;
+      const newContent = await Promise.all(
+        msg.content.map(async (block) => {
+          if (
+            (block.type === "image" || block.type === "document") &&
+            block.source.type === "base64"
+          ) {
+            try {
+              const raw = Uint8Array.from(atob(block.source.data), (c) => c.charCodeAt(0));
+              const blob = new Blob([raw], { type: block.source.media_type });
+              const url = await uploadBlob(blob);
+              return { ...block, source: { type: "url" as const, url } };
+            } catch {
+              return block; // keep base64 if upload fails
+            }
+          }
+          return block;
+        }),
+      );
+      return { ...msg, content: newContent };
+    }),
+  );
+}
+
 const MAX_MENTION_DEPTH = 5;
 
 type InvokeParams = {
@@ -975,10 +1010,14 @@ function RoomContent() {
         return next;
       });
 
+      // Convert base64 blocks to URL sources so the payload stays small
+      // through the API route proxy
+      const lightMessages = await externalizeBase64Blocks(callMessages, uploadBlobToStorage);
+
       const res = await fetch("/api/claudiu/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, messages: callMessages, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        body: JSON.stringify({ roomId, messages: lightMessages, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
         signal,
       });
 
