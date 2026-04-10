@@ -24,6 +24,7 @@ export default defineSchema({
     isOnline: v.boolean(),
     color: v.optional(v.string()),
     lastSeenAt: v.optional(v.number()),
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
   }).index("by_room", ["roomId"])
     .index("by_token_identifier", ["tokenIdentifier"])
     .index("by_room_and_token_identifier", ["roomId", "tokenIdentifier"])

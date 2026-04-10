@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { TopBar } from "@/components/TopBar";
+
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -288,8 +288,6 @@ export default function ClaudiuAdminPage() {
       />
 
       <div className="relative z-10 max-w-4xl mx-auto page-topbar-offset flex flex-col gap-8">
-        <TopBar />
-
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           Configure Claudiu's behavior across the platform. Changes take effect immediately.
         </p>

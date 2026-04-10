@@ -107,6 +107,7 @@ export default function JoinPage() {
       let basePrompt = systemPrompt.trim();
 
       // Layer 1: Prepend personal context from MCP if URL provided
+      let finalMcpServers = validServers;
       if (mcpUrl.trim()) {
         try {
           const ctx = await fetchPersonalContext(mcpUrl.trim());
@@ -115,10 +116,8 @@ export default function JoinPage() {
 
           // Also register as a live MCP server so Claude can use its write tools during conversations.
           const mcpServerUrl = normalizeMcpServerUrl(mcpUrl.trim());
-          sessionStorage.setItem(
-            "chatos:mcpServers",
-            JSON.stringify([{ name: "PersonalContext", url: mcpServerUrl }, ...validServers])
-          );
+          finalMcpServers = [{ name: "PersonalContext", url: mcpServerUrl }, ...validServers];
+          sessionStorage.setItem("chatos:mcpServers", JSON.stringify(finalMcpServers));
         } catch {
           setError("Couldn't reach your Personal Context MCP — check the URL in Settings and try again.");
           setLoading(false);
@@ -139,6 +138,7 @@ export default function JoinPage() {
         displayName: resolvedDisplayName.trim(),
         claudeName: resolvedClaudeName.trim(),
         systemPrompt: fullSystemPrompt,
+        mcpServers: finalMcpServers.length > 0 ? finalMcpServers : undefined,
       });
       router.push(`/room/${roomId}`);
     } catch (err: unknown) {

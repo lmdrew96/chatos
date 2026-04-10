@@ -623,6 +623,11 @@ function RoomContent() {
 
     setCurrentUserId(myParticipant.userId);
     setCurrentDisplayName(myParticipant.displayName);
+
+    // Sync MCP servers from Convex participant record (authoritative source)
+    if (myParticipant.mcpServers && myParticipant.mcpServers.length > 0) {
+      setMcpServers(myParticipant.mcpServers);
+    }
   }, [myParticipant]);
 
   // Send users to join only when they are not already a known participant.
@@ -697,6 +702,8 @@ function RoomContent() {
   }, [messages, thinkingClaudes, isStreaming]);
 
   // Track scroll position for showing/hiding the scroll-to-bottom button
+  // Depends on `messages` so the listener re-attaches when the loading guard
+  // clears and the scroll container actually mounts.
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -708,7 +715,7 @@ function RoomContent() {
     };
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [messages]);
 
   // Color map: userId → color, ordered by join time
   const participantColors = useMemo(() => {
@@ -795,7 +802,9 @@ function RoomContent() {
       if (memoryContext) {
         touchClaudeMemory({ ownerUserId: owner.userId, claudeName }).catch(() => {});
       }
-      const isOwnClaude = owner.userId === currentUserId;
+      // Read MCP servers from the owner's participant record (persisted in Convex)
+      // so they're available regardless of whose browser triggers the call.
+      const ownerMcpServers: McpServer[] = owner.mcpServers ?? [];
 
       // Create placeholder message for streaming — bubble shows thinking dots
       messageId = await sendMessage({
@@ -822,7 +831,7 @@ function RoomContent() {
         apiKey,
         systemPrompt: owner.systemPrompt,
         messages: callMessages,
-        mcpServers: isOwnClaude && mcpServers.length > 0 ? mcpServers : undefined,
+        mcpServers: ownerMcpServers.length > 0 ? ownerMcpServers : undefined,
         claudeName,
         memoryContext,
         ownerTimezone: ownerTimezone ?? undefined,
@@ -1364,7 +1373,9 @@ function RoomContent() {
                 const base = existing?.summary
                   ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
                   : formatted;
-                const summaryPromise = callClaude({
+                // Always fire-and-forget — blocking on the summary call delays
+                // the Claude response noticeably (the whole point of bug #4).
+                callClaude({
                   apiKey: ownerApiKey,
                   systemPrompt:
                     "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
@@ -1374,11 +1385,6 @@ function RoomContent() {
                     sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
                   })
                   .catch((err) => console.error("[compact] summary failed:", err));
-                // First summary: await so the response has context for dropped messages.
-                // Re-summarizations: fire-and-forget since we already have a usable summary.
-                if (!existing) {
-                  await summaryPromise;
-                }
               }
             }
           }

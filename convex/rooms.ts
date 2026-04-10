@@ -105,8 +105,9 @@ export const joinRoom = mutation({
     displayName: v.string(),
     claudeName: v.string(),
     systemPrompt: v.string(),
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
   },
-  handler: async (ctx, { roomId, userId, displayName, claudeName, systemPrompt }) => {
+  handler: async (ctx, { roomId, userId, displayName, claudeName, systemPrompt, mcpServers }) => {
     const identity = await ctx.auth.getUserIdentity();
     const tokenIdentifier = identity?.tokenIdentifier;
     const room = await ctx.db.get(roomId);
@@ -146,7 +147,7 @@ export const joinRoom = mutation({
           .unique();
         if (staleMemory) await ctx.db.delete(staleMemory._id);
       }
-      await ctx.db.patch(existing._id, { isOnline: true, displayName, claudeName, systemPrompt, tokenIdentifier });
+      await ctx.db.patch(existing._id, { isOnline: true, displayName, claudeName, systemPrompt, tokenIdentifier, mcpServers });
       await ctx.db.patch(roomId, { lastActivityAt: Date.now() });
       return existing._id;
     }
@@ -174,6 +175,7 @@ export const joinRoom = mutation({
       claudeName,
       systemPrompt,
       isOnline: true,
+      mcpServers,
     });
 
     await ctx.db.patch(roomId, { lastActivityAt: Date.now() });
