@@ -64,8 +64,24 @@ function formatTimeForTimezone(timezone?: string): string {
 }
 
 /** Build the multi-agent rules block appended to system prompts. */
-function buildMultiAgentRules(claudeName?: string, ownerTimezone?: string): string {
+function buildMultiAgentRules(claudeName?: string, ownerTimezone?: string, chainDepth?: number, chainLimit?: number): string {
   if (!claudeName) return "";
+
+  let chainAwareness = "";
+  if (chainDepth !== undefined && chainLimit !== undefined) {
+    const remaining = chainLimit - chainDepth - 1;
+    if (remaining <= 0) {
+      chainAwareness = `\n\nChain awareness:
+- You are at the END of the conversation chain (depth ${chainDepth}/${chainLimit}). Do NOT @mention other Claudes — respond directly and wrap up your thought. This is your last turn.`;
+    } else if (remaining <= 2) {
+      chainAwareness = `\n\nChain awareness:
+- Chain depth: ${chainDepth}/${chainLimit} (${remaining} turn${remaining === 1 ? "" : "s"} remaining). The chain is almost over — only @mention another Claude if it's truly necessary. Prefer wrapping up your thought directly.`;
+    } else {
+      chainAwareness = `\n\nChain awareness:
+- Chain depth: ${chainDepth}/${chainLimit} (${remaining} turns remaining). You may @mention other Claudes to continue the conversation if relevant.`;
+    }
+  }
+
   return `\n\n---\nYou are **${claudeName}** — one of several independent Claude instances in Cha(t)os, a multi-agent chat platform. Each Claude has its own name, owner, and personality. Claudiu is the platform's built-in assistant and is NOT you.
 
 Identity rules:
@@ -83,7 +99,7 @@ Platform features:
 - Files & media: Users may share images, PDFs, text files, and GIFs inline in messages. GIFs are embedded as images so you can see them directly.
 - fetch_url tool: You have a tool that can fetch any URL and return its contents. For images it returns the visual content so you can see it; for other URLs it returns the text (up to 10k chars).
 - Memory: Cha(t)os maintains your memory across sessions automatically. Converse naturally — you don't need to set this up or manage it yourself.
-- MCP tools: If your owner has configured MCP servers (e.g. Personal Context), you have access to their tools. Use them proactively when relevant — for example, update personal context when the user shares new information about themselves.`;
+- MCP tools: If your owner has configured MCP servers (e.g. Personal Context), you have access to their tools. Use them proactively when relevant — for example, update personal context when the user shares new information about themselves.${chainAwareness}`;
 }
 
 export async function callClaude({
@@ -94,6 +110,8 @@ export async function callClaude({
   claudeName,
   memoryContext,
   ownerTimezone,
+  chainDepth,
+  chainLimit,
   onToolUse,
   signal,
 }: {
@@ -104,12 +122,14 @@ export async function callClaude({
   claudeName?: string;
   ownerTimezone?: string;
   memoryContext?: string;
+  chainDepth?: number;
+  chainLimit?: number;
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<string> {
   // System prompt stays stable (and cached) — memory goes in as a prepended
   // message pair so cache hits aren't busted when the summary updates.
-  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone)}`;
+  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
 
   // Prepend memory as a message exchange so it's cacheable independently
   const messagesWithMemory: typeof messages = memoryContext
@@ -302,6 +322,8 @@ export async function callClaudeStreaming({
   claudeName,
   memoryContext,
   ownerTimezone,
+  chainDepth,
+  chainLimit,
   onText,
   onToolUse,
   signal,
@@ -313,11 +335,13 @@ export async function callClaudeStreaming({
   claudeName?: string;
   ownerTimezone?: string;
   memoryContext?: string;
+  chainDepth?: number;
+  chainLimit?: number;
   onText: (accumulated: string) => void;
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<string> {
-  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone)}`;
+  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
 
   const messagesWithMemory: typeof messages = memoryContext
     ? [

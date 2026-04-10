@@ -826,6 +826,8 @@ function RoomContent() {
         claudeName,
         memoryContext,
         ownerTimezone: ownerTimezone ?? undefined,
+        chainDepth: depth,
+        chainLimit,
         onText: (accumulated) => {
           if (messageId) {
             updateStreamingMessage({
@@ -1063,7 +1065,7 @@ function RoomContent() {
       const res = await fetch("/api/claudiu/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roomId, messages: lightMessages, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }),
+        body: JSON.stringify({ roomId, messages: lightMessages, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, chainDepth: depth, chainLimit }),
         signal,
       });
 

@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Claudiu is not configured. Missing CLAUDIU_API_KEY." }, { status: 500 });
     }
 
-    let body: { roomId?: string; messages: Array<{ role: string; content: string | object[] }>; mcpServerUrl?: string; timezone?: string };
+    let body: { roomId?: string; messages: Array<{ role: string; content: string | object[] }>; mcpServerUrl?: string; timezone?: string; chainDepth?: number; chainLimit?: number };
     try {
       body = await request.json();
     } catch {
@@ -146,7 +146,15 @@ Platform features you can use:
 - MCP tools: You may have access to two Personal Context servers:
   - **claudiu-room-context**: Your general knowledge, conversation notes, personality context. Use this for anything about your ongoing interactions, preferences learned, and general memory.
   - **claudiu-helper-context**: App-specific knowledge — onboarding facts, feature documentation, common user questions. Use this to store and retrieve Cha(t)os platform knowledge.
-  Use the pctx tools on the appropriate server when you learn something worth remembering.`,
+  Use the pctx tools on the appropriate server when you learn something worth remembering.${(() => {
+            if (body.chainDepth !== undefined && body.chainLimit !== undefined) {
+              const remaining = body.chainLimit - body.chainDepth - 1;
+              if (remaining <= 0) return `\n\nChain awareness:\n- You are at the END of the conversation chain (depth ${body.chainDepth}/${body.chainLimit}). Do NOT @mention other Claudes — respond directly and wrap up your thought. This is your last turn.`;
+              if (remaining <= 2) return `\n\nChain awareness:\n- Chain depth: ${body.chainDepth}/${body.chainLimit} (${remaining} turn${remaining === 1 ? "" : "s"} remaining). The chain is almost over — only @mention another Claude if it's truly necessary. Prefer wrapping up your thought directly.`;
+              return `\n\nChain awareness:\n- Chain depth: ${body.chainDepth}/${body.chainLimit} (${remaining} turns remaining). You may @mention other Claudes to continue the conversation if relevant.`;
+            }
+            return "";
+          })()}`,
           cache_control: { type: "ephemeral" },
         },
       ],
