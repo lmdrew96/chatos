@@ -804,7 +804,12 @@ function RoomContent() {
       }
       // Read MCP servers from the owner's participant record (persisted in Convex)
       // so they're available regardless of whose browser triggers the call.
-      const ownerMcpServers: McpServer[] = owner.mcpServers ?? [];
+      // Fall back to local sessionStorage MCPs for your own Claude (backward compat
+      // for participants who joined before the field existed in Convex).
+      const ownerMcpServers: McpServer[] =
+        (owner.mcpServers && owner.mcpServers.length > 0)
+          ? owner.mcpServers
+          : (owner.userId === currentUserId ? mcpServers : []);
 
       // Create placeholder message for streaming — bubble shows thinking dots
       messageId = await sendMessage({
