@@ -156,8 +156,6 @@ Platform features you can use:
     if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
     if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
 
-    console.log("[claudiu/room] temperature:", config?.temperature, "top_p:", config?.topP, "→ body has:", anthropicBody.temperature, anthropicBody.top_p);
-
     const betas: string[] = ["prompt-caching-2024-07-31"];
 
     const mcpServers: Record<string, string>[] = [];
