@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo, useMemo } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Doc, Id } from "@/convex/_generated/dataModel";
@@ -48,11 +48,11 @@ function BotIcon({ color }: { color: string }) {
   );
 }
 
-function Timestamp({ ts }: { ts: number }) {
-  const [time, setTime] = useState("");
-  useEffect(() => {
-    setTime(new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-  }, [ts]);
+const Timestamp = memo(function Timestamp({ ts }: { ts: number }) {
+  const time = useMemo(
+    () => new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    [ts]
+  );
   return (
     <span
       className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 text-[10px] select-none"
@@ -61,9 +61,9 @@ function Timestamp({ ts }: { ts: number }) {
       {time}
     </span>
   );
-}
+});
 
-function AttachmentList({
+const AttachmentList = memo(function AttachmentList({
   attachments,
   senderName,
   senderColor,
@@ -83,6 +83,7 @@ function AttachmentList({
               <img
                 src={file.url}
                 alt={file.fileName}
+                loading="lazy"
                 className="max-h-80 rounded-lg object-contain"
                 style={{ border: "1px solid var(--border)" }}
               />
@@ -142,9 +143,9 @@ function AttachmentList({
       ))}
     </div>
   );
-}
+});
 
-export default function MessageBubble({
+function MessageBubble({
   message,
   currentUserId,
   participantColors,
@@ -235,6 +236,7 @@ export default function MessageBubble({
                   <img
                     src={message.gifUrl}
                     alt="GIF"
+                    loading="lazy"
                     className="w-full rounded-lg"
                     style={{ border: "1px solid var(--border)" }}
                   />
@@ -370,3 +372,5 @@ export default function MessageBubble({
     </div>
   );
 }
+
+export default memo(MessageBubble);

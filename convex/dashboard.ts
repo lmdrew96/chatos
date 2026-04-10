@@ -101,16 +101,21 @@ export const getMyRooms = query({
         const room = await ctx.db.get(p.roomId);
         if (!room) return null;
 
+        // Only fetch enough participants to get a count (cap at 10 to save reads)
         const allParticipants = await ctx.db
           .query("participants")
           .withIndex("by_room", (q) => q.eq("roomId", p.roomId))
-          .take(50);
+          .take(10);
 
-        const lastMessage = await ctx.db
-          .query("messages")
-          .withIndex("by_room", (q) => q.eq("roomId", p.roomId))
-          .order("desc")
-          .first();
+        // Skip last-message fetch if room has had no activity since creation
+        const hasActivity = (room.lastActivityAt ?? 0) > room.createdAt;
+        const lastMessage = hasActivity
+          ? await ctx.db
+              .query("messages")
+              .withIndex("by_room", (q) => q.eq("roomId", p.roomId))
+              .order("desc")
+              .first()
+          : null;
 
         const retentionPolicy = room.retentionPolicy
           ?? (room.ownerTokenIdentifier ? "persistent" : "guest_ttl_72h");

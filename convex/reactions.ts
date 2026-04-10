@@ -37,6 +37,6 @@ export const getReactionsForRoom = query({
     return await ctx.db
       .query("reactions")
       .withIndex("by_room", (q) => q.eq("roomId", roomId))
-      .collect();
+      .take(1000);
   },
 });
