@@ -9,6 +9,8 @@ export default defineSchema({
     ownerTokenIdentifier: v.optional(v.string()),
     lastActivityAt: v.optional(v.number()),
     retentionPolicy: v.optional(v.union(v.literal("persistent"), v.literal("guest_ttl_72h"))),
+    chainLimit: v.optional(v.number()),
+    claudiuLurk: v.optional(v.boolean()),
   }).index("by_code", ["roomCode"])
     .index("by_retention_policy_and_last_activity_at", ["retentionPolicy", "lastActivityAt"]),
 

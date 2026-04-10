@@ -222,6 +222,42 @@ export const updateParticipantColor = mutation({
   },
 });
 
+export const updateRoomChainLimit = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    chainLimit: v.number(),
+  },
+  handler: async (ctx, { roomId, chainLimit }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    if (chainLimit < 1 || chainLimit > 20) throw new Error("Chain limit must be between 1 and 20");
+    const room = await ctx.db.get(roomId);
+    if (!room) throw new Error("Room not found");
+    if (room.ownerTokenIdentifier !== identity.tokenIdentifier) {
+      throw new Error("Only the room owner can change this setting");
+    }
+    await ctx.db.patch(roomId, { chainLimit });
+  },
+});
+
+export const updateClaudiuLurk = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    lurk: v.boolean(),
+  },
+  handler: async (ctx, { roomId, lurk }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const ownerToken = process.env.CLAUDIU_OWNER_TOKEN;
+    if (identity.tokenIdentifier !== ownerToken) {
+      throw new Error("Only the Claudiu owner can change this setting");
+    }
+    const room = await ctx.db.get(roomId);
+    if (!room) throw new Error("Room not found");
+    await ctx.db.patch(roomId, { claudiuLurk: lurk });
+  },
+});
+
 export const deleteRoom = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, { roomId }) => {

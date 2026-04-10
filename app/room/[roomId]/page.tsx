@@ -9,6 +9,7 @@ import { callClaude, callClaudeStreaming, estimateTokens, McpServer } from "@/li
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
+import { RoomSettings } from "@/components/RoomSettings";
 import { MessageContent } from "@/lib/claude";
 import { FloatingOrb } from "@/components/FloatingOrb";
 import { playPing } from "@/lib/sounds";
@@ -208,7 +209,7 @@ async function externalizeBase64Blocks(
   );
 }
 
-const MAX_MENTION_DEPTH = 5;
+const DEFAULT_CHAIN_LIMIT = 5;
 
 type InvokeParams = {
   claudeName: string;
@@ -556,6 +557,9 @@ function RoomContent() {
   const toggleReaction = useMutation(api.reactions.toggleReaction);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
 
+  // Per-room chain limit (defaults to 5)
+  const chainLimit = room?.chainLimit ?? DEFAULT_CHAIN_LIMIT;
+
   // Upload a blob to Convex storage and return the public URL
   const uploadBlobToStorage = useCallback(async (blob: Blob): Promise<string> => {
     const postUrl = await generateUploadUrl();
@@ -716,7 +720,7 @@ function RoomContent() {
     chainStartHumanCount,
     signal,
   }: InvokeParams): Promise<{ claudeName: string; content: string } | null> => {
-    if (depth >= MAX_MENTION_DEPTH) return null;
+    if (depth >= chainLimit) return null;
 
     // Guard: a human has sent a message since this chain started — yield to them
     const liveHumanCount = (messagesRef.current ?? []).filter((m) => m.type === "user").length;
@@ -984,8 +988,9 @@ function RoomContent() {
     respondedSet: Set<string>;
     signal: AbortSignal;
   }): Promise<{ claudeName: string; content: string } | null> => {
-    if (depth >= MAX_MENTION_DEPTH) return null;
+    if (depth >= chainLimit) return null;
     if (!claudiuOwnerInRoom) return null;
+    if (room?.claudiuLurk) return null;
     setThinkingClaudes((prev) => new Set(prev).add(CLAUDIU_NAME));
 
     let messageId: Id<"messages"> | null = null;
@@ -1452,8 +1457,18 @@ function RoomContent() {
           </span>
         </div>
 
-        {/* Right: invite + participant dots */}
+        {/* Right: settings + invite + participant dots */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {room && myParticipant && currentUserId && (
+            <RoomSettings
+              roomId={roomId}
+              room={room}
+              currentUserId={currentUserId}
+              currentColor={myParticipant.color}
+              isOwner={!!myParticipant.tokenIdentifier && room.ownerTokenIdentifier === myParticipant.tokenIdentifier}
+              isClaudiuOwner={myParticipant.tokenIdentifier === process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN}
+            />
+          )}
           <InviteButton roomId={roomId} />
           <div className="w-px h-4 hidden sm:block" style={{ background: "var(--border)" }} />
           <div className="flex items-center gap-1 sm:gap-1.5">
