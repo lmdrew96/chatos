@@ -1437,7 +1437,7 @@ function RoomContent() {
 
       {/* Header */}
       <header
-        className="page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b"
+        className="page-topbar-margin shrink-0 flex items-center justify-between px-5 py-3 border-b relative z-20"
         style={{
           borderColor: "var(--border-subtle)",
           background: "var(--header-bg)",

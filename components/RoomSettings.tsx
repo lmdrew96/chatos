@@ -93,7 +93,7 @@ export function RoomSettings({
 
       {open && (
         <div
-          className="absolute right-0 top-10 w-[calc(100vw-2rem)] sm:w-72 max-w-[300px] rounded-xl overflow-hidden z-[60]"
+          className="absolute right-0 top-10 w-[calc(100vw-2rem)] sm:w-72 max-w-[300px] rounded-xl overflow-hidden z-50"
           style={{
             background: "var(--popover)",
             border: "1px solid var(--border)",
