@@ -161,9 +161,43 @@ export default defineSchema({
     roomMcpUrl: v.optional(v.string()),
     // Additional MCP servers (name + URL pairs)
     mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+    // Sampling parameters (optional — omit to use Anthropic defaults)
+    temperature: v.optional(v.number()),
+    topP: v.optional(v.number()),
     // Last updated timestamp
     updatedAt: v.number(),
   }),
+
+  claudiuConfigHistory: defineTable({
+    version: v.number(),
+    snapshot: v.object({
+      onboardingPrompt: v.string(),
+      roomPrompt: v.string(),
+      model: v.string(),
+      onboardingMaxTokens: v.number(),
+      roomMaxTokens: v.number(),
+      onboardingHistoryLimit: v.number(),
+      roomHistoryLimit: v.number(),
+      rateLimitMaxMessages: v.number(),
+      rateLimitWindowMinutes: v.number(),
+      helperMcpUrl: v.optional(v.string()),
+      roomMcpUrl: v.optional(v.string()),
+      mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+      temperature: v.optional(v.number()),
+      topP: v.optional(v.number()),
+    }),
+    savedAt: v.number(),
+  }).index("by_version", ["version"])
+    .index("by_savedAt", ["savedAt"]),
+
+  claudiuUsage: defineTable({
+    endpoint: v.union(v.literal("onboarding"), v.literal("room")),
+    model: v.string(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    timestamp: v.number(),
+  }).index("by_timestamp", ["timestamp"])
+    .index("by_endpoint_and_timestamp", ["endpoint", "timestamp"]),
 
   changelog: defineTable({
     sha: v.string(),

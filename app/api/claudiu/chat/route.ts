@@ -105,7 +105,7 @@ export async function POST(request: Request) {
 
     // Fetch Claudiu config from Convex
     const configClient = new ConvexHttpClient(convexUrl);
-    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; helperMcpUrl?: string; mcpServers?: { name: string; url: string }[] } | null = null;
+    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; helperMcpUrl?: string; mcpServers?: { name: string; url: string }[]; temperature?: number; topP?: number } | null = null;
     try {
       config = await configClient.query(api.claudiuConfig.getConfig, {});
     } catch {
@@ -152,6 +152,9 @@ Platform features you can use:
       ],
       messages,
     };
+
+    if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
+    if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
 
     const betas: string[] = ["prompt-caching-2024-07-31"];
 
@@ -221,28 +224,55 @@ Platform features you can use:
       );
     }
 
-    const reader = anthropicRes.body?.getReader();
-    if (!reader) {
+    if (!anthropicRes.body) {
       return Response.json({ error: "No stream from Anthropic" }, { status: 502 });
     }
 
-    const stream = new ReadableStream({
-      async pull(controller) {
-        try {
-          const { done, value } = await reader.read();
-          if (done) {
-            controller.close();
-            return;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    const sseDecoder = new TextDecoder();
+    let sseBuffer = "";
+
+    const transform = new TransformStream({
+      transform(chunk, controller) {
+        controller.enqueue(chunk);
+
+        sseBuffer += sseDecoder.decode(chunk, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "message_start" && parsed.message?.usage) {
+              inputTokens = parsed.message.usage.input_tokens ?? 0;
+            }
+            if (parsed.type === "message_delta" && parsed.usage) {
+              outputTokens = parsed.usage.output_tokens ?? 0;
+            }
+          } catch {
+            // skip
           }
-          controller.enqueue(value);
-        } catch {
-          controller.close();
         }
       },
-      cancel() {
-        reader.cancel();
+      flush() {
+        if (inputTokens > 0 || outputTokens > 0) {
+          const logClient = new ConvexHttpClient(convexUrl);
+          logClient.mutation(api.claudiuUsage.logUsage, {
+            endpoint: "room" as const,
+            model,
+            inputTokens,
+            outputTokens,
+            timestamp: Date.now(),
+          }).catch(() => {});
+        }
       },
     });
+
+    const stream = anthropicRes.body.pipeThrough(transform);
 
     return new Response(stream, {
       headers: {

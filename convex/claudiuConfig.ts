@@ -53,6 +53,8 @@ You can help with anything — coding, brainstorming, writing, analysis, casual 
   helperMcpUrl: "",
   roomMcpUrl: "",
   mcpServers: [] as { name: string; url: string }[],
+  temperature: undefined as number | undefined,
+  topP: undefined as number | undefined,
 };
 
 // ── Queries ──────────────────────────────────────────────────────────────────
@@ -92,6 +94,8 @@ export const updateConfig = mutation({
     helperMcpUrl: v.optional(v.string()),
     roomMcpUrl: v.optional(v.string()),
     mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+    temperature: v.optional(v.number()),
+    topP: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Admin gate: only the Claudiu owner can update config
@@ -118,8 +122,55 @@ export const updateConfig = mutation({
       helperMcpUrl: args.helperMcpUrl ?? (existing?.helperMcpUrl ?? DEFAULTS.helperMcpUrl),
       roomMcpUrl: args.roomMcpUrl ?? (existing?.roomMcpUrl ?? DEFAULTS.roomMcpUrl),
       mcpServers: args.mcpServers ?? (existing?.mcpServers ?? DEFAULTS.mcpServers),
+      // Use !== undefined so 0 is preserved as a valid value
+      temperature: args.temperature !== undefined ? args.temperature : existing?.temperature,
+      topP: args.topP !== undefined ? args.topP : existing?.topP,
       updatedAt: Date.now(),
     };
+
+    // Snapshot current config to history before overwriting
+    if (existing) {
+      const latestVersion = await ctx.db
+        .query("claudiuConfigHistory")
+        .withIndex("by_version")
+        .order("desc")
+        .first();
+      const nextVersion = (latestVersion?.version ?? 0) + 1;
+
+      await ctx.db.insert("claudiuConfigHistory", {
+        version: nextVersion,
+        snapshot: {
+          onboardingPrompt: existing.onboardingPrompt,
+          roomPrompt: existing.roomPrompt,
+          model: existing.model,
+          onboardingMaxTokens: existing.onboardingMaxTokens,
+          roomMaxTokens: existing.roomMaxTokens,
+          onboardingHistoryLimit: existing.onboardingHistoryLimit,
+          roomHistoryLimit: existing.roomHistoryLimit,
+          rateLimitMaxMessages: existing.rateLimitMaxMessages,
+          rateLimitWindowMinutes: existing.rateLimitWindowMinutes,
+          helperMcpUrl: existing.helperMcpUrl,
+          roomMcpUrl: existing.roomMcpUrl,
+          mcpServers: existing.mcpServers,
+          temperature: existing.temperature,
+          topP: existing.topP,
+        },
+        savedAt: Date.now(),
+      });
+
+      // Prune old versions (keep max 50)
+      const oldVersions = await ctx.db
+        .query("claudiuConfigHistory")
+        .withIndex("by_savedAt")
+        .order("asc")
+        .take(100);
+      if (oldVersions.length > 50) {
+        const toDelete = oldVersions.slice(0, oldVersions.length - 50);
+        for (const old of toDelete) {
+          await ctx.db.delete(old._id);
+        }
+      }
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, updates);

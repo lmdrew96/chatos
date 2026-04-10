@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { TopBar } from "@/components/TopBar";
@@ -13,10 +13,34 @@ const MODEL_OPTIONS = [
 
 type Tab = "onboarding" | "room";
 
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function formatCost(cost: number): string {
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
 export default function ClaudiuAdminPage() {
   const isAdmin = useQuery(api.claudiuConfig.isAdmin);
   const config = useQuery(api.claudiuConfig.getConfig);
   const updateConfig = useMutation(api.claudiuConfig.updateConfig);
+
+  // Usage queries
+  const usageStats = useQuery(api.claudiuUsage.getUsageStats);
+  const recentCalls = useQuery(api.claudiuUsage.getRecentCalls);
+
+  // History queries
+  const history = useQuery(api.claudiuConfigHistory.listHistory);
+  const restoreVersion = useMutation(api.claudiuConfigHistory.restoreVersion);
 
   // ── Local form state ────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>("onboarding");
@@ -32,10 +56,16 @@ export default function ClaudiuAdminPage() {
   const [helperMcpUrl, setHelperMcpUrl] = useState("");
   const [roomMcpUrl, setRoomMcpUrl] = useState("");
   const [mcpServers, setMcpServers] = useState<{ name: string; url: string }[]>([]);
+  const [temperatureEnabled, setTemperatureEnabled] = useState(false);
+  const [temperature, setTemperature] = useState(1.0);
+  const [topPEnabled, setTopPEnabled] = useState(false);
+  const [topP, setTopP] = useState(1.0);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [restoringVersion, setRestoringVersion] = useState<number | null>(null);
 
   // ── Test chat state ─────────────────────────────────────────────────────────
   const [testMessages, setTestMessages] = useState<{ role: string; content: string }[]>([]);
@@ -59,12 +89,22 @@ export default function ClaudiuAdminPage() {
     setHelperMcpUrl(config.helperMcpUrl ?? "");
     setRoomMcpUrl(config.roomMcpUrl ?? "");
     setMcpServers(config.mcpServers ?? []);
+    if (config.temperature !== undefined) {
+      setTemperatureEnabled(true);
+      setTemperature(config.temperature);
+    }
+    if (config.topP !== undefined) {
+      setTopPEnabled(true);
+      setTopP(config.topP);
+    }
     setHydrated(true);
   }, [config, hydrated]);
 
   // Track dirty state
   useEffect(() => {
     if (!config || !hydrated) return;
+    const currentTemp = temperatureEnabled ? temperature : undefined;
+    const currentTopP = topPEnabled ? topP : undefined;
     const isDirty =
       onboardingPrompt !== config.onboardingPrompt ||
       roomPrompt !== config.roomPrompt ||
@@ -77,9 +117,11 @@ export default function ClaudiuAdminPage() {
       rateLimitWindowMinutes !== config.rateLimitWindowMinutes ||
       helperMcpUrl !== (config.helperMcpUrl ?? "") ||
       roomMcpUrl !== (config.roomMcpUrl ?? "") ||
-      JSON.stringify(mcpServers) !== JSON.stringify(config.mcpServers ?? []);
+      JSON.stringify(mcpServers) !== JSON.stringify(config.mcpServers ?? []) ||
+      currentTemp !== config.temperature ||
+      currentTopP !== config.topP;
     setDirty(isDirty);
-  }, [config, hydrated, onboardingPrompt, roomPrompt, model, onboardingMaxTokens, roomMaxTokens, onboardingHistoryLimit, roomHistoryLimit, rateLimitMaxMessages, rateLimitWindowMinutes, helperMcpUrl, roomMcpUrl, mcpServers]);
+  }, [config, hydrated, onboardingPrompt, roomPrompt, model, onboardingMaxTokens, roomMaxTokens, onboardingHistoryLimit, roomHistoryLimit, rateLimitMaxMessages, rateLimitWindowMinutes, helperMcpUrl, roomMcpUrl, mcpServers, temperatureEnabled, temperature, topPEnabled, topP]);
 
   // Auto-scroll test chat
   useEffect(() => {
@@ -102,6 +144,8 @@ export default function ClaudiuAdminPage() {
         helperMcpUrl: helperMcpUrl.trim() || undefined,
         roomMcpUrl: roomMcpUrl.trim() || undefined,
         mcpServers: mcpServers.filter((s) => s.name.trim() && s.url.trim()),
+        temperature: temperatureEnabled ? temperature : undefined,
+        topP: topPEnabled ? topP : undefined,
       });
       setSaved(true);
       setDirty(false);
@@ -112,6 +156,40 @@ export default function ClaudiuAdminPage() {
       setSaving(false);
     }
   };
+
+  const handleRestore = async (version: number) => {
+    setRestoringVersion(version);
+    try {
+      await restoreVersion({ version });
+      setHydrated(false); // Re-hydrate from the restored config
+    } catch (e: any) {
+      alert("Failed to restore: " + (e.message ?? "Unknown error"));
+    } finally {
+      setRestoringVersion(null);
+    }
+  };
+
+  // Compute which fields changed between adjacent history versions
+  const historyWithChanges = useMemo(() => {
+    if (!history || history.length === 0) return [];
+    return history.map((entry, i) => {
+      const newer = i === 0 ? config : history[i - 1]?.snapshot;
+      if (!newer) return { ...entry, changes: [] as string[] };
+      const snap = entry.snapshot;
+      const changes: string[] = [];
+      const compare = (key: string, a: unknown, b: unknown) => {
+        if (JSON.stringify(a) !== JSON.stringify(b)) changes.push(key);
+      };
+      compare("onboardingPrompt", snap.onboardingPrompt, "onboardingPrompt" in newer ? (newer as any).onboardingPrompt : undefined);
+      compare("roomPrompt", snap.roomPrompt, "roomPrompt" in newer ? (newer as any).roomPrompt : undefined);
+      compare("model", snap.model, "model" in newer ? (newer as any).model : undefined);
+      compare("onboardingMaxTokens", snap.onboardingMaxTokens, "onboardingMaxTokens" in newer ? (newer as any).onboardingMaxTokens : undefined);
+      compare("roomMaxTokens", snap.roomMaxTokens, "roomMaxTokens" in newer ? (newer as any).roomMaxTokens : undefined);
+      compare("temperature", snap.temperature, "temperature" in newer ? (newer as any).temperature : undefined);
+      compare("topP", snap.topP, "topP" in newer ? (newer as any).topP : undefined);
+      return { ...entry, changes };
+    });
+  }, [history, config]);
 
   const handleTestSend = async () => {
     const text = testInput.trim();
@@ -223,7 +301,120 @@ export default function ClaudiuAdminPage() {
           </p>
         </div>
 
-        {/* Prompt tab switcher */}
+        {/* ── Usage & Analytics ─────────────────────────────────────────────── */}
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Usage &amp; Analytics
+          </h2>
+
+          {usageStats ? (
+            <>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {(["24h", "7d", "30d"] as const).map((window) => {
+                  const w = usageStats.windows[window];
+                  return (
+                    <div
+                      key={window}
+                      className="rounded-xl px-4 py-3"
+                      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+                    >
+                      <p className="text-xs uppercase tracking-wider mb-2" style={{ color: "var(--text-dim)" }}>
+                        {window}
+                      </p>
+                      <p
+                        className="text-xl font-bold"
+                        style={{ color: "var(--amber)", fontFamily: "var(--font-super-bakery)" }}
+                      >
+                        {formatCost(w.estimatedCost)}
+                      </p>
+                      <div className="flex gap-3 mt-1.5">
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          {w.messageCount} calls
+                        </span>
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          {((w.totalInput + w.totalOutput) / 1000).toFixed(1)}k tok
+                        </span>
+                      </div>
+                      <div className="flex gap-3 mt-0.5">
+                        <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+                          {w.onboarding} onb
+                        </span>
+                        <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+                          {w.room} room
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {usageStats.truncated && (
+                <p className="text-xs mb-3 italic" style={{ color: "var(--text-dim)" }}>
+                  Showing last 500 records. Older usage is not included.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs" style={{ color: "var(--text-dim)" }}>Loading usage data...</p>
+          )}
+
+          {/* Recent calls table */}
+          {recentCalls && recentCalls.length > 0 && (
+            <div
+              className="rounded-xl overflow-hidden"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ background: "var(--surface)" }}>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Time</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Endpoint</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Model</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>In</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Out</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentCalls.map((call) => {
+                    const pricing: Record<string, { input: number; output: number }> = {
+                      "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
+                      "claude-haiku-4-5-20251001": { input: 0.8, output: 4.0 },
+                      "claude-opus-4-6": { input: 15.0, output: 75.0 },
+                    };
+                    const p = pricing[call.model] ?? pricing["claude-sonnet-4-6"];
+                    const cost = (call.inputTokens / 1_000_000) * p.input + (call.outputTokens / 1_000_000) * p.output;
+                    return (
+                      <tr key={call._id} style={{ borderTop: "1px solid var(--border)" }}>
+                        <td className="px-3 py-2" style={{ color: "var(--text-muted)" }}>{timeAgo(call.timestamp)}</td>
+                        <td className="px-3 py-2" style={{ color: "var(--fg)" }}>{call.endpoint}</td>
+                        <td className="px-3 py-2 font-mono" style={{ color: "var(--text-muted)" }}>
+                          {call.model.replace("claude-", "").split("-").slice(0, 2).join(" ")}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
+                          {call.inputTokens.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
+                          {call.outputTokens.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--amber)" }}>
+                          {formatCost(cost)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ── System Prompts ────────────────────────────────────────────────── */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
         <section>
           <div className="flex items-center gap-3 mb-4">
             <h2
@@ -248,6 +439,18 @@ export default function ClaudiuAdminPage() {
                 </button>
               ))}
             </div>
+            <div className="flex-1" />
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="px-3 py-1.5 rounded-lg text-xs transition-all"
+              style={{
+                background: showHistory ? "rgba(136,115,158,0.15)" : "transparent",
+                border: showHistory ? "1px solid rgba(136,115,158,0.3)" : "1px solid var(--border)",
+                color: showHistory ? "var(--mauve)" : "var(--text-muted)",
+              }}
+            >
+              History
+            </button>
           </div>
 
           <textarea
@@ -270,9 +473,64 @@ export default function ClaudiuAdminPage() {
               ? "This prompt powers the onboarding help chatbot. It's scoped to app-related questions only."
               : "This prompt powers Claudiu in chat rooms. The identity rules and platform features block is appended automatically."}
           </p>
+
+          {/* History panel */}
+          {showHistory && (
+            <div
+              className="mt-4 rounded-xl overflow-hidden"
+              style={{ border: "1px solid var(--border)", background: "var(--surface)" }}
+            >
+              <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                  Config History — {historyWithChanges.length} version{historyWithChanges.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+              {historyWithChanges.length === 0 ? (
+                <p className="px-4 py-6 text-xs text-center italic" style={{ color: "var(--text-dim)" }}>
+                  No history yet. Changes are recorded each time you save.
+                </p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto">
+                  {historyWithChanges.map((entry) => (
+                    <div
+                      key={entry._id}
+                      className="flex items-center gap-3 px-4 py-2.5"
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-mono" style={{ color: "var(--fg)" }}>
+                          v{entry.version}
+                        </span>
+                        <span className="text-xs ml-2" style={{ color: "var(--text-dim)" }}>
+                          {timeAgo(entry.savedAt)}
+                        </span>
+                        {entry.changes.length > 0 && (
+                          <span className="text-xs ml-2" style={{ color: "var(--text-muted)" }}>
+                            changed: {entry.changes.join(", ")}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRestore(entry.version)}
+                        disabled={restoringVersion !== null}
+                        className="text-xs px-2.5 py-1 rounded-lg shrink-0 transition-colors disabled:opacity-40"
+                        style={{
+                          background: "rgba(136,115,158,0.15)",
+                          color: "var(--mauve)",
+                          border: "1px solid rgba(136,115,158,0.2)",
+                        }}
+                      >
+                        {restoringVersion === entry.version ? "Restoring..." : "Restore"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
-        {/* Model & Limits */}
+        {/* ── Model & Limits ────────────────────────────────────────────────── */}
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <section>
@@ -376,7 +634,106 @@ export default function ClaudiuAdminPage() {
           </div>
         </section>
 
-        {/* History Window */}
+        {/* ── Sampling Parameters ───────────────────────────────────────────── */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-2"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Sampling Parameters
+          </h2>
+          <p className="text-xs mb-4" style={{ color: "var(--text-dim)" }}>
+            Anthropic recommends setting temperature OR top-p, not both. Leave disabled to use defaults.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTemperatureEnabled(!temperatureEnabled)}
+                  className="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all"
+                  style={{
+                    borderColor: temperatureEnabled ? "var(--amber)" : "var(--border)",
+                    background: temperatureEnabled ? "var(--amber)" : "transparent",
+                  }}
+                >
+                  {temperatureEnabled && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="var(--deep-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <label className="text-sm font-medium" style={{ color: temperatureEnabled ? "var(--fg)" : "var(--text-muted)" }}>
+                  Temperature
+                </label>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={temperature}
+                  onChange={(e) => setTemperature(Number(e.target.value))}
+                  disabled={!temperatureEnabled}
+                  className="flex-1"
+                  style={{ accentColor: "var(--amber)", opacity: temperatureEnabled ? 1 : 0.3 }}
+                />
+                <span
+                  className="text-sm font-mono w-10 text-right"
+                  style={{ color: temperatureEnabled ? "var(--fg)" : "var(--text-dim)" }}
+                >
+                  {temperatureEnabled ? temperature.toFixed(2) : "—"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTopPEnabled(!topPEnabled)}
+                  className="w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all"
+                  style={{
+                    borderColor: topPEnabled ? "var(--amber)" : "var(--border)",
+                    background: topPEnabled ? "var(--amber)" : "transparent",
+                  }}
+                >
+                  {topPEnabled && (
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="var(--deep-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <label className="text-sm font-medium" style={{ color: topPEnabled ? "var(--fg)" : "var(--text-muted)" }}>
+                  Top-P
+                </label>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={topP}
+                  onChange={(e) => setTopP(Number(e.target.value))}
+                  disabled={!topPEnabled}
+                  className="flex-1"
+                  style={{ accentColor: "var(--amber)", opacity: topPEnabled ? 1 : 0.3 }}
+                />
+                <span
+                  className="text-sm font-mono w-10 text-right"
+                  style={{ color: topPEnabled ? "var(--fg)" : "var(--text-dim)" }}
+                >
+                  {topPEnabled ? topP.toFixed(2) : "—"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── History Window ─────────────────────────────────────────────────── */}
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <section>
@@ -435,7 +792,7 @@ export default function ClaudiuAdminPage() {
           </div>
         </section>
 
-        {/* Rate Limiting */}
+        {/* ── Rate Limiting ──────────────────────────────────────────────────── */}
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <section>
@@ -490,7 +847,7 @@ export default function ClaudiuAdminPage() {
           </div>
         </section>
 
-        {/* MCP / Personal Context */}
+        {/* ── Personal Context MCP ───────────────────────────────────────────── */}
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <section>
@@ -551,7 +908,7 @@ export default function ClaudiuAdminPage() {
           </div>
         </section>
 
-        {/* MCP Servers */}
+        {/* ── MCP Servers ────────────────────────────────────────────────────── */}
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <section>
@@ -637,7 +994,7 @@ export default function ClaudiuAdminPage() {
           </div>
         </section>
 
-        {/* Save bar */}
+        {/* ── Save bar ───────────────────────────────────────────────────────── */}
         <div
           className="sticky bottom-4 flex items-center justify-between px-5 py-3 rounded-xl backdrop-blur-md"
           style={{
@@ -668,7 +1025,7 @@ export default function ClaudiuAdminPage() {
           </button>
         </div>
 
-        {/* Test Chat */}
+        {/* ── Test Chat ──────────────────────────────────────────────────────── */}
         <div style={{ borderTop: "1px solid var(--border)" }} />
 
         <section>
