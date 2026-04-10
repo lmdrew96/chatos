@@ -156,17 +156,27 @@ function MessageBubble({
   const hasReactions = reactions.length > 0;
   // System message
   if (message.type === "system") {
+    const isToolUse = message.content.startsWith("🔧");
     return (
       <div className="flex justify-center py-1">
         <span
-          className="text-xs px-3 py-1 rounded-full"
+          className={`text-xs px-3 py-1 rounded-full inline-flex items-center gap-1.5${isToolUse ? " font-mono" : ""}`}
           style={{
-            color: "var(--text-muted)",
-            background: "var(--surface)",
-            border: "1px solid var(--border-subtle)",
+            color: isToolUse ? "var(--amber)" : "var(--text-muted)",
+            background: isToolUse ? "rgba(223,166,73,0.06)" : "var(--surface)",
+            border: `1px solid ${isToolUse ? "rgba(223,166,73,0.15)" : "var(--border-subtle)"}`,
           }}
         >
-          {message.content}
+          {isToolUse ? (
+            <>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style={{ color: "var(--amber)" }}>
+                <path d="M7.5 1.5L6 4.5h3L5 10.5l1-4H3.5l4-5z" fill="currentColor" />
+              </svg>
+              {message.content.replace("🔧 ", "")}
+            </>
+          ) : (
+            message.content
+          )}
         </span>
       </div>
     );

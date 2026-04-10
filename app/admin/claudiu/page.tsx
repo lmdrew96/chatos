@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { TopBar } from "@/components/TopBar";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const MODEL_OPTIONS = [
   { id: "claude-sonnet-4-6", label: "Sonnet 4.6", description: "Fast, capable" },
@@ -1055,18 +1057,22 @@ export default function ClaudiuAdminPage() {
                   style={{ justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}
                 >
                   <div
-                    className="px-3 py-2 rounded-lg text-sm max-w-[80%]"
+                    className={`px-3 py-2 rounded-lg text-sm max-w-[80%]${msg.role === "assistant" ? " prose prose-invert prose-sm max-w-none" : ""}`}
                     style={{
                       background:
                         msg.role === "user"
                           ? "rgba(223,166,73,0.12)"
                           : "rgba(136,115,158,0.1)",
                       color: "var(--fg)",
-                      whiteSpace: "pre-wrap",
+                      whiteSpace: msg.role === "user" ? "pre-wrap" : undefined,
                       wordBreak: "break-word",
                     }}
                   >
-                    {msg.content || (testStreaming && i === testMessages.length - 1 ? "..." : "")}
+                    {msg.role === "assistant" && msg.content ? (
+                      <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
+                    ) : (
+                      msg.content || (testStreaming && i === testMessages.length - 1 ? "..." : "")
+                    )}
                   </div>
                 </div>
               ))}

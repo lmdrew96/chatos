@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { X, Send } from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Message {
   role: "user" | "assistant";
@@ -239,7 +241,7 @@ export function ClaudiuChatbot() {
                     />
                   )}
                   <div
-                    className="rounded-xl px-3 py-2 text-sm max-w-[85%] leading-relaxed"
+                    className={`rounded-xl px-3 py-2 text-sm max-w-[85%] leading-relaxed${msg.role === "assistant" && msg.content ? " prose prose-invert prose-sm max-w-none" : ""}`}
                     style={{
                       background:
                         msg.role === "user"
@@ -253,7 +255,11 @@ export function ClaudiuChatbot() {
                       color: "var(--fg)",
                     }}
                   >
-                    {msg.content || (
+                    {msg.role === "assistant" && msg.content ? (
+                      <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
+                    ) : msg.content ? (
+                      msg.content
+                    ) : (
                       <span className="inline-flex gap-1">
                         <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--mauve)" }} />
                         <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--mauve)", animationDelay: "0.2s" }} />
