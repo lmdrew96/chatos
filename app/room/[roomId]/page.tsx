@@ -1178,6 +1178,15 @@ function RoomContent() {
           const trimmed = trimToTokenBudget(allMsgs);
           const history = await buildHistory(trimmed, CLAUDIU_NAME, uploadBlobToStorage);
           const callMessages = [...history, { role: "user" as const, content: `${currentDisplayName}: ${content}` }];
+          if (precedingReplies.length > 0) {
+            const context = precedingReplies
+              .map((r) => `[${r.claudeName} just responded]: "${r.content}"`)
+              .join("\n");
+            callMessages.push({
+              role: "user",
+              content: `(You were also mentioned. Note that ${context} — respond to them or the original message, your call.)`,
+            });
+          }
           const result = await invokeClaudiuResponse({
             callMessages,
             allParticipants: currentParticipants,
