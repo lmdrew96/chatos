@@ -1757,7 +1757,7 @@ function RoomContent() {
       {showScrollButton && (
         <button
           onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })}
-          className="absolute bottom-3 right-4 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 hover:scale-105 z-10"
+          className="absolute top-3 right-4 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 hover:scale-105 z-10"
           style={{
             background: "var(--surface)",
             border: "1px solid var(--border)",
