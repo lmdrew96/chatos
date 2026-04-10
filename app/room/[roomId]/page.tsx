@@ -1195,7 +1195,43 @@ function RoomContent() {
           const allMsgs = (messages ?? []) as MessageWithAttachments[];
           const trimmed = trimToTokenBudget(allMsgs);
           const history = await buildHistory(trimmed, CLAUDIU_NAME, uploadBlobToStorage);
-          const callMessages = [...history, { role: "user" as const, content: `${currentDisplayName}: ${content}` }];
+
+          // Build the current message content — include attachments if present
+          let currentMsgContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
+          if (attachments && attachments.length > 0) {
+            const contentArray: MessageContent[] = [
+              { type: "text", text: `${currentDisplayName}: ${content}` },
+            ];
+            for (const a of attachments) {
+              if (a.data && isTextFile(a.fileName, a.contentType)) {
+                let text: string;
+                try { text = atob(a.data); } catch { text = a.data; }
+                if (text.length > MAX_TEXT_FILE_CHARS) {
+                  text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
+                }
+                contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
+              } else if (a.data) {
+                const byteSize = Math.ceil(a.data.length * 3 / 4);
+                if (a.contentType?.startsWith("image/") && byteSize > MAX_BASE64_BYTES) {
+                  try {
+                    const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
+                    const blob = new Blob([raw], { type: a.contentType });
+                    const { data, mediaType } = await compressImageToFit(blob);
+                    contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
+                  } catch { /* skip */ }
+                } else if (byteSize <= MAX_BASE64_BYTES) {
+                  if (a.contentType?.startsWith("image/")) {
+                    contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                  } else if (a.contentType === "application/pdf") {
+                    contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                  }
+                }
+              }
+            }
+            currentMsgContent = contentArray;
+          }
+
+          const callMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [...history, { role: "user" as const, content: currentMsgContent }];
           if (precedingReplies.length > 0) {
             const context = precedingReplies
               .map((r) => `[${r.claudeName} just responded]: "${r.content}"`)
