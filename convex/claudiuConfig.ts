@@ -68,7 +68,7 @@ export const isAdmin = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return false;
-    const ownerToken = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
+    const ownerToken = process.env.CLAUDIU_OWNER_TOKEN;
     return identity.tokenIdentifier === ownerToken;
   },
 });
@@ -92,7 +92,7 @@ export const updateConfig = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const ownerToken = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
+    const ownerToken = process.env.CLAUDIU_OWNER_TOKEN;
     if (identity.tokenIdentifier !== ownerToken) {
       throw new Error("Only the Claudiu admin can update this config");
     }
