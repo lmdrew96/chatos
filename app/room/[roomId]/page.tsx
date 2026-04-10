@@ -1694,8 +1694,8 @@ function RoomContent() {
           const isClaudiu = claudeName === CLAUDIU_NAME;
           const owner = participants.find((p) => p.claudeName === claudeName);
           const color = owner ? participantColors[owner.userId] : undefined;
-          const textColor = isClaudiu ? "#7C3AED" : (color?.text ?? "#8CBDB9");
-          const bgColor = isClaudiu ? "rgba(124,58,237,0.06)" : (color?.bg ?? "rgba(139,189,185,0.08)");
+          const textColor = isClaudiu ? "#6366F1" : (color?.text ?? "#8CBDB9");
+          const bgColor = isClaudiu ? "rgba(99,102,241,0.06)" : (color?.bg ?? "rgba(139,189,185,0.08)");
           return (
             <div key={claudeName} className="flex justify-start">
               <div style={{ maxWidth: "72%" }}>

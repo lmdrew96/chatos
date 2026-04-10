@@ -178,8 +178,8 @@ function MessageBubble({
     const color = message.ownerUserId
       ? participantColors[message.ownerUserId]
       : undefined;
-    const textColor = isClaudiu ? "#7C3AED" : (color?.text ?? "#8CBDB9");
-    const bgColor = isClaudiu ? "rgba(124,58,237,0.06)" : (color?.bg ?? "rgba(139,189,185,0.08)");
+    const textColor = isClaudiu ? "#6366F1" : (color?.text ?? "#8CBDB9");
+    const bgColor = isClaudiu ? "rgba(99,102,241,0.06)" : (color?.bg ?? "rgba(139,189,185,0.08)");
 
     return (
       <div className="flex justify-start group">
@@ -202,11 +202,11 @@ function MessageBubble({
               className="px-4 py-3 text-sm leading-relaxed prose prose-invert prose-sm max-w-none transition-shadow duration-200"
               style={{
                 background: isClaudiu
-                  ? "linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(99,102,241,0.06) 100%)"
+                  ? "linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(79,70,229,0.06) 100%)"
                   : bgColor,
                 color: "var(--fg)",
                 border: isClaudiu
-                  ? "1px solid rgba(124,58,237,0.2)"
+                  ? "1px solid rgba(99,102,241,0.2)"
                   : `1px solid ${textColor}22`,
                 borderRadius: "4px 18px 18px 18px",
               }}
