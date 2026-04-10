@@ -3,12 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { AccountButton } from "@/components/AccountButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ChangelogBadge } from "@/components/ChangelogBadge";
 import { SettingsLink } from "@/components/SettingsLink";
 
-type Page = "dashboard" | "friends" | "settings";
+type Page = "dashboard" | "friends" | "settings" | "admin";
 
 const navItems: { label: string; href: string; page: Page }[] = [
   { label: "Dashboard", href: "/dashboard", page: "dashboard" },
@@ -17,14 +19,21 @@ const navItems: { label: string; href: string; page: Page }[] = [
 
 export function TopBar({ current }: { current?: Page }) {
   const pathname = usePathname();
+  const isAdmin = useQuery(api.claudiuConfig.isAdmin);
   const derivedCurrent: Page | undefined = pathname.startsWith("/friends")
     ? "friends"
     : pathname.startsWith("/dashboard")
       ? "dashboard"
       : pathname.startsWith("/settings")
         ? "settings"
-        : undefined;
+        : pathname.startsWith("/admin")
+          ? "admin"
+          : undefined;
   const activePage = current ?? derivedCurrent;
+
+  const allNavItems = isAdmin
+    ? [...navItems, { label: "Admin", href: "/admin/claudiu", page: "admin" as Page }]
+    : navItems;
 
   return (
     <div className="flex items-center justify-center h-14 relative">
@@ -35,7 +44,7 @@ export function TopBar({ current }: { current?: Page }) {
 
       {/* Nav — center */}
       <nav className="flex items-center gap-5">
-        {navItems.map((item, i) => (
+        {allNavItems.map((item, i) => (
           <span key={item.page} className="flex items-center gap-5">
             {i > 0 && (
               <span style={{ color: "var(--border)" }}>·</span>

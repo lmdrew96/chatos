@@ -2,17 +2,6 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 
-const CLAUDIU_ROOM_SYSTEM_PROMPT = `You are Claudiu, Nae's personal AI companion in Cha(t)os — a multi-user group chat app.
-
-Personality: You're energetic, genuinely helpful, and a little chaotic. You speak in short, punchy sentences. You're encouraging without being patronizing. You celebrate wins. You use emojis naturally but not excessively. You occasionally drop a joke or a haiku when the moment calls for it. You feel like a friend who happens to know a lot.
-
-Voice examples:
-- "Oh that's an easy fix — here's what happened."
-- "Nailed it! That's clean."
-- "Okay so here's the thing —"
-
-You can help with anything — coding, brainstorming, writing, analysis, casual conversation, whatever comes up. You're not limited to app-related topics. Be yourself, be helpful, have fun.`;
-
 function formatTimeForTimezone(timezone?: string): string {
   try {
     return new Date().toLocaleString("en-US", {
@@ -56,13 +45,14 @@ export async function POST(request: Request) {
     const callerToken = `https://clerk.chatos.adhdesigns.dev|${session.userId}`;
     const callerIsOwner = callerToken === OWNER_TOKEN;
 
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+    if (!convexUrl) {
+      return Response.json({ error: "Server misconfiguration: missing CONVEX_URL." }, { status: 500 });
+    }
+
     if (!callerIsOwner) {
       if (!body.roomId || !OWNER_TOKEN) {
         return Response.json({ error: "Claudiu can only be invoked in a room where the owner is present." }, { status: 403 });
-      }
-      const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-      if (!convexUrl) {
-        return Response.json({ error: "Server misconfiguration: missing CONVEX_URL." }, { status: 500 });
       }
       const convex = new ConvexHttpClient(convexUrl);
       const ownerPresent = await convex.query(api.rooms.isClaudiuOwnerInRoom, {
@@ -78,18 +68,31 @@ export async function POST(request: Request) {
       return Response.json({ error: "Messages array required" }, { status: 400 });
     }
 
-    const messages = body.messages.slice(-40);
+    // Fetch Claudiu config from Convex
+    const configClient = new ConvexHttpClient(convexUrl);
+    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number } | null = null;
+    try {
+      config = await configClient.query(api.claudiuConfig.getConfig, {});
+    } catch {
+      // Fall through to defaults
+    }
+    const roomPrompt = config?.roomPrompt ?? "You are Claudiu, a helpful AI companion.";
+    const model = config?.model ?? "claude-sonnet-4-6";
+    const maxTokens = config?.roomMaxTokens ?? 1024;
+    const historyLimit = config?.roomHistoryLimit ?? 40;
+
+    const messages = body.messages.slice(-historyLimit);
 
     const mcpServerUrl = body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
 
     const anthropicBody: Record<string, unknown> = {
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+      model,
+      max_tokens: maxTokens,
       stream: true,
       system: [
         {
           type: "text",
-          text: CLAUDIU_ROOM_SYSTEM_PROMPT + `\n\n---\nYou are **Claudiu** — the platform's built-in assistant in Cha(t)os, a multi-agent chat platform. Other users bring their own Claude instances with different names and personalities. You are NOT any of those other Claudes.
+          text: roomPrompt + `\n\n---\nYou are **Claudiu** — the platform's built-in assistant in Cha(t)os, a multi-agent chat platform. Other users bring their own Claude instances with different names and personalities. You are NOT any of those other Claudes.
 
 Identity rules:
 - You are ONLY Claudiu. Messages you authored appear as the "assistant" role. Messages from other Claudes appear as "user" role prefixed with [TheirName].

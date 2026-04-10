@@ -134,6 +134,29 @@ export default defineSchema({
   }).index("by_owner_and_claude_name", ["ownerUserId", "claudeName"])
     .index("by_last_accessed", ["lastAccessedAt"]),
 
+  claudiuConfig: defineTable({
+    // Onboarding chatbot prompt (help assistant on landing/onboarding)
+    onboardingPrompt: v.string(),
+    // In-room Claudiu prompt (general-purpose companion)
+    roomPrompt: v.string(),
+    // Model ID (e.g. "claude-sonnet-4-6", "claude-haiku-4-5-20251001")
+    model: v.string(),
+    // Max tokens for onboarding responses
+    onboardingMaxTokens: v.number(),
+    // Max tokens for in-room responses
+    roomMaxTokens: v.number(),
+    // Message history window for onboarding (last N messages sent to API)
+    onboardingHistoryLimit: v.number(),
+    // Message history window for in-room (last N messages sent to API)
+    roomHistoryLimit: v.number(),
+    // Rate limit: max messages per window (onboarding endpoint)
+    rateLimitMaxMessages: v.number(),
+    // Rate limit: window duration in minutes
+    rateLimitWindowMinutes: v.number(),
+    // Last updated timestamp
+    updatedAt: v.number(),
+  }),
+
   changelog: defineTable({
     sha: v.string(),
     message: v.string(),

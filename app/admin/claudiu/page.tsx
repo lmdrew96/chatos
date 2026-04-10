@@ -1,0 +1,612 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { TopBar } from "@/components/TopBar";
+
+const MODEL_OPTIONS = [
+  { id: "claude-sonnet-4-6", label: "Sonnet 4.6", description: "Fast, capable" },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5", description: "Cheapest, quick" },
+  { id: "claude-opus-4-6", label: "Opus 4.6", description: "Most capable" },
+];
+
+type Tab = "onboarding" | "room";
+
+export default function ClaudiuAdminPage() {
+  const isAdmin = useQuery(api.claudiuConfig.isAdmin);
+  const config = useQuery(api.claudiuConfig.getConfig);
+  const updateConfig = useMutation(api.claudiuConfig.updateConfig);
+
+  // ── Local form state ────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<Tab>("onboarding");
+  const [onboardingPrompt, setOnboardingPrompt] = useState("");
+  const [roomPrompt, setRoomPrompt] = useState("");
+  const [model, setModel] = useState("claude-sonnet-4-6");
+  const [onboardingMaxTokens, setOnboardingMaxTokens] = useState(512);
+  const [roomMaxTokens, setRoomMaxTokens] = useState(1024);
+  const [onboardingHistoryLimit, setOnboardingHistoryLimit] = useState(20);
+  const [roomHistoryLimit, setRoomHistoryLimit] = useState(40);
+  const [rateLimitMaxMessages, setRateLimitMaxMessages] = useState(30);
+  const [rateLimitWindowMinutes, setRateLimitWindowMinutes] = useState(10);
+
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  // ── Test chat state ─────────────────────────────────────────────────────────
+  const [testMessages, setTestMessages] = useState<{ role: string; content: string }[]>([]);
+  const [testInput, setTestInput] = useState("");
+  const [testStreaming, setTestStreaming] = useState(false);
+  const testScrollRef = useRef<HTMLDivElement>(null);
+
+  // Hydrate form from config on first load
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    if (hydrated || !config) return;
+    setOnboardingPrompt(config.onboardingPrompt);
+    setRoomPrompt(config.roomPrompt);
+    setModel(config.model);
+    setOnboardingMaxTokens(config.onboardingMaxTokens);
+    setRoomMaxTokens(config.roomMaxTokens);
+    setOnboardingHistoryLimit(config.onboardingHistoryLimit);
+    setRoomHistoryLimit(config.roomHistoryLimit);
+    setRateLimitMaxMessages(config.rateLimitMaxMessages);
+    setRateLimitWindowMinutes(config.rateLimitWindowMinutes);
+    setHydrated(true);
+  }, [config, hydrated]);
+
+  // Track dirty state
+  useEffect(() => {
+    if (!config || !hydrated) return;
+    const isDirty =
+      onboardingPrompt !== config.onboardingPrompt ||
+      roomPrompt !== config.roomPrompt ||
+      model !== config.model ||
+      onboardingMaxTokens !== config.onboardingMaxTokens ||
+      roomMaxTokens !== config.roomMaxTokens ||
+      onboardingHistoryLimit !== config.onboardingHistoryLimit ||
+      roomHistoryLimit !== config.roomHistoryLimit ||
+      rateLimitMaxMessages !== config.rateLimitMaxMessages ||
+      rateLimitWindowMinutes !== config.rateLimitWindowMinutes;
+    setDirty(isDirty);
+  }, [config, hydrated, onboardingPrompt, roomPrompt, model, onboardingMaxTokens, roomMaxTokens, onboardingHistoryLimit, roomHistoryLimit, rateLimitMaxMessages, rateLimitWindowMinutes]);
+
+  // Auto-scroll test chat
+  useEffect(() => {
+    testScrollRef.current?.scrollTo({ top: testScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [testMessages]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateConfig({
+        onboardingPrompt,
+        roomPrompt,
+        model,
+        onboardingMaxTokens,
+        roomMaxTokens,
+        onboardingHistoryLimit,
+        roomHistoryLimit,
+        rateLimitMaxMessages,
+        rateLimitWindowMinutes,
+      });
+      setSaved(true);
+      setDirty(false);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      alert("Failed to save: " + (e.message ?? "Unknown error"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTestSend = async () => {
+    const text = testInput.trim();
+    if (!text || testStreaming) return;
+
+    const newMessages = [...testMessages, { role: "user", content: text }];
+    setTestMessages(newMessages);
+    setTestInput("");
+    setTestStreaming(true);
+
+    try {
+      const endpoint = tab === "onboarding" ? "/api/claudiu" : "/api/claudiu/chat";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setTestMessages((prev) => [...prev, { role: "assistant", content: `Error: ${(err as any).error ?? res.statusText}` }]);
+        return;
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) return;
+
+      const decoder = new TextDecoder();
+      let assistantText = "";
+      setTestMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+              assistantText += parsed.delta.text;
+              setTestMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: "assistant", content: assistantText };
+                return updated;
+              });
+            }
+          } catch {
+            // Skip unparseable lines
+          }
+        }
+      }
+    } catch (e: any) {
+      setTestMessages((prev) => [...prev, { role: "assistant", content: `Error: ${e.message}` }]);
+    } finally {
+      setTestStreaming(false);
+    }
+  };
+
+  // ── Gate ─────────────────────────────────────────────────────────────────────
+  if (isAdmin === undefined) {
+    return (
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+        <p style={{ color: "var(--text-muted)" }}>Loading...</p>
+      </main>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+        <p style={{ color: "var(--text-muted)" }}>You don't have access to this page.</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="relative min-h-screen px-4 pb-8" style={{ background: "var(--bg)" }}>
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 40% at 50% 40%, rgba(36,73,82,0.35) 0%, transparent 70%)",
+        }}
+      />
+
+      <div className="relative z-10 max-w-4xl mx-auto page-topbar-offset flex flex-col gap-8">
+        <TopBar />
+
+        {/* Header */}
+        <div>
+          <h1
+            className="text-lg font-bold"
+            style={{ color: "var(--fg)", fontFamily: "var(--font-super-bakery)" }}
+          >
+            Claudiu Admin
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+            Configure Claudiu's behavior across the platform. Changes take effect immediately.
+          </p>
+        </div>
+
+        {/* Prompt tab switcher */}
+        <section>
+          <div className="flex items-center gap-3 mb-4">
+            <h2
+              className="text-xs font-medium tracking-widest uppercase"
+              style={{ color: "var(--text-muted)" }}
+            >
+              System Prompts
+            </h2>
+            <div className="flex gap-1">
+              {(["onboarding", "room"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => { setTab(t); setTestMessages([]); }}
+                  className="px-3 py-1.5 rounded-lg text-xs capitalize transition-all"
+                  style={{
+                    background: tab === t ? "rgba(223,166,73,0.12)" : "transparent",
+                    border: tab === t ? "1px solid var(--amber)" : "1px solid transparent",
+                    color: tab === t ? "var(--amber)" : "var(--text-muted)",
+                  }}
+                >
+                  {t === "onboarding" ? "Onboarding" : "In-Room"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <textarea
+            value={tab === "onboarding" ? onboardingPrompt : roomPrompt}
+            onChange={(e) => {
+              if (tab === "onboarding") setOnboardingPrompt(e.target.value);
+              else setRoomPrompt(e.target.value);
+            }}
+            rows={12}
+            className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all resize-y font-mono field-focus"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+              lineHeight: "1.6",
+            }}
+          />
+          <p className="text-xs mt-1.5" style={{ color: "var(--text-dim)" }}>
+            {tab === "onboarding"
+              ? "This prompt powers the onboarding help chatbot. It's scoped to app-related questions only."
+              : "This prompt powers Claudiu in chat rooms. The identity rules and platform features block is appended automatically."}
+          </p>
+        </section>
+
+        {/* Model & Limits */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Model &amp; Limits
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Model selector */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Model
+              </label>
+              <div className="flex flex-col gap-1.5">
+                {MODEL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setModel(opt.id)}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
+                    style={{
+                      background: model === opt.id ? "rgba(223,166,73,0.1)" : "var(--surface)",
+                      border: model === opt.id ? "1px solid var(--amber)" : "1px solid var(--border)",
+                    }}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full border-2 flex items-center justify-center shrink-0"
+                      style={{
+                        borderColor: model === opt.id ? "var(--amber)" : "var(--border)",
+                      }}
+                    >
+                      {model === opt.id && (
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--amber)" }} />
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                        {opt.label}
+                      </span>
+                      <span className="text-xs ml-2" style={{ color: "var(--text-dim)" }}>
+                        {opt.description}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Max tokens */}
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                  Max Tokens — Onboarding
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={128}
+                    max={4096}
+                    step={128}
+                    value={onboardingMaxTokens}
+                    onChange={(e) => setOnboardingMaxTokens(Number(e.target.value))}
+                    className="flex-1 accent-amber"
+                    style={{ accentColor: "var(--amber)" }}
+                  />
+                  <span
+                    className="text-sm font-mono w-14 text-right"
+                    style={{ color: "var(--fg)" }}
+                  >
+                    {onboardingMaxTokens}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                  Max Tokens — In-Room
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={128}
+                    max={4096}
+                    step={128}
+                    value={roomMaxTokens}
+                    onChange={(e) => setRoomMaxTokens(Number(e.target.value))}
+                    className="flex-1"
+                    style={{ accentColor: "var(--amber)" }}
+                  />
+                  <span
+                    className="text-sm font-mono w-14 text-right"
+                    style={{ color: "var(--fg)" }}
+                  >
+                    {roomMaxTokens}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* History Window */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Message History Window
+          </h2>
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            How many recent messages to include in each API call. Higher = more context, more tokens.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Onboarding
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={5}
+                  max={50}
+                  step={5}
+                  value={onboardingHistoryLimit}
+                  onChange={(e) => setOnboardingHistoryLimit(Number(e.target.value))}
+                  className="flex-1"
+                  style={{ accentColor: "var(--amber)" }}
+                />
+                <span className="text-sm font-mono w-10 text-right" style={{ color: "var(--fg)" }}>
+                  {onboardingHistoryLimit}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                In-Room
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={5}
+                  max={100}
+                  step={5}
+                  value={roomHistoryLimit}
+                  onChange={(e) => setRoomHistoryLimit(Number(e.target.value))}
+                  className="flex-1"
+                  style={{ accentColor: "var(--amber)" }}
+                />
+                <span className="text-sm font-mono w-10 text-right" style={{ color: "var(--fg)" }}>
+                  {roomHistoryLimit}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Rate Limiting */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Rate Limiting (Onboarding)
+          </h2>
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            Limits how often users can message the onboarding chatbot. In-room Claudiu uses Anthropic's own rate limits.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Max messages per window
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={rateLimitMaxMessages}
+                onChange={(e) => setRateLimitMaxMessages(Number(e.target.value) || 1)}
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono field-focus"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Window (minutes)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={rateLimitWindowMinutes}
+                onChange={(e) => setRateLimitWindowMinutes(Number(e.target.value) || 1)}
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono field-focus"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Save bar */}
+        <div
+          className="sticky bottom-4 flex items-center justify-between px-5 py-3 rounded-xl backdrop-blur-md"
+          style={{
+            background: "rgba(var(--surface-rgb, 30,30,30), 0.85)",
+            border: dirty ? "1px solid var(--amber)" : "1px solid var(--border)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            {dirty && (
+              <div className="w-2 h-2 rounded-full" style={{ background: "var(--amber)" }} />
+            )}
+            <span className="text-xs" style={{ color: dirty ? "var(--amber)" : "var(--text-muted)" }}>
+              {saved ? "Saved!" : dirty ? "Unsaved changes" : "No changes"}
+            </span>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={!dirty || saving}
+            className="px-5 py-2 rounded-lg font-bold text-sm transition-all disabled:opacity-40"
+            style={{
+              background: saved ? "rgba(151,209,129,0.15)" : "var(--amber)",
+              color: saved ? "var(--soft-green)" : "var(--deep-dark)",
+              fontFamily: "var(--font-super-bakery)",
+            }}
+          >
+            {saving ? "Saving..." : saved ? "Saved" : "Save changes"}
+          </button>
+        </div>
+
+        {/* Test Chat */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-2"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Live Preview — {tab === "onboarding" ? "Onboarding" : "In-Room"} Claudiu
+          </h2>
+          <p className="text-xs mb-4" style={{ color: "var(--text-dim)" }}>
+            Test the current <strong>saved</strong> prompt. Save your changes first to test them here.
+          </p>
+
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+            }}
+          >
+            {/* Chat messages */}
+            <div
+              ref={testScrollRef}
+              className="p-4 flex flex-col gap-3 overflow-y-auto"
+              style={{ maxHeight: 320, minHeight: 160 }}
+            >
+              {testMessages.length === 0 && (
+                <p className="text-xs text-center py-8" style={{ color: "var(--text-dim)" }}>
+                  Send a message to test Claudiu's response.
+                </p>
+              )}
+              {testMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className="flex gap-2"
+                  style={{ justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}
+                >
+                  <div
+                    className="px-3 py-2 rounded-lg text-sm max-w-[80%]"
+                    style={{
+                      background:
+                        msg.role === "user"
+                          ? "rgba(223,166,73,0.12)"
+                          : "rgba(136,115,158,0.1)",
+                      color: "var(--fg)",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {msg.content || (testStreaming && i === testMessages.length - 1 ? "..." : "")}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Input */}
+            <div
+              className="flex items-center gap-2 px-4 py-3"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              <input
+                type="text"
+                value={testInput}
+                onChange={(e) => setTestInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleTestSend(); } }}
+                placeholder="Test a message..."
+                className="flex-1 px-3 py-2 rounded-lg text-sm outline-none field-focus"
+                style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
+              />
+              <button
+                onClick={handleTestSend}
+                disabled={!testInput.trim() || testStreaming}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40"
+                style={{
+                  background: "var(--amber)",
+                  color: "var(--deep-dark)",
+                }}
+              >
+                Send
+              </button>
+              {testMessages.length > 0 && (
+                <button
+                  onClick={() => setTestMessages([])}
+                  className="px-3 py-2 rounded-lg text-xs transition-all"
+                  style={{ color: "var(--text-muted)", border: "1px solid var(--border)" }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
