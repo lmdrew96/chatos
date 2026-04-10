@@ -681,18 +681,34 @@ function RoomContent() {
     () => messages?.some((m) => m.isStreaming) || thinkingClaudes.size > 0,
     [messages, thinkingClaudes]
   );
+  const [showScrollButton, setShowScrollButton] = useState(false);
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const threshold = 150; // px from bottom
     const isNearBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    setShowScrollButton(!isNearBottom);
     if (isNearBottom) {
       messagesEndRef.current?.scrollIntoView({
         behavior: isStreaming ? "auto" : "smooth",
       });
     }
   }, [messages, thinkingClaudes, isStreaming]);
+
+  // Track scroll position for showing/hiding the scroll-to-bottom button
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const threshold = 150;
+      const isNearBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+      setShowScrollButton(!isNearBottom);
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // Color map: userId → color, ordered by join time
   const participantColors = useMemo(() => {
@@ -739,6 +755,10 @@ function RoomContent() {
     // Guard: a human has sent a message since this chain started — yield to them
     const liveHumanCount = (messagesRef.current ?? []).filter((m) => m.type === "user").length;
     if (liveHumanCount > chainStartHumanCount) return null;
+
+    // Skip if this Claude already responded in this chain (prevents @everyone double-firing)
+    if (respondedSet.has(claudeName)) return null;
+    respondedSet.add(claudeName);
 
     // Fetch the owner's API key and timezone from Convex
     const [apiKey, ownerTimezone] = await Promise.all([
@@ -1007,6 +1027,11 @@ function RoomContent() {
     if (depth >= chainLimit) return null;
     if (!claudiuOwnerInRoom) return null;
     if (room?.claudiuLurk) return null;
+
+    // Skip if Claudiu already responded in this chain (prevents @everyone double-firing)
+    if (respondedSet.has(CLAUDIU_NAME)) return null;
+    respondedSet.add(CLAUDIU_NAME);
+
     setThinkingClaudes((prev) => new Set(prev).add(CLAUDIU_NAME));
 
     let messageId: Id<"messages"> | null = null;
@@ -1567,7 +1592,8 @@ function RoomContent() {
       </header>
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
+      <div className="relative flex-1 overflow-hidden">
+      <div ref={scrollContainerRef} className="h-full overflow-y-auto px-4 py-5 space-y-2">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-4 select-none">
             <div
@@ -1716,6 +1742,26 @@ function RoomContent() {
         })}
 
         <div ref={messagesEndRef} />
+      </div>
+
+      {/* Scroll to bottom */}
+      {showScrollButton && (
+        <button
+          onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })}
+          className="absolute bottom-3 right-4 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-90 hover:scale-105 z-10"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
+            color: "var(--sage-teal)",
+          }}
+          title="Scroll to bottom"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
       </div>
 
       {/* Input */}
