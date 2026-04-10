@@ -91,11 +91,11 @@ export default function ClaudiuAdminPage() {
     setMcpServers(config.mcpServers ?? []);
     if (config.temperature !== undefined) {
       setTemperatureEnabled(true);
-      setTemperature(config.temperature);
+      setTemperature(Math.min(config.temperature, 1.0));
     }
     if (config.topP !== undefined) {
       setTopPEnabled(true);
-      setTopP(config.topP);
+      setTopP(Math.min(config.topP, 1.0));
     }
     setHydrated(true);
   }, [config, hydrated]);
@@ -144,8 +144,8 @@ export default function ClaudiuAdminPage() {
         helperMcpUrl: helperMcpUrl.trim() || undefined,
         roomMcpUrl: roomMcpUrl.trim() || undefined,
         mcpServers: mcpServers.filter((s) => s.name.trim() && s.url.trim()),
-        temperature: temperatureEnabled ? temperature : undefined,
-        topP: topPEnabled ? topP : undefined,
+        temperature: temperatureEnabled ? temperature : null,
+        topP: topPEnabled ? topP : null,
       });
       setSaved(true);
       setDirty(false);

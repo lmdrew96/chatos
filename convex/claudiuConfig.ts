@@ -94,8 +94,8 @@ export const updateConfig = mutation({
     helperMcpUrl: v.optional(v.string()),
     roomMcpUrl: v.optional(v.string()),
     mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
-    temperature: v.optional(v.number()),
-    topP: v.optional(v.number()),
+    temperature: v.optional(v.union(v.number(), v.null())),
+    topP: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     // Admin gate: only the Claudiu owner can update config
@@ -122,9 +122,9 @@ export const updateConfig = mutation({
       helperMcpUrl: args.helperMcpUrl ?? (existing?.helperMcpUrl ?? DEFAULTS.helperMcpUrl),
       roomMcpUrl: args.roomMcpUrl ?? (existing?.roomMcpUrl ?? DEFAULTS.roomMcpUrl),
       mcpServers: args.mcpServers ?? (existing?.mcpServers ?? DEFAULTS.mcpServers),
-      // Use !== undefined so 0 is preserved as a valid value
-      temperature: args.temperature !== undefined ? args.temperature : existing?.temperature,
-      topP: args.topP !== undefined ? args.topP : existing?.topP,
+      // null = explicitly clear, undefined = keep existing, number = set new value
+      temperature: args.temperature === null ? undefined : (args.temperature !== undefined ? args.temperature : existing?.temperature),
+      topP: args.topP === null ? undefined : (args.topP !== undefined ? args.topP : existing?.topP),
       updatedAt: Date.now(),
     };
 
