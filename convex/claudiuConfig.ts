@@ -52,6 +52,7 @@ You can help with anything — coding, brainstorming, writing, analysis, casual 
   rateLimitWindowMinutes: 10,
   helperMcpUrl: "",
   roomMcpUrl: "",
+  mcpServers: [] as { name: string; url: string }[],
 };
 
 // ── Queries ──────────────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ export const updateConfig = mutation({
     rateLimitWindowMinutes: v.optional(v.number()),
     helperMcpUrl: v.optional(v.string()),
     roomMcpUrl: v.optional(v.string()),
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
   },
   handler: async (ctx, args) => {
     // Admin gate: only the Claudiu owner can update config
@@ -115,6 +117,7 @@ export const updateConfig = mutation({
       rateLimitWindowMinutes: args.rateLimitWindowMinutes ?? (existing?.rateLimitWindowMinutes ?? DEFAULTS.rateLimitWindowMinutes),
       helperMcpUrl: args.helperMcpUrl ?? (existing?.helperMcpUrl ?? DEFAULTS.helperMcpUrl),
       roomMcpUrl: args.roomMcpUrl ?? (existing?.roomMcpUrl ?? DEFAULTS.roomMcpUrl),
+      mcpServers: args.mcpServers ?? (existing?.mcpServers ?? DEFAULTS.mcpServers),
       updatedAt: Date.now(),
     };
 

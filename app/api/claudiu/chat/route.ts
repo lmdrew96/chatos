@@ -105,7 +105,7 @@ export async function POST(request: Request) {
 
     // Fetch Claudiu config from Convex
     const configClient = new ConvexHttpClient(convexUrl);
-    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; helperMcpUrl?: string } | null = null;
+    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; helperMcpUrl?: string; mcpServers?: { name: string; url: string }[] } | null = null;
     try {
       config = await configClient.query(api.claudiuConfig.getConfig, {});
     } catch {
@@ -176,6 +176,20 @@ Platform features you can use:
         const parsed = new URL(helperMcpUrl);
         const token = parsed.searchParams.get("token");
         const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
+        if (token) server.authorization_token = token;
+        mcpServers.push(server);
+      } catch {
+        // Invalid URL — skip
+      }
+    }
+
+    // Additional MCP servers from admin config
+    for (const s of config?.mcpServers ?? []) {
+      if (!s.name.trim() || !s.url.trim()) continue;
+      try {
+        const parsed = new URL(s.url);
+        const token = parsed.searchParams.get("token");
+        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: s.name };
         if (token) server.authorization_token = token;
         mcpServers.push(server);
       } catch {

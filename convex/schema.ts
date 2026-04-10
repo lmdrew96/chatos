@@ -159,6 +159,8 @@ export default defineSchema({
     helperMcpUrl: v.optional(v.string()),
     // Personal Context MCP URL for in-room Claudiu
     roomMcpUrl: v.optional(v.string()),
+    // Additional MCP servers (name + URL pairs)
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
     // Last updated timestamp
     updatedAt: v.number(),
   }),

@@ -31,6 +31,7 @@ export default function ClaudiuAdminPage() {
   const [rateLimitWindowMinutes, setRateLimitWindowMinutes] = useState(10);
   const [helperMcpUrl, setHelperMcpUrl] = useState("");
   const [roomMcpUrl, setRoomMcpUrl] = useState("");
+  const [mcpServers, setMcpServers] = useState<{ name: string; url: string }[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -57,6 +58,7 @@ export default function ClaudiuAdminPage() {
     setRateLimitWindowMinutes(config.rateLimitWindowMinutes);
     setHelperMcpUrl(config.helperMcpUrl ?? "");
     setRoomMcpUrl(config.roomMcpUrl ?? "");
+    setMcpServers(config.mcpServers ?? []);
     setHydrated(true);
   }, [config, hydrated]);
 
@@ -74,9 +76,10 @@ export default function ClaudiuAdminPage() {
       rateLimitMaxMessages !== config.rateLimitMaxMessages ||
       rateLimitWindowMinutes !== config.rateLimitWindowMinutes ||
       helperMcpUrl !== (config.helperMcpUrl ?? "") ||
-      roomMcpUrl !== (config.roomMcpUrl ?? "");
+      roomMcpUrl !== (config.roomMcpUrl ?? "") ||
+      JSON.stringify(mcpServers) !== JSON.stringify(config.mcpServers ?? []);
     setDirty(isDirty);
-  }, [config, hydrated, onboardingPrompt, roomPrompt, model, onboardingMaxTokens, roomMaxTokens, onboardingHistoryLimit, roomHistoryLimit, rateLimitMaxMessages, rateLimitWindowMinutes, helperMcpUrl, roomMcpUrl]);
+  }, [config, hydrated, onboardingPrompt, roomPrompt, model, onboardingMaxTokens, roomMaxTokens, onboardingHistoryLimit, roomHistoryLimit, rateLimitMaxMessages, rateLimitWindowMinutes, helperMcpUrl, roomMcpUrl, mcpServers]);
 
   // Auto-scroll test chat
   useEffect(() => {
@@ -98,6 +101,7 @@ export default function ClaudiuAdminPage() {
         rateLimitWindowMinutes,
         helperMcpUrl: helperMcpUrl.trim() || undefined,
         roomMcpUrl: roomMcpUrl.trim() || undefined,
+        mcpServers: mcpServers.filter((s) => s.name.trim() && s.url.trim()),
       });
       setSaved(true);
       setDirty(false);
@@ -544,6 +548,92 @@ export default function ClaudiuAdminPage() {
                 }}
               />
             </div>
+          </div>
+        </section>
+
+        {/* MCP Servers */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2
+                className="text-xs font-medium tracking-widest uppercase"
+                style={{ color: "var(--text-muted)" }}
+              >
+                MCP Servers
+              </h2>
+              <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+                Additional MCP servers Claudiu can access in rooms. Tools from these servers are available at call time.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMcpServers((prev) => [...prev, { name: "", url: "" }])}
+              className="text-xs px-2.5 py-1 rounded-lg shrink-0 transition-colors"
+              style={{
+                background: "rgba(136,115,158,0.15)",
+                color: "var(--mauve)",
+                border: "1px solid rgba(136,115,158,0.2)",
+              }}
+            >
+              + Add
+            </button>
+          </div>
+
+          {mcpServers.length === 0 && (
+            <p className="text-xs italic" style={{ color: "var(--text-dim)" }}>
+              No extra MCP servers. The Personal Context URLs above are always included.
+            </p>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {mcpServers.map((server, i) => (
+              <div key={i} className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <input
+                  type="text"
+                  value={server.name}
+                  onChange={(e) =>
+                    setMcpServers((prev) =>
+                      prev.map((s, j) => (j === i ? { ...s, name: e.target.value } : s))
+                    )
+                  }
+                  placeholder="Name (e.g. ControlledChaos)"
+                  className="w-full sm:w-[36%] px-3 py-2 rounded-lg text-sm outline-none transition-all field-focus"
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--fg)",
+                  }}
+                />
+                <div className="flex gap-2 flex-1 min-w-0">
+                  <input
+                    type="url"
+                    value={server.url}
+                    onChange={(e) =>
+                      setMcpServers((prev) =>
+                        prev.map((s, j) => (j === i ? { ...s, url: e.target.value } : s))
+                      )
+                    }
+                    placeholder="https://your-mcp.vercel.app/mcp"
+                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1 min-w-0 field-focus"
+                    style={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--fg)",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMcpServers((prev) => prev.filter((_, j) => j !== i))}
+                    className="text-xs px-2 py-2 rounded-lg transition-colors shrink-0"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 

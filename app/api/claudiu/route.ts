@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   try {
     // Fetch Claudiu config from Convex
     const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    let config: { onboardingPrompt: string; model: string; onboardingMaxTokens: number; onboardingHistoryLimit: number; rateLimitMaxMessages: number; rateLimitWindowMinutes: number; helperMcpUrl?: string } | null = null;
+    let config: { onboardingPrompt: string; model: string; onboardingMaxTokens: number; onboardingHistoryLimit: number; rateLimitMaxMessages: number; rateLimitWindowMinutes: number; helperMcpUrl?: string; mcpServers?: { name: string; url: string }[] } | null = null;
     if (convexUrl) {
       try {
         const convex = new ConvexHttpClient(convexUrl);
@@ -133,6 +133,8 @@ export async function POST(request: Request) {
 
     const betas: string[] = ["prompt-caching-2024-07-31"];
 
+    const allMcpServers: Record<string, string>[] = [];
+
     const helperMcpUrl = config?.helperMcpUrl;
     if (helperMcpUrl) {
       try {
@@ -140,11 +142,29 @@ export async function POST(request: Request) {
         const token = parsed.searchParams.get("token");
         const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
         if (token) server.authorization_token = token;
-        anthropicBody.mcp_servers = [server];
-        betas.push("mcp-client-2025-04-04");
+        allMcpServers.push(server);
       } catch {
-        // Invalid URL — skip MCP
+        // Invalid URL — skip
       }
+    }
+
+    // Additional MCP servers from admin config
+    for (const s of config?.mcpServers ?? []) {
+      if (!s.name.trim() || !s.url.trim()) continue;
+      try {
+        const parsed = new URL(s.url);
+        const token = parsed.searchParams.get("token");
+        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: s.name };
+        if (token) server.authorization_token = token;
+        allMcpServers.push(server);
+      } catch {
+        // Invalid URL — skip
+      }
+    }
+
+    if (allMcpServers.length > 0) {
+      anthropicBody.mcp_servers = allMcpServers;
+      betas.push("mcp-client-2025-04-04");
     }
 
     const anthropicRes = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
