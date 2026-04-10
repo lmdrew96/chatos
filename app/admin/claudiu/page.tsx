@@ -673,7 +673,7 @@ export default function ClaudiuAdminPage() {
                 <input
                   type="range"
                   min={0}
-                  max={2}
+                  max={1}
                   step={0.05}
                   value={temperature}
                   onChange={(e) => setTemperature(Number(e.target.value))}
