@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   try {
     // Fetch Claudiu config from Convex
     const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    let config: { onboardingPrompt: string; model: string; onboardingMaxTokens: number; onboardingHistoryLimit: number; rateLimitMaxMessages: number; rateLimitWindowMinutes: number } | null = null;
+    let config: { onboardingPrompt: string; model: string; onboardingMaxTokens: number; onboardingHistoryLimit: number; rateLimitMaxMessages: number; rateLimitWindowMinutes: number; helperMcpUrl?: string } | null = null;
     if (convexUrl) {
       try {
         const convex = new ConvexHttpClient(convexUrl);
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 
     const messages = body.messages.slice(-historyLimit);
 
-    const anthropicBody = {
+    const anthropicBody: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
       stream: true,
@@ -96,13 +96,29 @@ export async function POST(request: Request) {
       messages,
     };
 
+    const betas: string[] = ["prompt-caching-2024-07-31"];
+
+    const helperMcpUrl = config?.helperMcpUrl;
+    if (helperMcpUrl) {
+      try {
+        const parsed = new URL(helperMcpUrl);
+        const token = parsed.searchParams.get("token");
+        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
+        if (token) server.authorization_token = token;
+        anthropicBody.mcp_servers = [server];
+        betas.push("mcp-client-2025-04-04");
+      } catch {
+        // Invalid URL — skip MCP
+      }
+    }
+
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "prompt-caching-2024-07-31",
+        "anthropic-beta": betas.join(","),
       },
       body: JSON.stringify(anthropicBody),
     });

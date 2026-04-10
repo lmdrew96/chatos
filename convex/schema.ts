@@ -153,6 +153,10 @@ export default defineSchema({
     rateLimitMaxMessages: v.number(),
     // Rate limit: window duration in minutes
     rateLimitWindowMinutes: v.number(),
+    // Personal Context MCP URL for onboarding/helper Claudiu
+    helperMcpUrl: v.optional(v.string()),
+    // Personal Context MCP URL for in-room Claudiu
+    roomMcpUrl: v.optional(v.string()),
     // Last updated timestamp
     updatedAt: v.number(),
   }),

@@ -50,6 +50,8 @@ You can help with anything — coding, brainstorming, writing, analysis, casual 
   roomHistoryLimit: 40,
   rateLimitMaxMessages: 30,
   rateLimitWindowMinutes: 10,
+  helperMcpUrl: "",
+  roomMcpUrl: "",
 };
 
 // ── Queries ──────────────────────────────────────────────────────────────────
@@ -86,6 +88,8 @@ export const updateConfig = mutation({
     roomHistoryLimit: v.optional(v.number()),
     rateLimitMaxMessages: v.optional(v.number()),
     rateLimitWindowMinutes: v.optional(v.number()),
+    helperMcpUrl: v.optional(v.string()),
+    roomMcpUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Admin gate: only the Claudiu owner can update config
@@ -109,6 +113,8 @@ export const updateConfig = mutation({
       roomHistoryLimit: args.roomHistoryLimit ?? (existing?.roomHistoryLimit ?? DEFAULTS.roomHistoryLimit),
       rateLimitMaxMessages: args.rateLimitMaxMessages ?? (existing?.rateLimitMaxMessages ?? DEFAULTS.rateLimitMaxMessages),
       rateLimitWindowMinutes: args.rateLimitWindowMinutes ?? (existing?.rateLimitWindowMinutes ?? DEFAULTS.rateLimitWindowMinutes),
+      helperMcpUrl: args.helperMcpUrl ?? (existing?.helperMcpUrl ?? DEFAULTS.helperMcpUrl),
+      roomMcpUrl: args.roomMcpUrl ?? (existing?.roomMcpUrl ?? DEFAULTS.roomMcpUrl),
       updatedAt: Date.now(),
     };
 

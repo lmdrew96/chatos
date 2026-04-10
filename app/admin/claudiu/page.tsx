@@ -29,6 +29,8 @@ export default function ClaudiuAdminPage() {
   const [roomHistoryLimit, setRoomHistoryLimit] = useState(40);
   const [rateLimitMaxMessages, setRateLimitMaxMessages] = useState(30);
   const [rateLimitWindowMinutes, setRateLimitWindowMinutes] = useState(10);
+  const [helperMcpUrl, setHelperMcpUrl] = useState("");
+  const [roomMcpUrl, setRoomMcpUrl] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -53,6 +55,8 @@ export default function ClaudiuAdminPage() {
     setRoomHistoryLimit(config.roomHistoryLimit);
     setRateLimitMaxMessages(config.rateLimitMaxMessages);
     setRateLimitWindowMinutes(config.rateLimitWindowMinutes);
+    setHelperMcpUrl(config.helperMcpUrl ?? "");
+    setRoomMcpUrl(config.roomMcpUrl ?? "");
     setHydrated(true);
   }, [config, hydrated]);
 
@@ -68,9 +72,11 @@ export default function ClaudiuAdminPage() {
       onboardingHistoryLimit !== config.onboardingHistoryLimit ||
       roomHistoryLimit !== config.roomHistoryLimit ||
       rateLimitMaxMessages !== config.rateLimitMaxMessages ||
-      rateLimitWindowMinutes !== config.rateLimitWindowMinutes;
+      rateLimitWindowMinutes !== config.rateLimitWindowMinutes ||
+      helperMcpUrl !== (config.helperMcpUrl ?? "") ||
+      roomMcpUrl !== (config.roomMcpUrl ?? "");
     setDirty(isDirty);
-  }, [config, hydrated, onboardingPrompt, roomPrompt, model, onboardingMaxTokens, roomMaxTokens, onboardingHistoryLimit, roomHistoryLimit, rateLimitMaxMessages, rateLimitWindowMinutes]);
+  }, [config, hydrated, onboardingPrompt, roomPrompt, model, onboardingMaxTokens, roomMaxTokens, onboardingHistoryLimit, roomHistoryLimit, rateLimitMaxMessages, rateLimitWindowMinutes, helperMcpUrl, roomMcpUrl]);
 
   // Auto-scroll test chat
   useEffect(() => {
@@ -90,6 +96,8 @@ export default function ClaudiuAdminPage() {
         roomHistoryLimit,
         rateLimitMaxMessages,
         rateLimitWindowMinutes,
+        helperMcpUrl: helperMcpUrl.trim() || undefined,
+        roomMcpUrl: roomMcpUrl.trim() || undefined,
       });
       setSaved(true);
       setDirty(false);
@@ -467,6 +475,67 @@ export default function ClaudiuAdminPage() {
                 max={60}
                 value={rateLimitWindowMinutes}
                 onChange={(e) => setRateLimitWindowMinutes(Number(e.target.value) || 1)}
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono field-focus"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* MCP / Personal Context */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Personal Context MCP
+          </h2>
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            Separate PCTX instances for each Claudiu persona. In-room Claudiu can read/write both.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Helper PCTX URL
+              </label>
+              <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+                App knowledge, onboarding facts, user FAQ patterns.
+              </p>
+              <input
+                type="url"
+                value={helperMcpUrl}
+                onChange={(e) => setHelperMcpUrl(e.target.value)}
+                placeholder="https://your-helper-pctx.vercel.app/mcp?token=..."
+                autoComplete="off"
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono field-focus"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Room PCTX URL
+              </label>
+              <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+                General knowledge, conversation context, personality notes.
+              </p>
+              <input
+                type="url"
+                value={roomMcpUrl}
+                onChange={(e) => setRoomMcpUrl(e.target.value)}
+                placeholder="https://your-room-pctx.vercel.app/mcp?token=..."
+                autoComplete="off"
                 className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all font-mono field-focus"
                 style={{
                   background: "var(--surface)",

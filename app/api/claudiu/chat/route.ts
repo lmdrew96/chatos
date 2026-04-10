@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
     // Fetch Claudiu config from Convex
     const configClient = new ConvexHttpClient(convexUrl);
-    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number } | null = null;
+    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; helperMcpUrl?: string } | null = null;
     try {
       config = await configClient.query(api.claudiuConfig.getConfig, {});
     } catch {
@@ -83,7 +83,8 @@ export async function POST(request: Request) {
 
     const messages = body.messages.slice(-historyLimit);
 
-    const mcpServerUrl = body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
+    const roomMcpUrl = config?.roomMcpUrl || body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
+    const helperMcpUrl = config?.helperMcpUrl;
 
     const anthropicBody: Record<string, unknown> = {
       model,
@@ -107,7 +108,10 @@ Platform features you can use:
 - @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain.
 - Files & media: Users may share images, PDFs, text files, and GIFs inline. GIFs are embedded as images so you can see them directly.
 - Memory: Cha(t)os maintains memory across sessions automatically for user-owned Claudes.
-- MCP tools: If configured, you have access to MCP server tools (e.g. your own context server). Use them when relevant.`,
+- MCP tools: You may have access to two Personal Context servers:
+  - **claudiu-room-context**: Your general knowledge, conversation notes, personality context. Use this for anything about your ongoing interactions, preferences learned, and general memory.
+  - **claudiu-helper-context**: App-specific knowledge — onboarding facts, feature documentation, common user questions. Use this to store and retrieve Cha(t)os platform knowledge.
+  Use the pctx tools on the appropriate server when you learn something worth remembering.`,
           cache_control: { type: "ephemeral" },
         },
       ],
@@ -116,17 +120,37 @@ Platform features you can use:
 
     const betas: string[] = ["prompt-caching-2024-07-31"];
 
-    if (mcpServerUrl) {
+    const mcpServers: Record<string, string>[] = [];
+
+    // Room context MCP (general knowledge, conversation context)
+    if (roomMcpUrl) {
       try {
-        const parsed = new URL(mcpServerUrl);
+        const parsed = new URL(roomMcpUrl);
         const token = parsed.searchParams.get("token");
-        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-context" };
+        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-room-context" };
         if (token) server.authorization_token = token;
-        anthropicBody.mcp_servers = [server];
-        betas.push("mcp-client-2025-04-04");
+        mcpServers.push(server);
       } catch {
-        // Invalid URL — skip MCP
+        // Invalid URL — skip
       }
+    }
+
+    // Helper context MCP (app knowledge, onboarding facts)
+    if (helperMcpUrl) {
+      try {
+        const parsed = new URL(helperMcpUrl);
+        const token = parsed.searchParams.get("token");
+        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
+        if (token) server.authorization_token = token;
+        mcpServers.push(server);
+      } catch {
+        // Invalid URL — skip
+      }
+    }
+
+    if (mcpServers.length > 0) {
+      anthropicBody.mcp_servers = mcpServers;
+      betas.push("mcp-client-2025-04-04");
     }
 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
