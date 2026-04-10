@@ -798,7 +798,7 @@ function RoomContent() {
               messageId,
               content: accumulated,
               isStreaming: true,
-            }).catch(() => {});
+            }).catch((e) => console.warn("[stream flush] update failed:", e));
           }
         },
         onToolUse: (toolName) => {
@@ -945,21 +945,23 @@ function RoomContent() {
         }
         return null;
       }
-      // On error, update the streaming message to clear the flag
+      // On error, show error in the streaming message instead of leaving it blank
+      const errMsg = err instanceof Error ? err.message : "Unknown error";
       if (messageId) {
-        updateStreamingMessage({ messageId, content: "", isStreaming: false }).catch(() => {});
+        updateStreamingMessage({ messageId, content: `*[Error: ${errMsg}]*`, isStreaming: false }).catch((e) =>
+          console.error("[claude] failed to update error message:", e)
+        );
+      } else {
+        await sendMessage({
+          roomId,
+          fromUserId: "system",
+          fromDisplayName: "system",
+          type: "system",
+          content: `${claudeName} hit an error: ${errMsg}`,
+          mentions: [],
+          mentionDepth: depth,
+        });
       }
-      await sendMessage({
-        roomId,
-        fromUserId: "system",
-        fromDisplayName: "system",
-        type: "system",
-        content: `${claudeName} hit an error: ${
-          err instanceof Error ? err.message : "Unknown error"
-        }`,
-        mentions: [],
-        mentionDepth: depth,
-      });
       return null;
     } finally {
       setThinkingClaudes((prev) => {
@@ -1043,12 +1045,19 @@ function RoomContent() {
       const flush = () => {
         lastFlush = Date.now();
         if (messageId) {
-          updateStreamingMessage({ messageId, content: text, isStreaming: true }).catch(() => {});
+          updateStreamingMessage({ messageId, content: text, isStreaming: true }).catch((e) => console.warn("[claudiu flush] update failed:", e));
         }
       };
 
       while (true) {
-        const { done, value } = await reader.read();
+        // Timeout per-read: if no data arrives in 30s, assume the stream is stalled
+        const readResult = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Stream read timeout — no data received for 30s")), 30000)
+          ),
+        ]);
+        const { done, value } = readResult;
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -1114,18 +1123,22 @@ function RoomContent() {
         }
         return null;
       }
+      const errMsg = err instanceof Error ? err.message : "Unknown error";
       if (messageId) {
-        updateStreamingMessage({ messageId, content: "", isStreaming: false }).catch(() => {});
+        updateStreamingMessage({ messageId, content: `*[Error: ${errMsg}]*`, isStreaming: false }).catch((e) =>
+          console.error("[claudiu] failed to update error message:", e)
+        );
+      } else {
+        await sendMessage({
+          roomId,
+          fromUserId: "system",
+          fromDisplayName: "system",
+          type: "system",
+          content: `Claudiu hit an error: ${errMsg}`,
+          mentions: [],
+          mentionDepth: depth,
+        });
       }
-      await sendMessage({
-        roomId,
-        fromUserId: "system",
-        fromDisplayName: "system",
-        type: "system",
-        content: `Claudiu hit an error: ${err instanceof Error ? err.message : "Unknown error"}`,
-        mentions: [],
-        mentionDepth: depth,
-      });
       return null;
     } finally {
       setThinkingClaudes((prev) => {

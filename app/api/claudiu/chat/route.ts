@@ -21,6 +21,41 @@ function formatTimeForTimezone(timezone?: string): string {
 
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
+/** Retry fetch for transient Anthropic API errors (429, 5xx). */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = 2,
+  baseDelay = 1000,
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok || (res.status >= 400 && res.status < 429) || (res.status > 429 && res.status < 500)) {
+        return res;
+      }
+      if (attempt < maxRetries) {
+        const retryAfter = res.headers.get("retry-after");
+        const delay = retryAfter
+          ? Math.min(parseInt(retryAfter, 10) * 1000, 30000)
+          : baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, baseDelay * Math.pow(2, attempt)));
+        continue;
+      }
+      throw lastError;
+    }
+  }
+  throw lastError ?? new Error("fetchWithRetry exhausted");
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -153,7 +188,7 @@ Platform features you can use:
       betas.push("mcp-client-2025-04-04");
     }
 
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+    const anthropicRes = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -179,12 +214,16 @@ Platform features you can use:
 
     const stream = new ReadableStream({
       async pull(controller) {
-        const { done, value } = await reader.read();
-        if (done) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            controller.close();
+            return;
+          }
+          controller.enqueue(value);
+        } catch {
           controller.close();
-          return;
         }
-        controller.enqueue(value);
       },
       cancel() {
         reader.cancel();

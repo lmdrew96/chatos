@@ -1,5 +1,46 @@
 export type McpServer = { name: string; url: string };
 
+/** Retry helper for transient API errors (429, 5xx, network failures). */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  { maxRetries = 2, baseDelay = 1000 }: { maxRetries?: number; baseDelay?: number } = {}
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      // Retry on 429 (rate limit) or 5xx (server error), but not on 4xx client errors
+      if (res.ok || (res.status >= 400 && res.status < 429) || (res.status > 429 && res.status < 500)) {
+        return res;
+      }
+      // For 429, respect Retry-After header if present
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < maxRetries) {
+          const retryAfter = res.headers.get("retry-after");
+          const delay = retryAfter
+            ? Math.min(parseInt(retryAfter, 10) * 1000, 30000)
+            : baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+      }
+      return res; // Return the failed response on final attempt
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Don't retry aborts
+      if (lastError.name === "AbortError") throw lastError;
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw lastError;
+    }
+  }
+  throw lastError ?? new Error("fetchWithRetry exhausted");
+}
+
 export type MessageContent =
   | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string }; cache_control?: { type: "ephemeral" } }
@@ -154,7 +195,7 @@ export async function callClaude({
   let text = "";
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers,
       body: JSON.stringify({ ...body, messages: currentMessages }),
@@ -383,7 +424,7 @@ export async function callClaudeStreaming({
   };
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers,
       body: JSON.stringify({ ...body, messages: currentMessages }),
@@ -406,7 +447,14 @@ export async function callClaudeStreaming({
     let buffer = "";
 
     while (true) {
-      const { done, value } = await reader.read();
+      // Timeout per-read: if no data arrives in 30s, assume the stream is stalled
+      const readResult = await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Stream read timeout — no data received for 30s")), 30000)
+        ),
+      ]);
+      const { done, value } = readResult;
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
