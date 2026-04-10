@@ -174,17 +174,24 @@ function MessageBubble({
 
   // Claude message
   if (message.type === "claude") {
+    const isClaudiu = message.ownerUserId === "claudiu-system";
     const color = message.ownerUserId
       ? participantColors[message.ownerUserId]
       : undefined;
-    const textColor = color?.text ?? "#8CBDB9";
-    const bgColor = color?.bg ?? "rgba(139,189,185,0.08)";
+    const textColor = isClaudiu ? "#7C3AED" : (color?.text ?? "#8CBDB9");
+    const bgColor = isClaudiu ? "rgba(124,58,237,0.06)" : (color?.bg ?? "rgba(139,189,185,0.08)");
 
     return (
       <div className="flex justify-start group">
         <div className="max-w-[90%] sm:max-w-[72%]">
           <div className="flex items-center gap-1.5 mb-1 px-1">
-            <BotIcon color={textColor} />
+            {isClaudiu ? (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: textColor }}>
+                <path d="M6 1l1.3 3.1L10.5 4.5 8.2 7l.5 3.2L6 8.7 3.3 10.2 3.8 7 1.5 4.5l3.2-.4z" fill="currentColor" />
+              </svg>
+            ) : (
+              <BotIcon color={textColor} />
+            )}
             <span className="text-xs font-medium" style={{ color: textColor }}>
               {message.claudeName}
             </span>
@@ -194,9 +201,13 @@ function MessageBubble({
             <div
               className="px-4 py-3 text-sm leading-relaxed prose prose-invert prose-sm max-w-none transition-shadow duration-200"
               style={{
-                background: bgColor,
+                background: isClaudiu
+                  ? "linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(99,102,241,0.06) 100%)"
+                  : bgColor,
                 color: "var(--fg)",
-                border: `1px solid ${textColor}22`,
+                border: isClaudiu
+                  ? "1px solid rgba(124,58,237,0.2)"
+                  : `1px solid ${textColor}22`,
                 borderRadius: "4px 18px 18px 18px",
               }}
             >

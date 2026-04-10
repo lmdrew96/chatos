@@ -288,18 +288,9 @@ export default function ClaudiuAdminPage() {
       <div className="relative z-10 max-w-4xl mx-auto page-topbar-offset flex flex-col gap-8">
         <TopBar />
 
-        {/* Header */}
-        <div>
-          <h1
-            className="text-lg font-bold"
-            style={{ color: "var(--fg)", fontFamily: "var(--font-super-bakery)" }}
-          >
-            Claudiu Admin
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Configure Claudiu's behavior across the platform. Changes take effect immediately.
-          </p>
-        </div>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          Configure Claudiu's behavior across the platform. Changes take effect immediately.
+        </p>
 
         {/* ── Usage & Analytics ─────────────────────────────────────────────── */}
         <section>

@@ -1691,20 +1691,27 @@ function RoomContent() {
 
         {/* Thinking indicators */}
         {[...thinkingClaudes].map((claudeName) => {
+          const isClaudiu = claudeName === CLAUDIU_NAME;
           const owner = participants.find((p) => p.claudeName === claudeName);
           const color = owner ? participantColors[owner.userId] : undefined;
-          const textColor = color?.text ?? "#8CBDB9";
-          const bgColor = color?.bg ?? "rgba(139,189,185,0.08)";
+          const textColor = isClaudiu ? "#7C3AED" : (color?.text ?? "#8CBDB9");
+          const bgColor = isClaudiu ? "rgba(124,58,237,0.06)" : (color?.bg ?? "rgba(139,189,185,0.08)");
           return (
             <div key={claudeName} className="flex justify-start">
               <div style={{ maxWidth: "72%" }}>
                 <div className="flex items-center gap-1.5 mb-1 px-1">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: textColor }}>
-                    <rect x="1" y="4" width="10" height="7" rx="2" stroke="currentColor" strokeWidth="1.2" />
-                    <path d="M4 4V3a2 2 0 0 1 4 0v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                    <circle cx="4" cy="7.5" r="0.8" fill="currentColor" />
-                    <circle cx="8" cy="7.5" r="0.8" fill="currentColor" />
-                  </svg>
+                  {isClaudiu ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: textColor }}>
+                      <path d="M6 1l1.3 3.1L10.5 4.5 8.2 7l.5 3.2L6 8.7 3.3 10.2 3.8 7 1.5 4.5l3.2-.4z" fill="currentColor" />
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: textColor }}>
+                      <rect x="1" y="4" width="10" height="7" rx="2" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M4 4V3a2 2 0 0 1 4 0v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                      <circle cx="4" cy="7.5" r="0.8" fill="currentColor" />
+                      <circle cx="8" cy="7.5" r="0.8" fill="currentColor" />
+                    </svg>
+                  )}
                   <span className="text-xs font-medium" style={{ color: textColor }}>
                     {claudeName}
                   </span>
