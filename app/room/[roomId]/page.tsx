@@ -323,38 +323,12 @@ async function buildHistory(
 
     const attachmentBlocks: MessageContent[] = [];
 
-    // Inline GIF as an image block so Claude can see it directly.
-    // Small GIFs: embed as base64 (preserves animation).
-    // Large GIFs: upload to Convex storage and pass a URL source so the API
-    // server fetches it — no 5MB limit, full animation preserved.
+    // Pass GIF URL directly to the Anthropic API as a URL source — the API
+    // server fetches it, avoiding CORS and payload size issues entirely.
     if (m.gifUrl) {
-      const gifUrl = m.gifUrl;
-      try {
-        const { data, mediaType } = await fetchAsBase64(gifUrl);
-        const byteSize = Math.ceil(data.length * 3 / 4);
-        if (byteSize <= MAX_BASE64_BYTES) {
-          attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-        } else if (uploadBlob) {
-          // Upload to Convex storage — Anthropic's API fetches the public URL directly
-          if (!gifUploadCache.has(gifUrl)) {
-            const promise = (async () => {
-              const raw = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-              const blob = new Blob([raw], { type: mediaType });
-              return uploadBlob(blob);
-            })();
-            gifUploadCache.set(gifUrl, promise);
-            promise.catch(() => gifUploadCache.delete(gifUrl));
-          }
-          const storageUrl = await gifUploadCache.get(gifUrl)!;
-          attachmentBlocks.push({ type: "image", source: { type: "url", url: storageUrl } });
-        } else {
-          contentText += contentText.trim() ? ` [GIF: ${gifUrl}]` : `${m.fromDisplayName ?? "Someone"} sent a GIF: ${gifUrl}`;
-        }
-        if (attachmentBlocks.length > 0 && !contentText.trim()) {
-          contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
-        }
-      } catch {
-        contentText += contentText.trim() ? ` [sent a GIF: ${gifUrl}]` : `${m.fromDisplayName ?? "Someone"} sent a GIF: ${gifUrl}`;
+      attachmentBlocks.push({ type: "image", source: { type: "url", url: m.gifUrl } });
+      if (!contentText.trim()) {
+        contentText = `${m.fromDisplayName ?? "Someone"} sent a GIF.`;
       }
     }
     if (m.attachments && m.attachments.length > 0) {
