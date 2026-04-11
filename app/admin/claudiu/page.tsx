@@ -370,41 +370,40 @@ export default function ClaudiuAdminPage() {
                     <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Room</th>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Model</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>In</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cache W</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cache R</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Out</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cost</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recentCalls.map((call) => {
-                    const pricing: Record<string, { input: number; output: number }> = {
-                      "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
-                      "claude-haiku-4-5-20251001": { input: 0.8, output: 4.0 },
-                      "claude-opus-4-6": { input: 15.0, output: 75.0 },
-                    };
-                    const p = pricing[call.model] ?? pricing["claude-sonnet-4-6"];
-                    const cost = (call.inputTokens / 1_000_000) * p.input + (call.outputTokens / 1_000_000) * p.output;
-                    return (
-                      <tr key={call._id} style={{ borderTop: "1px solid var(--border)" }}>
-                        <td className="px-3 py-2" style={{ color: "var(--text-muted)" }}>{timeAgo(call.timestamp)}</td>
-                        <td className="px-3 py-2" style={{ color: "var(--fg)" }}>{call.endpoint}</td>
-                        <td className="px-3 py-2 truncate max-w-[120px]" style={{ color: "var(--text-muted)" }} title={call.roomName ?? "—"}>
-                          {call.roomName ?? "—"}
-                        </td>
-                        <td className="px-3 py-2 font-mono" style={{ color: "var(--text-muted)" }}>
-                          {call.model.replace("claude-", "").split("-").slice(0, 2).join(" ")}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
-                          {call.inputTokens.toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
-                          {call.outputTokens.toLocaleString()}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--amber)" }}>
-                          {formatCost(cost)}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {recentCalls.map((call) => (
+                    <tr key={call._id} style={{ borderTop: "1px solid var(--border)" }}>
+                      <td className="px-3 py-2" style={{ color: "var(--text-muted)" }}>{timeAgo(call.timestamp)}</td>
+                      <td className="px-3 py-2" style={{ color: "var(--fg)" }}>{call.endpoint}</td>
+                      <td className="px-3 py-2 truncate max-w-[120px]" style={{ color: "var(--text-muted)" }} title={call.roomName ?? "—"}>
+                        {call.roomName ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 font-mono" style={{ color: "var(--text-muted)" }}>
+                        {call.model.replace("claude-", "").split("-").slice(0, 2).join(" ")}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
+                        {call.inputTokens.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text-muted)" }}>
+                        {(call.cacheCreationTokens ?? 0).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text-muted)" }}>
+                        {(call.cacheReadTokens ?? 0).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
+                        {call.outputTokens.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--amber)" }}>
+                        {formatCost(call.estimatedCost)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -519,6 +518,8 @@ export default function ClaudiuAdminPage() {
                     <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Agent</th>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Room</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>In</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cache W</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cache R</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Out</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cost</th>
                   </tr>
@@ -533,6 +534,12 @@ export default function ClaudiuAdminPage() {
                       </td>
                       <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
                         {call.inputTokens.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text-muted)" }}>
+                        {(call.cacheCreationTokens ?? 0).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text-muted)" }}>
+                        {(call.cacheReadTokens ?? 0).toLocaleString()}
                       </td>
                       <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
                         {call.outputTokens.toLocaleString()}
