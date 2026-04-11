@@ -358,7 +358,7 @@ function MessageBubble({
             <span style={{
               color: textColor,
               ...(isPixel ? { fontFamily: "var(--font-press-start)", fontSize: "0.55rem" } : {}),
-              ...(isWispy ? { fontStyle: "italic", letterSpacing: "0.05em" } : {}),
+              ...(isWispy ? { fontFamily: "var(--font-quicksand)", fontStyle: "italic", letterSpacing: "0.05em" } : {}),
             }}>
               {message.fromDisplayName}
             </span>
@@ -375,6 +375,8 @@ function MessageBubble({
                   ? "linear-gradient(135deg, rgba(125,211,232,0.08) 0%, rgba(45,95,62,0.06) 50%, rgba(125,211,232,0.04) 100%)"
                   : isSelf ? bgColor : "var(--surface)",
               color: "var(--fg)",
+              fontFamily: isWispy ? "var(--font-quicksand)" : undefined,
+              letterSpacing: isWispy ? "0.02em" : undefined,
               border: (isPixel || isWispy) ? "none" : isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
               borderRadius: isPixel ? undefined : isWispy ? undefined : isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
               animation: isPixel ? "pixel-flicker 4s steps(1) infinite" : isWispy ? "wispy-breathe 4s ease-in-out infinite" : undefined,

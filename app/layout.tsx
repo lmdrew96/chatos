@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Press_Start_2P } from "next/font/google";
+import { Geist, Geist_Mono, Press_Start_2P, Quicksand } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { ConvexClientProvider } from "@/components/ConvexClientProvider";
@@ -25,6 +25,11 @@ const pressStart2P = Press_Start_2P({
   weight: "400",
   subsets: ["latin"],
   variable: "--font-press-start",
+});
+
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  variable: "--font-quicksand",
 });
 
 const superBakery = localFont({
@@ -76,7 +81,7 @@ export default function RootLayout({
       <html
         lang="en"
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} ${superBakery.variable} ${pressStart2P.variable} h-full antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${superBakery.variable} ${pressStart2P.variable} ${quicksand.variable} h-full antialiased`}
       >
         <body className="min-h-full flex flex-col">
           <ThemeProvider>
