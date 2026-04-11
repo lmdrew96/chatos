@@ -780,12 +780,20 @@ function RoomContent() {
     return map;
   }, [participants]);
 
-  // Resolve admin (site owner) userId from participants for special bubble styling
-  const adminUserId = useMemo(() => {
-    const adminToken = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
-    if (!adminToken || !participants) return undefined;
-    const admin = participants.find((p) => p.tokenIdentifier === adminToken);
-    return admin?.userId;
+  // Map of special users → bubble style, resolved from participant tokens
+  const specialUsers = useMemo(() => {
+    if (!participants) return {};
+    const tokenStyles: [string | undefined, string][] = [
+      [process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN, "pixel"],
+      [process.env.NEXT_PUBLIC_ASHLEY_USER_TOKEN, "wispy"],
+    ];
+    const map: Record<string, string> = {};
+    for (const [token, style] of tokenStyles) {
+      if (!token) continue;
+      const p = participants.find((p) => p.tokenIdentifier === token);
+      if (p) map[p.userId] = style;
+    }
+    return map;
   }, [participants]);
 
   // Auto-sync preferred color to Convex when participant record loads or changes
@@ -1693,7 +1701,7 @@ function RoomContent() {
             message={msg}
             currentUserId={currentUserId}
             participantColors={participantColors}
-            adminUserId={adminUserId}
+            specialUsers={specialUsers}
             reactions={groupedReactions[msg._id] ?? []}
             onReaction={async (emoji) => {
               const result = await toggleReaction({ messageId: msg._id, roomId, emoji, userId: currentUserId });

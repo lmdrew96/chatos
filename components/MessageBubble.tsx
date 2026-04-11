@@ -29,13 +29,15 @@ type MessageWithAttachments = Omit<Doc<"messages">, "attachments"> & {
   }[];
 };
 
+type SpecialStyle = "pixel" | "wispy";
+
 interface MessageBubbleProps {
   message: MessageWithAttachments;
   currentUserId: string;
   participantColors: Record<string, Color>;
   reactions?: GroupedReaction[];
   onReaction?: (emoji: string) => void;
-  adminUserId?: string;
+  specialUsers?: Record<string, SpecialStyle>;
 }
 
 function BotIcon({ color }: { color: string }) {
@@ -146,13 +148,25 @@ const AttachmentList = memo(function AttachmentList({
   );
 });
 
+function WispIcon({ color }: { color: string }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color }}>
+      <path d="M6 1C6 1 3 3 3 5.5C3 7 4 8 5 8.5C4 9 3 9.5 2 9.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" />
+      <path d="M6 1C6 1 9 3.5 9 6C9 7.5 8 8.5 7 9C8 9.5 9 10 10 10" stroke="currentColor" strokeWidth="1" strokeLinecap="round" fill="none" />
+      <circle cx="6" cy="4" r="0.8" fill="currentColor" opacity="0.6" />
+      <circle cx="4.5" cy="6" r="0.5" fill="currentColor" opacity="0.4" />
+      <circle cx="7.5" cy="5.5" r="0.5" fill="currentColor" opacity="0.4" />
+    </svg>
+  );
+}
+
 function MessageBubble({
   message,
   currentUserId,
   participantColors,
   reactions = [],
   onReaction,
-  adminUserId,
+  specialUsers = {},
 }: MessageBubbleProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const hasReactions = reactions.length > 0;
@@ -311,17 +325,26 @@ function MessageBubble({
 
   // User message
   const isSelf = message.fromUserId === currentUserId;
-  const isAdmin = !!adminUserId && message.fromUserId === adminUserId;
+  const specialStyle = specialUsers[message.fromUserId] as SpecialStyle | undefined;
+  const isPixel = specialStyle === "pixel";
+  const isWispy = specialStyle === "wispy";
   const color = participantColors[message.fromUserId];
-  const textColor = isAdmin ? "#9B8EBF" : (color?.text ?? "#DFA649");
-  const bgColor = isAdmin ? "rgba(155,142,191,0.10)" : (color?.bg ?? "rgba(223,166,73,0.1)");
+  const textColor = isPixel ? "#9B8EBF" : isWispy ? "#7DD3E8" : (color?.text ?? "#DFA649");
+  const bgColor = isPixel ? "rgba(155,142,191,0.10)" : isWispy ? "rgba(125,211,232,0.06)" : (color?.bg ?? "rgba(223,166,73,0.1)");
+
+  const bubbleClasses = [
+    "px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap",
+    isPixel && "pixel-bubble",
+    isWispy && "wispy-bubble",
+    isWispy && isSelf && "wispy-bubble-self",
+  ].filter(Boolean).join(" ");
 
   return (
     <div className={`flex group ${isSelf ? "justify-end" : "justify-start"}`}>
       <div className="max-w-[90%] sm:max-w-[72%]">
         {!isSelf && (
           <div className="flex items-center gap-1.5 text-xs mb-1 px-1 font-medium">
-            {isAdmin && (
+            {isPixel && (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: textColor }}>
                 <rect x="1" y="5" width="2" height="2" fill="currentColor" />
                 <rect x="3" y="3" width="2" height="2" fill="currentColor" />
@@ -331,7 +354,12 @@ function MessageBubble({
                 <rect x="5" y="5" width="2" height="5" fill="currentColor" />
               </svg>
             )}
-            <span style={{ color: textColor, ...(isAdmin ? { fontFamily: "var(--font-press-start)", fontSize: "0.55rem" } : {}) }}>
+            {isWispy && <WispIcon color={textColor} />}
+            <span style={{
+              color: textColor,
+              ...(isPixel ? { fontFamily: "var(--font-press-start)", fontSize: "0.55rem" } : {}),
+              ...(isWispy ? { fontStyle: "italic", letterSpacing: "0.05em" } : {}),
+            }}>
               {message.fromDisplayName}
             </span>
             <Timestamp ts={message._creationTime} />
@@ -339,15 +367,17 @@ function MessageBubble({
         )}
         <div className="relative">
           <div
-            className={`px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap${isAdmin ? " pixel-bubble" : ""}`}
+            className={bubbleClasses}
             style={{
-              background: isAdmin
+              background: isPixel
                 ? "linear-gradient(135deg, rgba(155,142,191,0.12) 0%, rgba(136,115,158,0.08) 100%)"
-                : isSelf ? bgColor : "var(--surface)",
+                : isWispy
+                  ? "linear-gradient(135deg, rgba(125,211,232,0.08) 0%, rgba(45,95,62,0.06) 50%, rgba(125,211,232,0.04) 100%)"
+                  : isSelf ? bgColor : "var(--surface)",
               color: "var(--fg)",
-              border: isAdmin ? "none" : isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
-              borderRadius: isAdmin ? "0" : isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-              animation: isAdmin ? "pixel-flicker 4s steps(1) infinite" : undefined,
+              border: (isPixel || isWispy) ? "none" : isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
+              borderRadius: isPixel ? "0" : isWispy ? undefined : isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+              animation: isPixel ? "pixel-flicker 4s steps(1) infinite" : isWispy ? "wispy-breathe 4s ease-in-out infinite" : undefined,
             }}
           >
             {message.content}
