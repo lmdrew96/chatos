@@ -1,37 +1,63 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 
-type Theme = "dark" | "light";
+type ThemePreference = "dark" | "light" | "system";
+type ResolvedTheme = "dark" | "light";
 
 const ThemeContext = createContext<{
-  theme: Theme;
-  toggle: () => void;
-}>({ theme: "dark", toggle: () => {} });
+  theme: ResolvedTheme;
+  preference: ThemePreference;
+  setPreference: (pref: ThemePreference) => void;
+}>({ theme: "dark", preference: "dark", setPreference: () => {} });
 
 export function useTheme() {
   return useContext(ThemeContext);
 }
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+function getSystemTheme(): ResolvedTheme {
+  if (typeof window === "undefined") return "dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
 
-  useEffect(() => {
-    const stored = localStorage.getItem("chatos:theme") as Theme | null;
-    const resolved: Theme = stored === "light" ? "light" : "dark";
+function resolveTheme(pref: ThemePreference): ResolvedTheme {
+  return pref === "system" ? getSystemTheme() : pref;
+}
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [preference, setPreferenceState] = useState<ThemePreference>("dark");
+  const [theme, setTheme] = useState<ResolvedTheme>("dark");
+
+  const applyTheme = useCallback((resolved: ResolvedTheme) => {
     setTheme(resolved);
     document.documentElement.setAttribute("data-theme", resolved);
   }, []);
 
-  const toggle = () => {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem("chatos:theme", next);
-    document.documentElement.setAttribute("data-theme", next);
-  };
+  // Load stored preference on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("chatos:theme") as ThemePreference | null;
+    const pref: ThemePreference = stored === "light" || stored === "system" ? stored : "dark";
+    setPreferenceState(pref);
+    applyTheme(resolveTheme(pref));
+  }, [applyTheme]);
+
+  // Listen for OS theme changes when preference is "system"
+  useEffect(() => {
+    if (preference !== "system") return;
+    const mql = window.matchMedia("(prefers-color-scheme: light)");
+    const handler = () => applyTheme(getSystemTheme());
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, [preference, applyTheme]);
+
+  const setPreference = useCallback((pref: ThemePreference) => {
+    setPreferenceState(pref);
+    localStorage.setItem("chatos:theme", pref);
+    applyTheme(resolveTheme(pref));
+  }, [applyTheme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={{ theme, preference, setPreference }}>
       {children}
     </ThemeContext.Provider>
   );

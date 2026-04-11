@@ -21,7 +21,7 @@ const COLOR_SWATCHES = [
 ];
 
 export default function SettingsPage() {
-  const { theme, toggle } = useTheme();
+  const { preference, setPreference } = useTheme();
 
   const me = useQuery(api.users.getMe);
   const setTimezoneMutation = useMutation(api.users.setTimezone);
@@ -219,15 +219,15 @@ export default function SettingsPage() {
                 Theme
               </label>
               <div className="flex gap-2">
-                {(["dark", "light"] as const).map((t) => (
+                {(["dark", "light", "system"] as const).map((t) => (
                   <button
                     key={t}
-                    onClick={() => { if (theme !== t) toggle(); }}
+                    onClick={() => setPreference(t)}
                     className="px-4 py-2 rounded-lg text-sm capitalize transition-all"
                     style={{
-                      background: theme === t ? "rgba(223,166,73,0.12)" : "var(--surface)",
-                      border: theme === t ? "1px solid var(--amber)" : "1px solid var(--border)",
-                      color: theme === t ? "var(--amber)" : "var(--text-muted)",
+                      background: preference === t ? "rgba(223,166,73,0.12)" : "var(--surface)",
+                      border: preference === t ? "1px solid var(--amber)" : "1px solid var(--border)",
+                      color: preference === t ? "var(--amber)" : "var(--text-muted)",
                     }}
                   >
                     {t}
