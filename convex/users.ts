@@ -141,6 +141,26 @@ export const getTimezoneByTokenIdentifier = query({
   },
 });
 
+export const saveJoinPreferences = mutation({
+  args: {
+    preferredDisplayName: v.string(),
+    preferredClaudeName: v.string(),
+  },
+  handler: async (ctx, { preferredDisplayName, preferredClaudeName }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
+      .unique();
+
+    if (user) {
+      await ctx.db.patch(user._id, { preferredDisplayName, preferredClaudeName });
+    }
+  },
+});
+
 export const getUserByUsername = query({
   args: { username: v.string() },
   handler: async (ctx, { username }) => {

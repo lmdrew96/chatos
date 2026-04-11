@@ -67,6 +67,8 @@ export default defineSchema({
     isOnline: v.optional(v.boolean()),
     onboardingCompleted: v.optional(v.boolean()),
     timezone: v.optional(v.string()),
+    preferredDisplayName: v.optional(v.string()),
+    preferredClaudeName: v.optional(v.string()),
   }).index("by_token", ["tokenIdentifier"])
     .index("by_username", ["username"]),
 

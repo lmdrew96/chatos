@@ -34,10 +34,13 @@ export default function JoinPage() {
   const router = useRouter();
 
   const joinRoom = useMutation(api.rooms.joinRoom);
+  const saveJoinPreferences = useMutation(api.users.saveJoinPreferences);
   const room = useQuery(api.rooms.getRoomById, { roomId });
+  const me = useQuery(api.users.getMe);
 
   const { user } = useUser();
-  const defaultDisplayName = user?.firstName ?? user?.fullName ?? "";
+  const defaultDisplayName = me?.preferredDisplayName ?? user?.firstName ?? user?.fullName ?? "";
+  const defaultClaudeName = me?.preferredClaudeName ?? "";
 
   const [displayName, setDisplayName] = useState("");
   const [displayNameTouched, setDisplayNameTouched] = useState(false);
@@ -70,10 +73,10 @@ export default function JoinPage() {
 
   const resolvedDisplayName = displayNameTouched ? displayName : defaultDisplayName;
 
-  const suggestedClaudeName = `${resolvedDisplayName.trim().replace(/\s+/g, "")}Claude`;
+  const suggestedClaudeName = defaultClaudeName || `${resolvedDisplayName.trim().replace(/\s+/g, "")}Claude`;
   const resolvedClaudeName = claudeNameTouched
     ? claudeName
-    : (resolvedDisplayName.trim() ? suggestedClaudeName : "");
+    : (resolvedDisplayName.trim() || defaultClaudeName ? suggestedClaudeName : "");
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault();
@@ -140,6 +143,13 @@ export default function JoinPage() {
         systemPrompt: fullSystemPrompt,
         mcpServers: finalMcpServers.length > 0 ? finalMcpServers : undefined,
       });
+
+      // Save preferences for next join
+      saveJoinPreferences({
+        preferredDisplayName: resolvedDisplayName.trim(),
+        preferredClaudeName: resolvedClaudeName.trim(),
+      }).catch(() => {});
+
       router.push(`/room/${roomId}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to join room.");
@@ -348,7 +358,7 @@ export default function JoinPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-xs"
                   style={{ color: "var(--sage-teal)" }}
                 >
-                  auto
+                  {defaultClaudeName ? "saved" : "auto"}
                 </span>
               )}
             </div>
