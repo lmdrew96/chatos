@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useState, useEffect, useCallback } from "react";
+import { useMutation, useQuery, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 import { useTheme } from "@/components/ThemeProvider";
 
 const MCP_URL_KEY = "chatos:mcpUrl";
@@ -152,6 +153,32 @@ export default function SettingsPage() {
     await deleteApiKeyMutation();
     setApiKey("");
   };
+
+  // ── Key Sponsorship (admin only) ───────────────────────────────────────────
+  const isAdmin = useQuery(api.claudiuConfig.isAdmin);
+  const mySponsored = useQuery(api.apiKeys.getMySponsored);
+  const addSponsor = useMutation(api.apiKeys.addKeySponsor);
+  const removeSponsor = useMutation(api.apiKeys.removeKeySponsor);
+  const convex = useConvex();
+
+  const [sponsorSearch, setSponsorSearch] = useState("");
+  const [sponsorResults, setSponsorResults] = useState<{ _id: Id<"users">; displayName: string }[]>([]);
+  const [sponsorSearching, setSponsorSearching] = useState(false);
+
+  const doSponsorSearch = useCallback(async (q: string) => {
+    if (q.trim().length < 2) { setSponsorResults([]); return; }
+    setSponsorSearching(true);
+    try {
+      const results = await convex.query(api.apiKeys.searchUsersForSponsor, { search: q });
+      setSponsorResults(results);
+    } catch { setSponsorResults([]); }
+    setSponsorSearching(false);
+  }, [convex]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => doSponsorSearch(sponsorSearch), 300);
+    return () => clearTimeout(timer);
+  }, [sponsorSearch, doSponsorSearch]);
 
   const handleSaveMcp = () => {
     localStorage.setItem(MCP_URL_KEY, mcpUrl.trim());
@@ -462,6 +489,106 @@ export default function SettingsPage() {
             </p>
           </div>
         </section>
+
+        {/* Key Sponsorship (admin only) */}
+        {isAdmin && (
+          <>
+            <div style={{ borderTop: "1px solid var(--border)" }} />
+            <section>
+              <h2
+                className="text-xs font-medium tracking-widest uppercase mb-1"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Key Sponsorship
+              </h2>
+              <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
+                When a sponsored user&apos;s API key hits billing limits, your key is used as a fallback.
+              </p>
+
+              <div className="flex flex-col gap-4">
+                {/* Current sponsees */}
+                {mySponsored && mySponsored.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                      Currently sponsoring
+                    </label>
+                    {mySponsored.map((s) => (
+                      <div
+                        key={s._id}
+                        className="flex items-center justify-between px-4 py-2.5 rounded-lg"
+                        style={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        <span className="text-sm" style={{ color: "var(--fg)" }}>
+                          {s.displayName}
+                        </span>
+                        <button
+                          onClick={() => s.userId && removeSponsor({ recipientUserId: s.userId })}
+                          className="text-xs px-2 py-1 rounded transition-colors"
+                          style={{ color: "rgba(255,150,150,0.7)" }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add sponsee */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                    Add a user
+                  </label>
+                  <input
+                    type="text"
+                    value={sponsorSearch}
+                    onChange={(e) => setSponsorSearch(e.target.value)}
+                    placeholder="Search by display name..."
+                    autoComplete="off"
+                    className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all field-focus"
+                    style={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      color: "var(--fg)",
+                    }}
+                  />
+                  {sponsorSearching && (
+                    <p className="text-xs" style={{ color: "var(--text-dim)" }}>Searching...</p>
+                  )}
+                  {sponsorResults.length > 0 && (
+                    <div
+                      className="flex flex-col rounded-lg overflow-hidden"
+                      style={{
+                        border: "1px solid var(--border)",
+                        background: "var(--surface)",
+                      }}
+                    >
+                      {sponsorResults.map((user) => (
+                        <button
+                          key={user._id}
+                          onClick={async () => {
+                            await addSponsor({ recipientUserId: user._id });
+                            setSponsorSearch("");
+                            setSponsorResults([]);
+                          }}
+                          className="px-4 py-2.5 text-sm text-left transition-colors hover:brightness-110"
+                          style={{
+                            color: "var(--fg)",
+                            borderBottom: "1px solid var(--border)",
+                          }}
+                        >
+                          {user.displayName}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          </>
+        )}
 
         {/* Divider */}
         <div style={{ borderTop: "1px solid var(--border)" }} />

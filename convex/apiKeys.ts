@@ -71,10 +71,15 @@ export const getMyApiKey = query({
 });
 
 export const addKeySponsor = mutation({
-  args: { recipientTokenIdentifier: v.string() },
-  handler: async (ctx, { recipientTokenIdentifier }) => {
+  args: { recipientUserId: v.id("users") },
+  handler: async (ctx, { recipientUserId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
+
+    const recipient = await ctx.db.get(recipientUserId);
+    if (!recipient) throw new Error("User not found");
+
+    const recipientTokenIdentifier = recipient.tokenIdentifier;
 
     // Check if already sponsoring this recipient
     const existing = await ctx.db
@@ -96,14 +101,17 @@ export const addKeySponsor = mutation({
 });
 
 export const removeKeySponsor = mutation({
-  args: { recipientTokenIdentifier: v.string() },
-  handler: async (ctx, { recipientTokenIdentifier }) => {
+  args: { recipientUserId: v.id("users") },
+  handler: async (ctx, { recipientUserId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    const recipient = await ctx.db.get(recipientUserId);
+    if (!recipient) return;
+
     const existing = await ctx.db
       .query("keySponsors")
-      .withIndex("by_recipient", (q) => q.eq("recipientTokenIdentifier", recipientTokenIdentifier))
+      .withIndex("by_recipient", (q) => q.eq("recipientTokenIdentifier", recipient.tokenIdentifier))
       .first();
     if (existing && existing.sponsorTokenIdentifier === identity.tokenIdentifier) {
       await ctx.db.delete(existing._id);
@@ -117,10 +125,51 @@ export const getMySponsored = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
-    return await ctx.db
+    const sponsorships = await ctx.db
       .query("keySponsors")
       .withIndex("by_sponsor", (q) => q.eq("sponsorTokenIdentifier", identity.tokenIdentifier))
       .take(50);
+
+    const results = [];
+    for (const s of sponsorships) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_token", (q) => q.eq("tokenIdentifier", s.recipientTokenIdentifier))
+        .unique();
+      results.push({
+        _id: s._id,
+        recipientTokenIdentifier: s.recipientTokenIdentifier,
+        displayName: user?.preferredDisplayName ?? user?.displayName ?? "Unknown",
+        userId: user?._id ?? null,
+      });
+    }
+    return results;
+  },
+});
+
+export const searchUsersForSponsor = query({
+  args: { search: v.string() },
+  handler: async (ctx, { search }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const searchLower = search.toLowerCase().trim();
+    if (!searchLower) return [];
+
+    // Scan users table (small enough to iterate)
+    const allUsers = await ctx.db.query("users").take(200);
+    return allUsers
+      .filter((u) => {
+        if (u.tokenIdentifier === identity.tokenIdentifier) return false;
+        const name = (u.preferredDisplayName ?? u.displayName ?? "").toLowerCase();
+        return name.includes(searchLower);
+      })
+      .slice(0, 10)
+      .map((u) => ({
+        _id: u._id,
+        displayName: u.preferredDisplayName ?? u.displayName ?? "Unknown",
+        tokenIdentifier: u.tokenIdentifier,
+      }));
   },
 });
 
