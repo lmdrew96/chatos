@@ -105,7 +105,7 @@ Convex deployment: `prod:notable-goat-815`
 ### After Every Commit
 - **Mark completed patches as done** in ChaosPatch. If the commit resolves a tracked patch, call `cp_complete_patch` immediately. Do not leave resolved patches open.
 
-### After Every New Feature That Touches Claude API Calls
+### After Every New Feature/Fix That Touches Claude API Calls
 - **Audit for token efficiency.** Review:
   - System prompt size — is anything redundant or bloated?
   - History window — are we sending more messages than needed?
@@ -120,3 +120,10 @@ Convex deployment: `prod:notable-goat-815`
 - Convex mutations/queries should be small and focused. No god-functions.
 - Use the ADHDesigns color tokens — don't hardcode hex values in components.
 - Test `@mention` routing with 2+ Claudes when changing message flow.
+
+### Listening Rule
+When Nae gives a specific implementation approach, USE IT FIRST. Do not iterate
+through "cleverer" alternatives. If she says "do it the same way X does it,"
+go read how X does it and replicate that approach. Ask clarifying questions if
+needed, but do not substitute your own strategy when a direct instruction has
+been given. Getting it right in one commit > four "fix:" commits.
