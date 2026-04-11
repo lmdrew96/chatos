@@ -197,6 +197,7 @@ export default defineSchema({
     inputTokens: v.number(),
     outputTokens: v.number(),
     timestamp: v.number(),
+    roomId: v.optional(v.id("rooms")),
   }).index("by_timestamp", ["timestamp"])
     .index("by_endpoint_and_timestamp", ["endpoint", "timestamp"]),
 

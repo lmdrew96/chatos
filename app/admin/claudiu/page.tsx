@@ -363,6 +363,7 @@ export default function ClaudiuAdminPage() {
                   <tr style={{ background: "var(--surface)" }}>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Time</th>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Endpoint</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Room</th>
                     <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Model</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>In</th>
                     <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Out</th>
@@ -382,6 +383,9 @@ export default function ClaudiuAdminPage() {
                       <tr key={call._id} style={{ borderTop: "1px solid var(--border)" }}>
                         <td className="px-3 py-2" style={{ color: "var(--text-muted)" }}>{timeAgo(call.timestamp)}</td>
                         <td className="px-3 py-2" style={{ color: "var(--fg)" }}>{call.endpoint}</td>
+                        <td className="px-3 py-2 truncate max-w-[120px]" style={{ color: "var(--text-muted)" }} title={call.roomName ?? "—"}>
+                          {call.roomName ?? "—"}
+                        </td>
                         <td className="px-3 py-2 font-mono" style={{ color: "var(--text-muted)" }}>
                           {call.model.replace("claude-", "").split("-").slice(0, 2).join(" ")}
                         </td>

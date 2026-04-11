@@ -264,6 +264,7 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
             inputTokens,
             outputTokens,
             timestamp: Date.now(),
+            ...(body.roomId ? { roomId: body.roomId as any } : {}),
           }).catch(() => {});
         }
       },

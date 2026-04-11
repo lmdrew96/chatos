@@ -20,6 +20,7 @@ export const logUsage = mutation({
     inputTokens: v.number(),
     outputTokens: v.number(),
     timestamp: v.number(),
+    roomId: v.optional(v.id("rooms")),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("claudiuUsage", args);
@@ -95,10 +96,21 @@ export const getRecentCalls = query({
     const ownerToken = process.env.CLAUDIU_OWNER_TOKEN;
     if (identity.tokenIdentifier !== ownerToken) return null;
 
-    return await ctx.db
+    const calls = await ctx.db
       .query("claudiuUsage")
       .withIndex("by_timestamp")
       .order("desc")
       .take(20);
+
+    return Promise.all(
+      calls.map(async (call) => {
+        let roomName: string | null = null;
+        if (call.roomId) {
+          const room = await ctx.db.get(call.roomId);
+          roomName = room?.title ?? room?.roomCode ?? null;
+        }
+        return { ...call, roomName };
+      })
+    );
   },
 });
