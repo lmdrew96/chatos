@@ -8,6 +8,33 @@ import { api } from "@/convex/_generated/api";
 const Picker = dynamic(() => import("@emoji-mart/react"), { ssr: false });
 const GifPicker = dynamic(() => import("./GifPicker"), { ssr: false });
 
+/** Convert common emoticons to emoji at word boundaries (not inside URLs or code). */
+const EMOTICON_MAP: [RegExp, string][] = [
+  [/(?<!\w):'\)(?!\w)/g, "🥲"],
+  [/(?<!\w):\)(?!\w)/g, "😊"],
+  [/(?<!\w):\((?!\w)/g, "😢"],
+  [/(?<!\w):D(?!\w)/g, "😄"],
+  [/(?<!\w);\)(?!\w)/g, "😉"],
+  [/(?<!\w):P(?!\w)/gi, "😛"],
+  [/(?<![<\w])<3(?!\w)/g, "❤️"],
+  [/(?<!\w):O(?!\w)/gi, "😮"],
+  [/(?<!\w):\/(?!\w|\/)/g, "😕"],
+  [/(?<!\w)>:\((?!\w)/g, "😠"],
+  [/(?<!\w)B\)(?!\w)/g, "😎"],
+];
+
+function convertEmoticons(text: string): string {
+  // Skip conversion inside backtick code spans
+  return text.replace(/(`.+?`)|([^`]+)/g, (_, code, plain) => {
+    if (code) return code;
+    let result = plain;
+    for (const [pattern, emoji] of EMOTICON_MAP) {
+      result = result.replace(pattern, emoji);
+    }
+    return result;
+  });
+}
+
 interface Attachment {
   storageId: Id<"_storage">;
   fileName: string;
@@ -206,7 +233,7 @@ export default function MentionInput({
         });
       }
 
-      onSend(trimmed, attachments.length > 0 ? attachments : undefined);
+      onSend(convertEmoticons(trimmed), attachments.length > 0 ? attachments : undefined);
       setValue("");
       setSelectedFiles([]);
       setShowMentions(false);

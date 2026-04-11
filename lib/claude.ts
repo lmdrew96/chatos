@@ -67,39 +67,42 @@ function formatTimeForTimezone(timezone?: string): string {
 function buildMultiAgentRules(claudeName?: string, ownerTimezone?: string, chainDepth?: number, chainLimit?: number): string {
   if (!claudeName) return "";
 
-  let chainAwareness = "";
+  let chain = "";
   if (chainDepth !== undefined && chainLimit !== undefined) {
-    const remaining = chainLimit - chainDepth - 1;
-    if (remaining <= 0) {
-      chainAwareness = `\n\nChain awareness:
-- You are at the END of the conversation chain (depth ${chainDepth}/${chainLimit}). Do NOT @mention other Claudes — respond directly and wrap up your thought. This is your last turn.`;
-    } else if (remaining <= 2) {
-      chainAwareness = `\n\nChain awareness:
-- Chain depth: ${chainDepth}/${chainLimit} (${remaining} turn${remaining === 1 ? "" : "s"} remaining). The chain is almost over — only @mention another Claude if it's truly necessary. Prefer wrapping up your thought directly.`;
-    } else {
-      chainAwareness = `\n\nChain awareness:
-- Chain depth: ${chainDepth}/${chainLimit} (${remaining} turns remaining). You may @mention other Claudes to continue the conversation if relevant.`;
-    }
+    const rem = chainLimit - chainDepth - 1;
+    if (rem <= 0) chain = `\nChain: LAST TURN (${chainDepth}/${chainLimit}). Do NOT @mention — wrap up.`;
+    else if (rem <= 2) chain = `\nChain: ${chainDepth}/${chainLimit} (${rem} left). Only @mention if essential.`;
+    else chain = `\nChain: ${chainDepth}/${chainLimit} (${rem} left). May @mention others.`;
   }
 
-  return `\n\n---\nYou are **${claudeName}** — one of several independent Claude instances in Cha(t)os, a multi-agent chat platform. Each Claude has its own name, owner, and personality. Claudiu is the platform's built-in assistant and is NOT you.
+  return `\n\n---
+You are **${claudeName}** in Cha(t)os (multi-agent chat). Claudiu is the platform bot, not you.
+- You are ONLY ${claudeName}. Your messages = "assistant" role. Other Claudes = "user" prefixed [TheirName].
+- Single direct reply only. Never impersonate others. Stay in character unless sincerely asked.
+- Reactions ("[reacted with …]"): brief acknowledgment only, don't rehash the original.
+- Time: ${formatTimeForTimezone(ownerTimezone)}
+- @mentions to tag others, @everyone for all. Files/images/PDFs/GIFs are inline.
+- fetch_url tool: fetches any URL (images rendered, text up to 10k chars).
+- Memory is automatic. MCP tools available if configured — use proactively.${chain}`;
+}
 
-Identity rules:
-- You are ONLY ${claudeName}. Messages you authored appear as the "assistant" role. Messages from other Claudes appear as "user" role prefixed with [TheirName].
-- Respond only as yourself in a single, direct reply. Never generate text attributed to another participant.
-- Do not break character or explain that you are an AI unless directly and sincerely asked.
-
-Reaction handling:
-- When you see "[Someone reacted with emoji to your message: …]", acknowledge it naturally — a brief, warm response is ideal. Do NOT re-answer or rehash the original message.
-- Never treat reaction notifications as a prompt to produce a full response on the same topic.
-
-Platform features:
-- Current time: ${formatTimeForTimezone(ownerTimezone)} — use this to answer time-related questions and understand when conversations are happening.
-- @mentions: Tag someone with @TheirName to bring them into the conversation. Use @everyone to address all participants. You can @mention other Claudes to start a conversation chain with them.
-- Files & media: Users may share images, PDFs, text files, and GIFs inline in messages. GIFs are embedded as images so you can see them directly.
-- fetch_url tool: You have a tool that can fetch any URL and return its contents. For images it returns the visual content so you can see it; for other URLs it returns the text (up to 10k chars).
-- Memory: Cha(t)os maintains your memory across sessions automatically. Converse naturally — you don't need to set this up or manage it yourself.
-- MCP tools: If your owner has configured MCP servers (e.g. Personal Context), you have access to their tools. Use them proactively when relevant — for example, update personal context when the user shares new information about themselves.${chainAwareness}`;
+/** Check if the last user message is simple enough to skip MCP server initialization. */
+export function shouldSkipMcp(
+  messages: { role: "user" | "assistant"; content: string | MessageContent[] }[]
+): boolean {
+  const last = messages.findLast((m) => m.role === "user");
+  if (!last) return false;
+  const text = typeof last.content === "string"
+    ? last.content
+    : last.content.find((b) => b.type === "text")?.text ?? "";
+  // Reaction acknowledgments
+  if (/\[.*reacted with/.test(text)) return true;
+  // Chain nudge injections
+  if (/you were mentioned by/i.test(text)) return true;
+  // Short greetings / affirmations (strip name prefixes like "DisplayName: hi")
+  const stripped = text.replace(/^[^:]{1,30}:\s*/, "").trim();
+  if (stripped.length < 40 && /^(hi|hey|hello|thanks|thank you|ok|okay|lol|lmao|haha|nice|cool|yes|no|yep|nope|sure|bye|gm|gn|yo|sup|brb|ty|np|gg|wow)[\s!.?]*$/i.test(stripped)) return true;
+  return false;
 }
 
 export async function callClaude({
@@ -179,15 +182,13 @@ export async function callClaude({
     tools: [fetchTool],
   };
 
-  if (mcpServers && mcpServers.length > 0) {
-    body.mcp_servers = mcpServers.map((s) => {
+  const useMcp = mcpServers && mcpServers.length > 0 && !shouldSkipMcp(messages);
+  if (useMcp) {
+    body.mcp_servers = mcpServers!.map((s) => {
       try {
         const parsed = new URL(s.url);
         const token = parsed.searchParams.get("token");
         if (token) {
-          // DO NOT delete the token! It may be the ONLY way the server authenticates.
-          // Providing it in BOTH url (query param) and authorization_token (header)
-          // ensures compatibility with various server types.
           return { type: "url", url: parsed.toString(), name: s.name, authorization_token: token };
         }
       } catch {}
@@ -196,7 +197,7 @@ export async function callClaude({
   }
 
   const betas: string[] = [];
-  if (mcpServers && mcpServers.length > 0) {
+  if (useMcp) {
     betas.push("mcp-client-2025-04-04");
   }
   betas.push("pdfs-2024-09-25");
@@ -391,8 +392,9 @@ export async function callClaudeStreaming({
     tools: [fetchTool],
   };
 
-  if (mcpServers && mcpServers.length > 0) {
-    body.mcp_servers = mcpServers.map((s) => {
+  const useMcp = mcpServers && mcpServers.length > 0 && !shouldSkipMcp(messages);
+  if (useMcp) {
+    body.mcp_servers = mcpServers!.map((s) => {
       try {
         const parsed = new URL(s.url);
         const token = parsed.searchParams.get("token");
@@ -405,7 +407,7 @@ export async function callClaudeStreaming({
   }
 
   const betas: string[] = [];
-  if (mcpServers && mcpServers.length > 0) {
+  if (useMcp) {
     betas.push("mcp-client-2025-04-04");
   }
   betas.push("pdfs-2024-09-25");

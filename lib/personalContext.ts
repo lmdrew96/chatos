@@ -61,8 +61,12 @@ export function normalizeMcpServerUrl(input: string): string {
   return url.toString();
 }
 
+const PCTX_MAX_CHARS = 500;
+const PCTX_MAX_LIST_ITEMS = 3;
+
 /**
  * Builds the system prompt prefix from fetched personal context.
+ * Keeps output compact — caps lists and total length to reduce token overhead.
  */
 export function buildContextPrefix(
   claudeName: string,
@@ -70,44 +74,42 @@ export function buildContextPrefix(
   ctx: PersonalContext
 ): string {
   const lines: string[] = [
-    `You are ${claudeName}, ${userName}'s personal Claude in a shared room called Cha(t)os.`,
-    "",
+    `You are ${claudeName}, ${userName}'s Claude in Cha(t)os.`,
     `About ${userName}:`,
   ];
 
-  if (ctx.identity.communicationStyle) {
-    lines.push(`- Communication style: ${ctx.identity.communicationStyle}`);
-  }
-  if (ctx.identity.pronouns) {
-    lines.push(`- Pronouns: ${ctx.identity.pronouns}`);
-  }
+  if (ctx.identity.pronouns) lines.push(`- Pronouns: ${ctx.identity.pronouns}`);
+  if (ctx.identity.communicationStyle) lines.push(`- Style: ${ctx.identity.communicationStyle}`);
 
   if (ctx.projects.length > 0) {
-    const projectList = ctx.projects
-      .map((p) => `${p.name} (${p.status})`)
-      .join(", ");
-    lines.push(`- Active projects: ${projectList}`);
+    const shown = ctx.projects.slice(0, PCTX_MAX_LIST_ITEMS);
+    const list = shown.map((p) => `${p.name} (${p.status})`).join(", ");
+    const extra = ctx.projects.length - shown.length;
+    lines.push(`- Projects: ${list}${extra > 0 ? ` (+${extra} more)` : ""}`);
   }
 
   if (ctx.relationships.length > 0) {
-    const relList = ctx.relationships
-      .map((r) => `${r.name} (${r.role})`)
-      .join(", ");
-    lines.push(`- Key relationships: ${relList}`);
+    const shown = ctx.relationships.slice(0, PCTX_MAX_LIST_ITEMS);
+    const list = shown.map((r) => `${r.name} (${r.role})`).join(", ");
+    const extra = ctx.relationships.length - shown.length;
+    lines.push(`- Relationships: ${list}${extra > 0 ? ` (+${extra} more)` : ""}`);
   }
 
   if (ctx.preferences.length > 0) {
-    ctx.preferences.forEach((p) => lines.push(`- ${p}`));
+    const shown = ctx.preferences.slice(0, PCTX_MAX_LIST_ITEMS);
+    shown.forEach((p) => lines.push(`- ${p}`));
+    if (ctx.preferences.length > PCTX_MAX_LIST_ITEMS) {
+      lines.push(`- (+${ctx.preferences.length - PCTX_MAX_LIST_ITEMS} more prefs)`);
+    }
   }
 
-  if (ctx.customInstructions) {
-    lines.push(`- ${ctx.customInstructions}`);
+  if (ctx.customInstructions) lines.push(`- ${ctx.customInstructions}`);
+
+  lines.push(`Use pctx MCP tools proactively when ${userName} shares new info.`);
+
+  let result = lines.join("\n");
+  if (result.length > PCTX_MAX_CHARS) {
+    result = result.slice(0, PCTX_MAX_CHARS - 20) + "\n…[context truncated]";
   }
-
-  lines.push(
-    "",
-    `You have MCP tools to update ${userName}'s personal context (e.g. pctx_update_context, pctx_add_project, pctx_add_relationship). Use them proactively when ${userName} shares new information about themselves, their projects, or relationships — without being asked.`
-  );
-
-  return lines.join("\n");
+  return result;
 }

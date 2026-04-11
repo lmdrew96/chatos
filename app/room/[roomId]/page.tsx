@@ -209,6 +209,49 @@ async function externalizeBase64Blocks(
   );
 }
 
+const PRECEDING_REPLIES_TOKEN_BUDGET = 2000; // ~8k chars
+const PRECEDING_REPLIES_KEEP_FULL = 2; // keep last N replies untruncated
+const PRECEDING_REPLY_TRUNCATE_LEN = 200; // chars to keep for older replies
+
+/** Compact preceding replies to fit within a token budget. */
+function compactPrecedingReplies(
+  replies: { claudeName: string; content: string }[]
+): string {
+  if (replies.length === 0) return "";
+  // Keep recent replies in full, truncate older ones
+  const parts: string[] = [];
+  let totalTokens = 0;
+  const cutoff = Math.max(0, replies.length - PRECEDING_REPLIES_KEEP_FULL);
+  let droppedCount = 0;
+
+  for (let i = 0; i < replies.length; i++) {
+    const r = replies[i];
+    let text: string;
+    if (i < cutoff) {
+      // Older reply — truncate
+      if (r.content.length > PRECEDING_REPLY_TRUNCATE_LEN) {
+        text = `[${r.claudeName} replied]: "${r.content.slice(0, PRECEDING_REPLY_TRUNCATE_LEN)}…[truncated]"`;
+      } else {
+        text = `[${r.claudeName} replied]: "${r.content}"`;
+      }
+    } else {
+      text = `[${r.claudeName} just responded]: "${r.content}"`;
+    }
+    const tokens = Math.ceil(text.length / 4);
+    if (totalTokens + tokens > PRECEDING_REPLIES_TOKEN_BUDGET && parts.length > 0) {
+      droppedCount += replies.length - i;
+      break;
+    }
+    totalTokens += tokens;
+    parts.push(text);
+  }
+
+  if (droppedCount > 0) {
+    parts.unshift(`(${droppedCount} earlier replies omitted for brevity)`);
+  }
+  return parts.join("\n");
+}
+
 const DEFAULT_CHAIN_LIMIT = 5;
 
 type InvokeParams = {
@@ -1288,9 +1331,7 @@ function RoomContent() {
 
           const callMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [...history, { role: "user" as const, content: currentMsgContent }];
           if (precedingReplies.length > 0) {
-            const context = precedingReplies
-              .map((r) => `[${r.claudeName} just responded]: "${r.content}"`)
-              .join("\n");
+            const context = compactPrecedingReplies(precedingReplies);
             callMessages.push({
               role: "user",
               content: `(You were also mentioned. Note that ${context} — respond to them or the original message, your call.)`,
@@ -1451,9 +1492,7 @@ function RoomContent() {
         }
 
         if (precedingReplies.length > 0) {
-          const context = precedingReplies
-            .map((r) => `[${r.claudeName} just responded]: "${r.content}"`)
-            .join("\n");
+          const context = compactPrecedingReplies(precedingReplies);
           callMessages.push({
             role: "user",
             content: `(You were also mentioned. Note that ${context} — respond to them or the original message, your call.)`,
