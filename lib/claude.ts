@@ -66,6 +66,13 @@ export type MessageContent =
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string }; cache_control?: { type: "ephemeral" } }
   | { type: "document"; source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string }; cache_control?: { type: "ephemeral" } };
 
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+};
+
 function formatTimeForTimezone(timezone?: string): string {
   try {
     return new Date().toLocaleString("en-US", {
@@ -149,7 +156,7 @@ export async function callClaude({
   chainLimit?: number;
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
-}): Promise<string> {
+}): Promise<{ text: string; usage: TokenUsage }> {
   // System prompt stays stable (and cached) — memory goes in as a prepended
   // message pair so cache hits aren't busted when the summary updates.
   const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
@@ -234,6 +241,7 @@ export async function callClaude({
   const MAX_TOOL_ROUNDS = 3;
   let currentMessages = [...(body.messages as any[])];
   let text = "";
+  const usage: TokenUsage = { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const res = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
@@ -247,6 +255,14 @@ export async function callClaude({
 
     if (!res.ok) {
       throw new Error(data.error?.message ?? `API error ${res.status}`);
+    }
+
+    // Accumulate usage from this round
+    if (data.usage) {
+      usage.inputTokens += data.usage.input_tokens ?? 0;
+      usage.outputTokens += data.usage.output_tokens ?? 0;
+      usage.cacheCreationTokens += data.usage.cache_creation_input_tokens ?? 0;
+      usage.cacheReadTokens += data.usage.cache_read_input_tokens ?? 0;
     }
 
     // Collect text and tool_use blocks
@@ -300,7 +316,7 @@ export async function callClaude({
     ];
   }
 
-  return text || "…";
+  return { text: text || "…", usage };
 }
 
 /** Token estimation for history budget trimming (~4 chars/token). */
@@ -346,7 +362,7 @@ export async function callClaudeStreaming({
   onText: (accumulated: string) => void;
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
-}): Promise<string> {
+}): Promise<{ text: string; usage: TokenUsage }> {
   const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
 
   const messagesWithMemory: typeof messages = memoryContext
@@ -429,6 +445,7 @@ export async function callClaudeStreaming({
   const MAX_TOOL_ROUNDS = 3;
   let currentMessages = [...(body.messages as any[])];
   let text = "";
+  const usage: TokenUsage = { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0 };
 
   // Throttle onText calls to avoid hammering Convex mutations
   let lastFlush = 0;
@@ -506,6 +523,14 @@ export async function callClaudeStreaming({
         }
 
         switch (event.type) {
+          case "message_start":
+            if (event.message?.usage) {
+              usage.inputTokens += event.message.usage.input_tokens ?? 0;
+              usage.cacheCreationTokens += event.message.usage.cache_creation_input_tokens ?? 0;
+              usage.cacheReadTokens += event.message.usage.cache_read_input_tokens ?? 0;
+            }
+            break;
+
           case "content_block_start":
             if (event.content_block?.type === "tool_use") {
               currentToolIndex = toolUseBlocks.length;
@@ -535,6 +560,9 @@ export async function callClaudeStreaming({
           case "message_delta":
             if (event.delta?.stop_reason) {
               stopReason = event.delta.stop_reason;
+            }
+            if (event.usage) {
+              usage.outputTokens += event.usage.output_tokens ?? 0;
             }
             break;
         }
@@ -599,5 +627,5 @@ export async function callClaudeStreaming({
     // but we keep it accumulated so the final return has everything.
   }
 
-  return text || "…";
+  return { text: text || "…", usage };
 }

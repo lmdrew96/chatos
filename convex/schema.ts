@@ -207,6 +207,20 @@ export default defineSchema({
   }).index("by_timestamp", ["timestamp"])
     .index("by_endpoint_and_timestamp", ["endpoint", "timestamp"]),
 
+  tokenUsage: defineTable({
+    roomId: v.id("rooms"),
+    claudeName: v.string(),
+    ownerTokenIdentifier: v.string(),
+    model: v.string(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    cacheCreationTokens: v.optional(v.number()),
+    cacheReadTokens: v.optional(v.number()),
+    timestamp: v.number(),
+  }).index("by_room_and_timestamp", ["roomId", "timestamp"])
+    .index("by_owner_and_timestamp", ["ownerTokenIdentifier", "timestamp"])
+    .index("by_timestamp", ["timestamp"]),
+
   changelog: defineTable({
     sha: v.string(),
     message: v.string(),

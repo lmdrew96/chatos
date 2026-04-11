@@ -40,6 +40,10 @@ export default function ClaudiuAdminPage() {
   const usageStats = useQuery(api.claudiuUsage.getUsageStats);
   const recentCalls = useQuery(api.claudiuUsage.getRecentCalls);
 
+  // BYOK usage queries (your API key only)
+  const byokUsageStats = useQuery(api.tokenUsage.getUsageStats);
+  const byokRecentCalls = useQuery(api.tokenUsage.getRecentCalls);
+
   // History queries
   const history = useQuery(api.claudiuConfigHistory.listHistory);
   const restoreVersion = useMutation(api.claudiuConfigHistory.restoreVersion);
@@ -401,6 +405,143 @@ export default function ClaudiuAdminPage() {
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ── BYOK Agent Usage ──────────────────────────────────────────────── */}
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-4"
+            style={{ color: "var(--text-muted)" }}
+          >
+            BYOK Agent Usage (Your Key)
+          </h2>
+
+          {byokUsageStats ? (
+            <>
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                {(["24h", "7d", "30d"] as const).map((window) => {
+                  const w = byokUsageStats.windows[window];
+                  return (
+                    <div
+                      key={window}
+                      className="rounded-xl px-4 py-3"
+                      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+                    >
+                      <p className="text-xs uppercase tracking-wider mb-2" style={{ color: "var(--text-dim)" }}>
+                        {window}
+                      </p>
+                      <p
+                        className="text-xl font-bold"
+                        style={{ color: "var(--sage-teal)", fontFamily: "var(--font-super-bakery)" }}
+                      >
+                        {formatCost(w.estimatedCost)}
+                      </p>
+                      <div className="flex gap-3 mt-1.5">
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          {w.callCount} calls
+                        </span>
+                        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                          {((w.totalInput + w.totalOutput) / 1000).toFixed(1)}k tok
+                        </span>
+                      </div>
+                      {(w.totalCacheRead > 0 || w.totalCacheCreation > 0) && (
+                        <div className="flex gap-3 mt-0.5">
+                          <span className="text-xs" style={{ color: "var(--soft-green)" }}>
+                            {((w.totalCacheRead) / 1000).toFixed(1)}k cached
+                          </span>
+                          <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+                            {((w.totalCacheCreation) / 1000).toFixed(1)}k cache-write
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Per-agent breakdown for 7d window */}
+              {Object.keys(byokUsageStats.windows["7d"].byAgent).length > 0 && (
+                <div
+                  className="rounded-xl overflow-hidden mb-4"
+                  style={{ border: "1px solid var(--border)" }}
+                >
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ background: "var(--surface)" }}>
+                        <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Agent (7d)</th>
+                        <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Calls</th>
+                        <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>In</th>
+                        <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Out</th>
+                        <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(byokUsageStats.windows["7d"].byAgent)
+                        .sort(([, a], [, b]) => b.cost - a.cost)
+                        .map(([name, stats]) => (
+                          <tr key={name} style={{ borderTop: "1px solid var(--border)" }}>
+                            <td className="px-3 py-2 font-medium" style={{ color: "var(--fg)" }}>{name}</td>
+                            <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--text-muted)" }}>{stats.calls}</td>
+                            <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>{stats.input.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>{stats.output.toLocaleString()}</td>
+                            <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--sage-teal)" }}>{formatCost(stats.cost)}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {byokUsageStats.truncated && (
+                <p className="text-xs mb-3 italic" style={{ color: "var(--text-dim)" }}>
+                  Showing last 500 records. Older usage is not included.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs" style={{ color: "var(--text-dim)" }}>Loading BYOK usage data...</p>
+          )}
+
+          {/* Recent BYOK calls table */}
+          {byokRecentCalls && byokRecentCalls.length > 0 && (
+            <div
+              className="rounded-xl overflow-hidden"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              <table className="w-full text-xs">
+                <thead>
+                  <tr style={{ background: "var(--surface)" }}>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Time</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Agent</th>
+                    <th className="text-left px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Room</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>In</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Out</th>
+                    <th className="text-right px-3 py-2 font-medium" style={{ color: "var(--text-muted)" }}>Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byokRecentCalls.map((call) => (
+                    <tr key={call._id} style={{ borderTop: "1px solid var(--border)" }}>
+                      <td className="px-3 py-2" style={{ color: "var(--text-muted)" }}>{timeAgo(call.timestamp)}</td>
+                      <td className="px-3 py-2 font-medium" style={{ color: "var(--fg)" }}>{call.claudeName}</td>
+                      <td className="px-3 py-2 truncate max-w-[120px]" style={{ color: "var(--text-muted)" }} title={call.roomName ?? "—"}>
+                        {call.roomName ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
+                        {call.inputTokens.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--fg)" }}>
+                        {call.outputTokens.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono" style={{ color: "var(--sage-teal)" }}>
+                        {formatCost(call.estimatedCost)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

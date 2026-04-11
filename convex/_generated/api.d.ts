@@ -24,6 +24,7 @@ import type * as pushNotificationsHelpers from "../pushNotificationsHelpers.js";
 import type * as pushSubscriptions from "../pushSubscriptions.js";
 import type * as reactions from "../reactions.js";
 import type * as rooms from "../rooms.js";
+import type * as tokenUsage from "../tokenUsage.js";
 import type * as typing from "../typing.js";
 import type * as users from "../users.js";
 
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   pushSubscriptions: typeof pushSubscriptions;
   reactions: typeof reactions;
   rooms: typeof rooms;
+  tokenUsage: typeof tokenUsage;
   typing: typeof typing;
   users: typeof users;
 }>;

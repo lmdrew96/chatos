@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { callClaude, callClaudeStreaming, estimateTokens, McpServer } from "@/lib/claude";
+import { callClaude, callClaudeStreaming, estimateTokens, McpServer, TokenUsage } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
@@ -40,7 +40,8 @@ function isTextFile(fileName: string, contentType: string): boolean {
 
 const MAX_TEXT_FILE_CHARS = 50_000; // ~50k chars to avoid blowing up context
 
-const HISTORY_TOKEN_BUDGET = 12_000; // ~48k chars — leaves room for system prompt + response
+const HISTORY_TOKEN_BUDGET = 8_000; // ~32k chars — tighter budget for cost efficiency
+const MAX_HISTORY_MESSAGES = 25; // Cap message count before token trimming
 const MIN_HISTORY_MESSAGES = 3;
 
 /** Estimate tokens for a message including prefix overhead and attachments. */
@@ -74,18 +75,22 @@ function estimateMessageTokens(m: MessageWithAttachments): number {
 
 /** Trim messages from the oldest end until they fit within a token budget. */
 function trimToTokenBudget(msgs: MessageWithAttachments[]): MessageWithAttachments[] {
-  // Work backwards from most recent, accumulate until budget is hit
+  // First cap to the rolling window size
+  const windowed = msgs.length > MAX_HISTORY_MESSAGES
+    ? msgs.slice(-MAX_HISTORY_MESSAGES)
+    : msgs;
+  // Then apply token budget within that window
   let tokens = 0;
-  let startIdx = msgs.length;
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    const t = estimateMessageTokens(msgs[i]);
-    if (tokens + t > HISTORY_TOKEN_BUDGET && msgs.length - i > MIN_HISTORY_MESSAGES) {
+  let startIdx = windowed.length;
+  for (let i = windowed.length - 1; i >= 0; i--) {
+    const t = estimateMessageTokens(windowed[i]);
+    if (tokens + t > HISTORY_TOKEN_BUDGET && windowed.length - i > MIN_HISTORY_MESSAGES) {
       break;
     }
     tokens += t;
     startIdx = i;
   }
-  return msgs.slice(startIdx);
+  return windowed.slice(startIdx);
 }
 
 // Support the resolved URL from useMessages
@@ -351,6 +356,43 @@ async function buildHistory(
   return result;
 }
 
+/**
+ * Remap a shared history (built with forClaudeName=undefined, all roles "user")
+ * so that messages from the given Claude become "assistant" role.
+ * This avoids re-building history from scratch for each Claude in @everyone.
+ */
+function remapHistoryForClaude(
+  sharedHistory: { role: "user" | "assistant"; content: string | MessageContent[] }[],
+  claudeName: string,
+): { role: "user" | "assistant"; content: string | MessageContent[] }[] {
+  // The prefix pattern buildHistory uses for other Claudes: "[ClaudeName]: "
+  const prefix = `[${claudeName}]: `;
+  return sharedHistory.map((msg) => {
+    if (msg.role !== "user") return msg;
+    // Check if this message block contains text from this Claude
+    if (typeof msg.content === "string") {
+      if (msg.content.startsWith(prefix)) {
+        return { role: "assistant" as const, content: msg.content.slice(prefix.length) };
+      }
+      // Could be a merged block with multiple messages — check for the prefix within
+      if (msg.content.includes(`\n\n${prefix}`)) {
+        // Split and remap — this is a collapsed multi-message block
+        // For simplicity, if any sub-message is from this Claude, keep as-is (user role)
+        // since mixed-role blocks can't be cleanly split
+        return msg;
+      }
+      return msg;
+    }
+    // Array content — check text blocks for the prefix
+    const textBlocks = msg.content.filter((b): b is { type: "text"; text: string; cache_control?: { type: "ephemeral" } } => b.type === "text");
+    const hasOwnMessage = textBlocks.some((b) => b.text.startsWith(prefix));
+    if (hasOwnMessage && textBlocks.length === 1 && msg.content.length === 1) {
+      return { role: "assistant" as const, content: textBlocks[0].text.slice(prefix.length) };
+    }
+    return msg;
+  });
+}
+
 function RoomTitle({
   title,
   roomCode,
@@ -495,6 +537,7 @@ function RoomContent() {
   const clearTypingMutation = useMutation(api.typing.clearTyping);
   const toggleReaction = useMutation(api.reactions.toggleReaction);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
+  const logTokenUsage = useMutation(api.tokenUsage.logUsage);
 
   // Per-room chain limit (defaults to 5)
   const chainLimit = room?.chainLimit ?? DEFAULT_CHAIN_LIMIT;
@@ -826,8 +869,11 @@ function RoomContent() {
       };
 
       let reply: string;
+      let tokenUsage: TokenUsage | undefined;
       try {
-        reply = await callClaudeStreaming({ apiKey, ...streamOpts });
+        const result = await callClaudeStreaming({ apiKey, ...streamOpts });
+        reply = result.text;
+        tokenUsage = result.usage;
       } catch (primaryErr) {
         // On billing/credit errors, try the sponsor's key as fallback
         const errText = primaryErr instanceof Error ? primaryErr.message : "";
@@ -842,7 +888,9 @@ function RoomContent() {
             if (messageId) {
               await updateStreamingMessage({ messageId, content: "", isStreaming: true });
             }
-            reply = await callClaudeStreaming({ apiKey: sponsorKey, ...streamOpts });
+            const result = await callClaudeStreaming({ apiKey: sponsorKey, ...streamOpts });
+            reply = result.text;
+            tokenUsage = result.usage;
           } else {
             throw primaryErr;
           }
@@ -865,6 +913,21 @@ function RoomContent() {
           isStreaming: false,
           mentions,
         });
+      }
+
+      // Log token usage (only for the owner's key — fire-and-forget)
+      if (tokenUsage && owner.tokenIdentifier) {
+        logTokenUsage({
+          roomId,
+          claudeName,
+          ownerTokenIdentifier: owner.tokenIdentifier,
+          model: "claude-sonnet-4-6",
+          inputTokens: tokenUsage.inputTokens,
+          outputTokens: tokenUsage.outputTokens,
+          cacheCreationTokens: tokenUsage.cacheCreationTokens || undefined,
+          cacheReadTokens: tokenUsage.cacheReadTokens || undefined,
+          timestamp: Date.now(),
+        }).catch((err) => console.error("[token-usage] log failed:", err));
       }
 
       // Guard: if the reply @-addresses a human by display name, yield to them
@@ -961,7 +1024,7 @@ function RoomContent() {
               `You compress Cha(t)os chat logs into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
             messages: [{ role: "user", content: summaryPrompt }],
           })
-            .then((summary) =>
+            .then(({ text: summary }) =>
               upsertClaudeMemory({
                 ownerUserId: owner.userId,
                 claudeName,
@@ -1233,13 +1296,95 @@ function RoomContent() {
       const abortController = new AbortController();
       chainAbortRef.current = abortController;
 
+      // @everyone optimization: build shared history once, remap per-Claude
+      const isEveryone = /@everyone(?!\w)/i.test(content);
+      const allMsgs = (messages ?? []) as MessageWithAttachments[];
+      const trimmed = trimToTokenBudget(allMsgs);
+      const trimmedCount = allMsgs.length - trimmed.length;
+      let sharedHistory: { role: "user" | "assistant"; content: string | MessageContent[] }[] | null = null;
+      // Pre-build shared userContent for attachments (avoids re-uploading per Claude)
+      let sharedUserContent: string | MessageContent[] | null = null;
+
+      if (isEveryone && uniqueMentions.filter((n) => n !== CLAUDIU_NAME).length > 1) {
+        // Build history with no forClaudeName — all messages as "user" role
+        sharedHistory = await buildHistory(trimmed, undefined, uploadBlobToStorage);
+
+        // Pre-build userContent with attachments
+        sharedUserContent = `${currentDisplayName}: ${content}`;
+        if (attachments && attachments.length > 0) {
+          const contentArray: MessageContent[] = [
+            { type: "text", text: `${currentDisplayName}: ${content}` },
+          ];
+          for (const a of attachments) {
+            if (a.data && isTextFile(a.fileName, a.contentType)) {
+              let text: string;
+              try { text = atob(a.data); } catch { text = a.data; }
+              if (text.length > MAX_TEXT_FILE_CHARS) {
+                text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
+              }
+              contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
+            } else if (a.data) {
+              try {
+                const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
+                const blob = new Blob([raw], { type: a.contentType });
+                const storageUrl = await uploadBlobToStorage(blob);
+                if (a.contentType?.startsWith("image/")) {
+                  contentArray.push({ type: "image", source: { type: "url", url: storageUrl } });
+                } else if (a.contentType === "application/pdf") {
+                  contentArray.push({ type: "document", source: { type: "url", url: storageUrl } });
+                }
+              } catch { /* skip if upload fails */ }
+            }
+          }
+          sharedUserContent = contentArray;
+        }
+
+        // Fire-and-forget summarization of dropped messages (once for all Claudes)
+        if (trimmedCount > 0) {
+          const existing = sessionSummaryRef.current;
+          const newSinceSummary = allMsgs.length - (existing?.throughMsgCount ?? 0);
+          if (!existing || newSinceSummary >= 10) {
+            const dropped = allMsgs.slice(0, trimmedCount);
+            const formatted = dropped
+              .filter((m) => m.type !== "system")
+              .map((m) => `${m.fromDisplayName}: ${m.content}`)
+              .join("\n");
+            if (formatted.trim()) {
+              // Use first participant's key for the summary call
+              const firstOwner = currentParticipants.find((p) => uniqueMentions.includes(p.claudeName));
+              if (firstOwner) {
+                const ownerApiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
+                  roomId,
+                  participantUserId: firstOwner.userId,
+                });
+                if (ownerApiKey) {
+                  const base = existing?.summary
+                    ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
+                    : formatted;
+                  callClaude({
+                    apiKey: ownerApiKey,
+                    systemPrompt:
+                      "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
+                    messages: [{ role: "user", content: base }],
+                  })
+                    .then(({ text: summary }) => {
+                      sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
+                    })
+                    .catch((err) => console.error("[compact] summary failed:", err));
+                }
+              }
+            }
+          }
+        }
+      }
+
       for (const claudeName of uniqueMentions) {
         // Claudiu is a virtual participant — route to dedicated handler
         if (claudeName === CLAUDIU_NAME) {
           if (!claudiuOwnerInRoom) continue;
-          const allMsgs = (messages ?? []) as MessageWithAttachments[];
-          const trimmed = trimToTokenBudget(allMsgs);
-          const history = await buildHistory(trimmed, CLAUDIU_NAME, uploadBlobToStorage);
+          const history = sharedHistory
+            ? remapHistoryForClaude(sharedHistory, CLAUDIU_NAME)
+            : await buildHistory(trimmed, CLAUDIU_NAME, uploadBlobToStorage);
 
           // Build the current message content — include attachments if present
           let currentMsgContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
@@ -1294,87 +1439,84 @@ function RoomContent() {
         const owner = currentParticipants.find((p) => p.claudeName === claudeName);
         if (!owner) continue;
 
-        let userContent: string | MessageContent[] = `${currentDisplayName}: ${content}`;
-
-        // Include immediate attachments — the reactive query hasn't updated yet,
-        // so use the base64 data we still have from the upload
-        if (attachments && attachments.length > 0) {
-          const contentArray: MessageContent[] = [
-            { type: "text", text: `${currentDisplayName}: ${content}` },
-          ];
-          for (const a of attachments) {
-            if (a.data && isTextFile(a.fileName, a.contentType)) {
-              // Decode base64 text file and inline it
-              let text: string;
-              try {
-                text = atob(a.data);
-              } catch {
-                text = a.data;
-              }
-              if (text.length > MAX_TEXT_FILE_CHARS) {
-                text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
-              }
-              contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
-            } else if (a.data) {
-              // Upload to Convex storage and use URL source — avoids 5MB base64 limit
-              try {
-                const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
-                const blob = new Blob([raw], { type: a.contentType });
-                const storageUrl = await uploadBlobToStorage(blob);
-                if (a.contentType?.startsWith("image/")) {
-                  contentArray.push({ type: "image", source: { type: "url", url: storageUrl } });
-                } else if (a.contentType === "application/pdf") {
-                  contentArray.push({ type: "document", source: { type: "url", url: storageUrl } });
+        // Use shared content for @everyone, otherwise build per-Claude
+        let userContent: string | MessageContent[];
+        if (sharedUserContent) {
+          userContent = sharedUserContent;
+        } else {
+          userContent = `${currentDisplayName}: ${content}`;
+          // Include immediate attachments — the reactive query hasn't updated yet,
+          // so use the base64 data we still have from the upload
+          if (attachments && attachments.length > 0) {
+            const contentArray: MessageContent[] = [
+              { type: "text", text: `${currentDisplayName}: ${content}` },
+            ];
+            for (const a of attachments) {
+              if (a.data && isTextFile(a.fileName, a.contentType)) {
+                let text: string;
+                try { text = atob(a.data); } catch { text = a.data; }
+                if (text.length > MAX_TEXT_FILE_CHARS) {
+                  text = text.slice(0, MAX_TEXT_FILE_CHARS) + `\n…[truncated at ${MAX_TEXT_FILE_CHARS} chars]`;
                 }
-              } catch { /* skip if upload fails */ }
+                contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
+              } else if (a.data) {
+                try {
+                  const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
+                  const blob = new Blob([raw], { type: a.contentType });
+                  const storageUrl = await uploadBlobToStorage(blob);
+                  if (a.contentType?.startsWith("image/")) {
+                    contentArray.push({ type: "image", source: { type: "url", url: storageUrl } });
+                  } else if (a.contentType === "application/pdf") {
+                    contentArray.push({ type: "document", source: { type: "url", url: storageUrl } });
+                  }
+                } catch { /* skip if upload fails */ }
+              }
             }
+            userContent = contentArray;
           }
-          userContent = contentArray;
         }
 
-        // 1. Get history from the current query state (token-budget trimmed)
-        const allMsgs = (messages ?? []) as MessageWithAttachments[];
-        const trimmed = trimToTokenBudget(allMsgs);
-        const trimmedCount = allMsgs.length - trimmed.length;
-
-        // Conversation compacting: summarize dropped messages as session context
-        if (trimmedCount > 0 && owner) {
-          const existing = sessionSummaryRef.current;
-          const newSinceSummary = allMsgs.length - (existing?.throughMsgCount ?? 0);
-          // Re-summarize if we've never summarized or 10+ new messages since last
-          if (!existing || newSinceSummary >= 10) {
-            const dropped = allMsgs.slice(0, trimmedCount);
-            const formatted = dropped
-              .filter((m) => m.type !== "system")
-              .map((m) => `${m.fromDisplayName}: ${m.content}`)
-              .join("\n");
-            if (formatted.trim()) {
-              const ownerApiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
-                roomId,
-                participantUserId: owner.userId,
-              });
-              if (ownerApiKey) {
-                const base = existing?.summary
-                  ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
-                  : formatted;
-                // Always fire-and-forget — blocking on the summary call delays
-                // the Claude response noticeably (the whole point of bug #4).
-                callClaude({
-                  apiKey: ownerApiKey,
-                  systemPrompt:
-                    "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
-                  messages: [{ role: "user", content: base }],
-                })
-                  .then((summary) => {
-                    sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
+        // Use shared history for @everyone, otherwise build per-Claude
+        let history: { role: "user" | "assistant"; content: string | MessageContent[] }[];
+        if (sharedHistory) {
+          history = remapHistoryForClaude(sharedHistory, claudeName);
+        } else {
+          // Single-mention path: build history and handle summarization
+          // Conversation compacting: summarize dropped messages as session context
+          if (trimmedCount > 0) {
+            const existing = sessionSummaryRef.current;
+            const newSinceSummary = allMsgs.length - (existing?.throughMsgCount ?? 0);
+            if (!existing || newSinceSummary >= 10) {
+              const dropped = allMsgs.slice(0, trimmedCount);
+              const formatted = dropped
+                .filter((m) => m.type !== "system")
+                .map((m) => `${m.fromDisplayName}: ${m.content}`)
+                .join("\n");
+              if (formatted.trim()) {
+                const ownerApiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
+                  roomId,
+                  participantUserId: owner.userId,
+                });
+                if (ownerApiKey) {
+                  const base = existing?.summary
+                    ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
+                    : formatted;
+                  callClaude({
+                    apiKey: ownerApiKey,
+                    systemPrompt:
+                      "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
+                    messages: [{ role: "user", content: base }],
                   })
-                  .catch((err) => console.error("[compact] summary failed:", err));
+                    .then(({ text: summary }) => {
+                      sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
+                    })
+                    .catch((err) => console.error("[compact] summary failed:", err));
+                }
               }
             }
           }
+          history = await buildHistory(trimmed, claudeName, uploadBlobToStorage);
         }
-
-        const history = await buildHistory(trimmed, claudeName, uploadBlobToStorage);
 
         // Inject session summary at the top if available
         if (sessionSummaryRef.current?.summary) {
