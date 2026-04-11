@@ -202,6 +202,8 @@ export default defineSchema({
     model: v.string(),
     inputTokens: v.number(),
     outputTokens: v.number(),
+    cacheCreationTokens: v.optional(v.number()),
+    cacheReadTokens: v.optional(v.number()),
     timestamp: v.number(),
     roomId: v.optional(v.id("rooms")),
   }).index("by_timestamp", ["timestamp"])

@@ -237,6 +237,8 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
 
     let inputTokens = 0;
     let outputTokens = 0;
+    let cacheCreationTokens = 0;
+    let cacheReadTokens = 0;
     const sseDecoder = new TextDecoder();
     let sseBuffer = "";
 
@@ -256,6 +258,8 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
             const parsed = JSON.parse(data);
             if (parsed.type === "message_start" && parsed.message?.usage) {
               inputTokens = parsed.message.usage.input_tokens ?? 0;
+              cacheCreationTokens = parsed.message.usage.cache_creation_input_tokens ?? 0;
+              cacheReadTokens = parsed.message.usage.cache_read_input_tokens ?? 0;
             }
             if (parsed.type === "message_delta" && parsed.usage) {
               outputTokens = parsed.usage.output_tokens ?? 0;
@@ -273,6 +277,8 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
             model,
             inputTokens,
             outputTokens,
+            cacheCreationTokens: cacheCreationTokens || undefined,
+            cacheReadTokens: cacheReadTokens || undefined,
             timestamp: Date.now(),
             ...(body.roomId ? { roomId: body.roomId as any } : {}),
           }).catch(() => {});

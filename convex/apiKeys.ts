@@ -210,7 +210,11 @@ export const getSponsorKeyForParticipant = query({
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", sponsorship.sponsorTokenIdentifier))
       .unique();
 
-    return keyDoc?.encryptedKey ?? null;
+    if (!keyDoc?.encryptedKey) return null;
+    return {
+      encryptedKey: keyDoc.encryptedKey,
+      sponsorTokenIdentifier: sponsorship.sponsorTokenIdentifier,
+    };
   },
 });
 

@@ -201,6 +201,8 @@ export async function POST(request: Request) {
 
     let inputTokens = 0;
     let outputTokens = 0;
+    let cacheCreationTokens = 0;
+    let cacheReadTokens = 0;
     const sseDecoder = new TextDecoder();
     let sseBuffer = "";
 
@@ -220,6 +222,8 @@ export async function POST(request: Request) {
             const parsed = JSON.parse(data);
             if (parsed.type === "message_start" && parsed.message?.usage) {
               inputTokens = parsed.message.usage.input_tokens ?? 0;
+              cacheCreationTokens = parsed.message.usage.cache_creation_input_tokens ?? 0;
+              cacheReadTokens = parsed.message.usage.cache_read_input_tokens ?? 0;
             }
             if (parsed.type === "message_delta" && parsed.usage) {
               outputTokens = parsed.usage.output_tokens ?? 0;
@@ -237,6 +241,8 @@ export async function POST(request: Request) {
             model,
             inputTokens,
             outputTokens,
+            cacheCreationTokens: cacheCreationTokens || undefined,
+            cacheReadTokens: cacheReadTokens || undefined,
             timestamp: Date.now(),
           }).catch(() => {});
         }

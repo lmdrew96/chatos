@@ -2,15 +2,26 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
 // Anthropic pricing per million tokens (update when pricing changes)
-const COST_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
-  "claude-haiku-4-5-20251001": { input: 0.8, output: 4.0 },
-  "claude-opus-4-6": { input: 15.0, output: 75.0 },
+const COST_PER_MTOK: Record<string, { input: number; output: number; cacheWrite: number; cacheRead: number }> = {
+  "claude-sonnet-4-6": { input: 3.0, output: 15.0, cacheWrite: 3.75, cacheRead: 0.3 },
+  "claude-haiku-4-5-20251001": { input: 0.8, output: 4.0, cacheWrite: 1.0, cacheRead: 0.08 },
+  "claude-opus-4-6": { input: 15.0, output: 75.0, cacheWrite: 18.75, cacheRead: 1.5 },
 };
 
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+function estimateCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cacheCreationTokens: number,
+  cacheReadTokens: number,
+): number {
   const pricing = COST_PER_MTOK[model] ?? COST_PER_MTOK["claude-sonnet-4-6"];
-  return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output;
+  return (
+    (inputTokens / 1_000_000) * pricing.input +
+    (cacheCreationTokens / 1_000_000) * pricing.cacheWrite +
+    (cacheReadTokens / 1_000_000) * pricing.cacheRead +
+    (outputTokens / 1_000_000) * pricing.output
+  );
 }
 
 export const logUsage = mutation({
@@ -19,6 +30,8 @@ export const logUsage = mutation({
     model: v.string(),
     inputTokens: v.number(),
     outputTokens: v.number(),
+    cacheCreationTokens: v.optional(v.number()),
+    cacheReadTokens: v.optional(v.number()),
     timestamp: v.number(),
     roomId: v.optional(v.id("rooms")),
   },
@@ -55,6 +68,8 @@ export const getUsageStats = query({
       const records = allRecords.filter((r) => r.timestamp >= cutoff);
       let totalInput = 0;
       let totalOutput = 0;
+      let totalCacheCreation = 0;
+      let totalCacheRead = 0;
       let estimatedCost = 0;
       let onboarding = 0;
       let room = 0;
@@ -62,7 +77,15 @@ export const getUsageStats = query({
       for (const r of records) {
         totalInput += r.inputTokens;
         totalOutput += r.outputTokens;
-        estimatedCost += estimateCost(r.model, r.inputTokens, r.outputTokens);
+        totalCacheCreation += r.cacheCreationTokens ?? 0;
+        totalCacheRead += r.cacheReadTokens ?? 0;
+        estimatedCost += estimateCost(
+          r.model,
+          r.inputTokens,
+          r.outputTokens,
+          r.cacheCreationTokens ?? 0,
+          r.cacheReadTokens ?? 0,
+        );
         if (r.endpoint === "onboarding") onboarding++;
         else room++;
       }
@@ -71,6 +94,8 @@ export const getUsageStats = query({
         messageCount: records.length,
         totalInput,
         totalOutput,
+        totalCacheCreation,
+        totalCacheRead,
         estimatedCost: Math.round(estimatedCost * 10000) / 10000,
         onboarding,
         room,
@@ -109,7 +134,17 @@ export const getRecentCalls = query({
           const room = await ctx.db.get(call.roomId);
           roomName = room?.title ?? room?.roomCode ?? null;
         }
-        return { ...call, roomName };
+        return {
+          ...call,
+          roomName,
+          estimatedCost: estimateCost(
+            call.model,
+            call.inputTokens,
+            call.outputTokens,
+            call.cacheCreationTokens ?? 0,
+            call.cacheReadTokens ?? 0,
+          ),
+        };
       })
     );
   },

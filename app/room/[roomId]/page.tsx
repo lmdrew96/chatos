@@ -870,6 +870,7 @@ function RoomContent() {
 
       let reply: string;
       let tokenUsage: TokenUsage | undefined;
+      let usageAttributionToken = owner.tokenIdentifier;
       try {
         const result = await callClaudeStreaming({ apiKey, ...streamOpts });
         reply = result.text;
@@ -879,18 +880,20 @@ function RoomContent() {
         const errText = primaryErr instanceof Error ? primaryErr.message : "";
         const isBillingError = /credit balance|billing|payment|insufficient.*(fund|credit)|exceeded.*budget|rate.*limit/i.test(errText);
         if (isBillingError) {
-          const sponsorKey = await convex.query(api.apiKeys.getSponsorKeyForParticipant, {
+          const sponsorResult = await convex.query(api.apiKeys.getSponsorKeyForParticipant, {
             roomId,
             participantUserId: owner.userId,
           });
-          if (sponsorKey) {
+          if (sponsorResult) {
             // Reset the streaming message for the retry
             if (messageId) {
               await updateStreamingMessage({ messageId, content: "", isStreaming: true });
             }
-            const result = await callClaudeStreaming({ apiKey: sponsorKey, ...streamOpts });
+            const result = await callClaudeStreaming({ apiKey: sponsorResult.encryptedKey, ...streamOpts });
             reply = result.text;
             tokenUsage = result.usage;
+            // Attribute usage to the sponsor who actually paid
+            usageAttributionToken = sponsorResult.sponsorTokenIdentifier;
           } else {
             throw primaryErr;
           }
@@ -915,12 +918,12 @@ function RoomContent() {
         });
       }
 
-      // Log token usage (only for the owner's key — fire-and-forget)
-      if (tokenUsage && owner.tokenIdentifier) {
+      // Log token usage — attributed to whoever's key was actually used
+      if (tokenUsage && usageAttributionToken) {
         logTokenUsage({
           roomId,
           claudeName,
-          ownerTokenIdentifier: owner.tokenIdentifier,
+          ownerTokenIdentifier: usageAttributionToken,
           model: "claude-sonnet-4-6",
           inputTokens: tokenUsage.inputTokens,
           outputTokens: tokenUsage.outputTokens,
