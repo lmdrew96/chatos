@@ -116,10 +116,25 @@ export async function POST(request: Request) {
     const maxTokens = config?.roomMaxTokens ?? 1024;
     const historyLimit = config?.roomHistoryLimit ?? 40;
 
-    const messages = body.messages.slice(-historyLimit);
+    const messagesCopy = body.messages.slice(-historyLimit).map((m) => ({ ...m }));
+
+    // Cache the conversation history prefix — the third-from-last message is a
+    // stable breakpoint so sequential messages in an active chat get cache reads.
+    if (messagesCopy.length >= 4) {
+      (messagesCopy[messagesCopy.length - 3] as any).cache_control = { type: "ephemeral" };
+    }
 
     const roomMcpUrl = config?.roomMcpUrl || body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
     const helperMcpUrl = config?.helperMcpUrl;
+
+    // Build dynamic context (changes every request — NOT cached)
+    let dynamicContext = `- Time: ${formatTimeForTimezone(body.timezone)}`;
+    if (body.chainDepth !== undefined && body.chainLimit !== undefined) {
+      const rem = body.chainLimit - body.chainDepth - 1;
+      if (rem <= 0) dynamicContext += `\nChain: LAST TURN (${body.chainDepth}/${body.chainLimit}). Do NOT @mention — wrap up.`;
+      else if (rem <= 2) dynamicContext += `\nChain: ${body.chainDepth}/${body.chainLimit} (${rem} left). Only @mention if essential.`;
+      else dynamicContext += `\nChain: ${body.chainDepth}/${body.chainLimit} (${rem} left). May @mention others.`;
+    }
 
     const anthropicBody: Record<string, unknown> = {
       model,
@@ -133,21 +148,16 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
 - You are ONLY Claudiu. Your messages = "assistant" role. Other Claudes = "user" prefixed [TheirName].
 - Single direct reply only. Never impersonate others. Stay in character unless sincerely asked.
 - Reactions ("[reacted with …]"): brief acknowledgment only, don't rehash.
-- Time: ${formatTimeForTimezone(body.timezone)}
 - @mentions to tag others, @everyone for all. Files/images/PDFs/GIFs are inline.
-- MCP servers: **claudiu-room-context** (your memory/personality) and **claudiu-helper-context** (app knowledge/onboarding). Use pctx tools proactively.${(() => {
-            if (body.chainDepth !== undefined && body.chainLimit !== undefined) {
-              const rem = body.chainLimit - body.chainDepth - 1;
-              if (rem <= 0) return `\nChain: LAST TURN (${body.chainDepth}/${body.chainLimit}). Do NOT @mention — wrap up.`;
-              if (rem <= 2) return `\nChain: ${body.chainDepth}/${body.chainLimit} (${rem} left). Only @mention if essential.`;
-              return `\nChain: ${body.chainDepth}/${body.chainLimit} (${rem} left). May @mention others.`;
-            }
-            return "";
-          })()}`,
+- MCP servers: **claudiu-room-context** (your memory/personality) and **claudiu-helper-context** (app knowledge/onboarding). Use pctx tools proactively.`,
           cache_control: { type: "ephemeral" },
         },
+        {
+          type: "text",
+          text: dynamicContext,
+        },
       ],
-      messages,
+      messages: messagesCopy,
     };
 
     if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;

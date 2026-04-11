@@ -115,7 +115,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "Messages array required" }, { status: 400 });
     }
 
-    const messages = body.messages.slice(-historyLimit);
+    const messagesCopy = body.messages.slice(-historyLimit).map((m) => ({ ...m }));
+
+    // Cache the conversation history prefix for active chats
+    if (messagesCopy.length >= 4) {
+      (messagesCopy[messagesCopy.length - 3] as any).cache_control = { type: "ephemeral" };
+    }
 
     const anthropicBody: Record<string, unknown> = {
       model,
@@ -128,7 +133,7 @@ export async function POST(request: Request) {
           cache_control: { type: "ephemeral" },
         },
       ],
-      messages,
+      messages: messagesCopy,
     };
 
     if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
