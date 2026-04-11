@@ -14,40 +14,10 @@ import { MessageContent } from "@/lib/claude";
 import { FloatingOrb } from "@/components/FloatingOrb";
 import { playPing } from "@/lib/sounds";
 
-// Cache fetched attachments so mention chains and re-renders don't re-fetch
-const base64Cache = new Map<string, Promise<{ data: string; mediaType: string }>>();
+// Cache fetched text files so mention chains and re-renders don't re-fetch
 const textFileCache = new Map<string, Promise<string>>();
 // Cache uploaded oversized GIF URLs (gifUrl → Convex storage URL)
 const gifUploadCache = new Map<string, Promise<string>>();
-
-async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: string }> {
-  const cached = base64Cache.get(url);
-  if (cached) return cached;
-  const promise = (async () => {
-    const proxyRes = await fetch("/api/fetch-url", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
-    const proxyData = await proxyRes.json();
-    if (!proxyRes.ok) throw new Error(proxyData.error ?? "Proxy fetch failed");
-    if (proxyData.type === "image") {
-      return { data: proxyData.data, mediaType: proxyData.mediaType };
-    }
-    throw new Error("Not an image");
-  })();
-  base64Cache.set(url, promise);
-  promise.catch(() => base64Cache.delete(url));
-  return promise;
-}
-
-const SUPPORTED_MEDIA_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "application/pdf",
-];
 
 // File extensions / content types that should be fetched as plain text for Claude
 const TEXT_EXTENSIONS = new Set([
@@ -72,44 +42,6 @@ const MAX_TEXT_FILE_CHARS = 50_000; // ~50k chars to avoid blowing up context
 
 const HISTORY_TOKEN_BUDGET = 12_000; // ~48k chars — leaves room for system prompt + response
 const MIN_HISTORY_MESSAGES = 3;
-const MAX_BASE64_BYTES = 5_242_880; // Anthropic 5MB limit for inline images
-const MAX_UPLOAD_BYTES = 10_485_760; // 10MB upload limit — we'll resize to fit the API limit
-
-/**
- * Compress an image blob to fit under MAX_BASE64_BYTES using canvas downscaling.
- * Returns base64 data + media type. For animated GIFs this captures the first frame.
- */
-async function compressImageToFit(blob: Blob): Promise<{ data: string; mediaType: string }> {
-  const bmp = await createImageBitmap(blob);
-  let { width, height } = bmp;
-  // Iteratively scale down until the JPEG output fits
-  let quality = 0.85;
-  let scale = 1;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const w = Math.round(width * scale);
-    const h = Math.round(height * scale);
-    const canvas = new OffscreenCanvas(w, h);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(bmp, 0, 0, w, h);
-    const outBlob = await canvas.convertToBlob({ type: "image/jpeg", quality });
-    if (outBlob.size <= MAX_BASE64_BYTES) {
-      bmp.close();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve({ data: (reader.result as string).split(",")[1], mediaType: "image/jpeg" });
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(outBlob);
-      });
-    }
-    // Reduce dimensions by ~30% each round, plus lower quality
-    scale *= 0.7;
-    quality = Math.max(0.5, quality - 0.1);
-  }
-  bmp.close();
-  throw new Error("Could not compress image to fit 5MB limit");
-}
 
 /** Estimate tokens for a message including prefix overhead and attachments. */
 function estimateMessageTokens(m: MessageWithAttachments): number {
@@ -354,14 +286,11 @@ async function buildHistory(
               const text = await textFileCache.get(url)!;
               contentText += `\n\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---`;
             } catch { continue; }
-          } else {
-            // fetchAsBase64 auto-compresses oversized images via canvas
-            const { data, mediaType } = await fetchAsBase64(url);
-            if (mediaType.startsWith("image/")) {
-              attachmentBlocks.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-            } else if (mediaType === "application/pdf" && Math.ceil(data.length * 3 / 4) <= MAX_BASE64_BYTES) {
-              attachmentBlocks.push({ type: "document", source: { type: "base64", media_type: mediaType, data } });
-            }
+          } else if (a.contentType?.startsWith("image/")) {
+            // Use URL source — Anthropic API fetches server-side (20MB limit vs 5MB base64)
+            attachmentBlocks.push({ type: "image", source: { type: "url", url } });
+          } else if (a.contentType === "application/pdf") {
+            attachmentBlocks.push({ type: "document", source: { type: "url", url } });
           }
         } catch (e) {
           console.error("AI history fetch failed", e);
@@ -1321,21 +1250,17 @@ function RoomContent() {
                 }
                 contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
               } else if (a.data) {
-                const byteSize = Math.ceil(a.data.length * 3 / 4);
-                if (a.contentType?.startsWith("image/") && byteSize > MAX_BASE64_BYTES) {
-                  try {
-                    const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
-                    const blob = new Blob([raw], { type: a.contentType });
-                    const { data, mediaType } = await compressImageToFit(blob);
-                    contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-                  } catch { /* skip */ }
-                } else if (byteSize <= MAX_BASE64_BYTES) {
+                // Upload to Convex storage and use URL source — avoids 5MB base64 limit
+                try {
+                  const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
+                  const blob = new Blob([raw], { type: a.contentType });
+                  const storageUrl = await uploadBlobToStorage(blob);
                   if (a.contentType?.startsWith("image/")) {
-                    contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                    contentArray.push({ type: "image", source: { type: "url", url: storageUrl } });
                   } else if (a.contentType === "application/pdf") {
-                    contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                    contentArray.push({ type: "document", source: { type: "url", url: storageUrl } });
                   }
-                }
+                } catch { /* skip if upload fails */ }
               }
             }
             currentMsgContent = contentArray;
@@ -1385,22 +1310,17 @@ function RoomContent() {
               }
               contentArray.push({ type: "text", text: `\n--- ${a.fileName} ---\n${text}\n--- end ${a.fileName} ---` });
             } else if (a.data) {
-              const byteSize = Math.ceil(a.data.length * 3 / 4);
-              if (a.contentType?.startsWith("image/") && byteSize > MAX_BASE64_BYTES) {
-                // Oversized image — compress via canvas
-                try {
-                  const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
-                  const blob = new Blob([raw], { type: a.contentType });
-                  const { data, mediaType } = await compressImageToFit(blob);
-                  contentArray.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
-                } catch { /* skip if compression fails */ }
-              } else if (byteSize <= MAX_BASE64_BYTES) {
+              // Upload to Convex storage and use URL source — avoids 5MB base64 limit
+              try {
+                const raw = Uint8Array.from(atob(a.data), (c) => c.charCodeAt(0));
+                const blob = new Blob([raw], { type: a.contentType });
+                const storageUrl = await uploadBlobToStorage(blob);
                 if (a.contentType?.startsWith("image/")) {
-                  contentArray.push({ type: "image", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                  contentArray.push({ type: "image", source: { type: "url", url: storageUrl } });
                 } else if (a.contentType === "application/pdf") {
-                  contentArray.push({ type: "document", source: { type: "base64", media_type: a.contentType, data: a.data } });
+                  contentArray.push({ type: "document", source: { type: "url", url: storageUrl } });
                 }
-              }
+              } catch { /* skip if upload fails */ }
             }
           }
           userContent = contentArray;
