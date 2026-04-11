@@ -35,6 +35,7 @@ interface MessageBubbleProps {
   participantColors: Record<string, Color>;
   reactions?: GroupedReaction[];
   onReaction?: (emoji: string) => void;
+  adminUserId?: string;
 }
 
 function BotIcon({ color }: { color: string }) {
@@ -151,6 +152,7 @@ function MessageBubble({
   participantColors,
   reactions = [],
   onReaction,
+  adminUserId,
 }: MessageBubbleProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const hasReactions = reactions.length > 0;
@@ -309,27 +311,43 @@ function MessageBubble({
 
   // User message
   const isSelf = message.fromUserId === currentUserId;
+  const isAdmin = !!adminUserId && message.fromUserId === adminUserId;
   const color = participantColors[message.fromUserId];
-  const textColor = color?.text ?? "#DFA649";
-  const bgColor = color?.bg ?? "rgba(223,166,73,0.1)";
+  const textColor = isAdmin ? "#9B8EBF" : (color?.text ?? "#DFA649");
+  const bgColor = isAdmin ? "rgba(155,142,191,0.10)" : (color?.bg ?? "rgba(223,166,73,0.1)");
 
   return (
     <div className={`flex group ${isSelf ? "justify-end" : "justify-start"}`}>
       <div className="max-w-[90%] sm:max-w-[72%]">
         {!isSelf && (
           <div className="flex items-center gap-1.5 text-xs mb-1 px-1 font-medium">
-            <span style={{ color: textColor }}>{message.fromDisplayName}</span>
+            {isAdmin && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: textColor }}>
+                <rect x="1" y="5" width="2" height="2" fill="currentColor" />
+                <rect x="3" y="3" width="2" height="2" fill="currentColor" />
+                <rect x="5" y="1" width="2" height="2" fill="currentColor" />
+                <rect x="7" y="3" width="2" height="2" fill="currentColor" />
+                <rect x="9" y="5" width="2" height="2" fill="currentColor" />
+                <rect x="5" y="5" width="2" height="5" fill="currentColor" />
+              </svg>
+            )}
+            <span style={{ color: textColor, ...(isAdmin ? { fontFamily: "var(--font-press-start)", fontSize: "0.55rem" } : {}) }}>
+              {message.fromDisplayName}
+            </span>
             <Timestamp ts={message._creationTime} />
           </div>
         )}
         <div className="relative">
           <div
-            className="px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
+            className={`px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap${isAdmin ? " pixel-bubble" : ""}`}
             style={{
-              background: isSelf ? bgColor : "var(--surface)",
+              background: isAdmin
+                ? "linear-gradient(135deg, rgba(155,142,191,0.12) 0%, rgba(136,115,158,0.08) 100%)"
+                : isSelf ? bgColor : "var(--surface)",
               color: "var(--fg)",
-              border: isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
-              borderRadius: isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+              border: isAdmin ? "none" : isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
+              borderRadius: isAdmin ? "0" : isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+              animation: isAdmin ? "pixel-flicker 4s steps(1) infinite" : undefined,
             }}
           >
             {message.content}

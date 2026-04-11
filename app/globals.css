@@ -12,6 +12,7 @@
   --off-white: #F7F5FA;
   --deep-dark: #1E1830;
   --purple: #A78BFA;
+  --heather-purple: #9B8EBF;
   --topbar-offset: 5rem;
 
   /* Semantic tokens — dark defaults */
@@ -211,5 +212,52 @@ body {
 @keyframes claudiu-walk {
   from { background-position: 0 0; }
   to { background-position: -320px 0; }
+}
+
+/* nae 8-bit bubble effect */
+.pixel-bubble {
+  font-family: var(--font-press-start), monospace;
+  font-size: 0.65rem;
+  line-height: 1.8;
+  image-rendering: pixelated;
+  position: relative;
+  border: none !important;
+  border-radius: 0 !important;
+  /* Pixel-art stepped border via box-shadow */
+  box-shadow:
+    /* outer pixel border — heather purple */
+    -4px 0 0 0 var(--heather-purple),
+     4px 0 0 0 var(--heather-purple),
+     0 -4px 0 0 var(--heather-purple),
+     0  4px 0 0 var(--heather-purple),
+    /* corner pixels for blocky look */
+    -4px -4px 0 0 transparent,
+     4px -4px 0 0 transparent,
+    -4px  4px 0 0 transparent,
+     4px  4px 0 0 transparent,
+    /* pixel glow */
+     0 0 12px 2px rgba(155,142,191,0.15);
+}
+
+.pixel-bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(155,142,191,0.03) 2px,
+      rgba(155,142,191,0.03) 4px
+    );
+  pointer-events: none;
+}
+
+@keyframes pixel-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.85; }
+  94% { opacity: 1; }
 }
 

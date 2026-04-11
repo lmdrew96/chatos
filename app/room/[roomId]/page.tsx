@@ -780,6 +780,14 @@ function RoomContent() {
     return map;
   }, [participants]);
 
+  // Resolve admin (site owner) userId from participants for special bubble styling
+  const adminUserId = useMemo(() => {
+    const adminToken = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
+    if (!adminToken || !participants) return undefined;
+    const admin = participants.find((p) => p.tokenIdentifier === adminToken);
+    return admin?.userId;
+  }, [participants]);
+
   // Auto-sync preferred color to Convex when participant record loads or changes
   useEffect(() => {
     if (!myParticipant || !currentUserId) return;
@@ -1685,6 +1693,7 @@ function RoomContent() {
             message={msg}
             currentUserId={currentUserId}
             participantColors={participantColors}
+            adminUserId={adminUserId}
             reactions={groupedReactions[msg._id] ?? []}
             onReaction={async (emoji) => {
               const result = await toggleReaction({ messageId: msg._id, roomId, emoji, userId: currentUserId });
