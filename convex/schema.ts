@@ -219,4 +219,10 @@ export default defineSchema({
     tokenIdentifier: v.string(),
     lastSeenAt: v.number(),
   }).index("by_token_identifier", ["tokenIdentifier"]),
+
+  keySponsors: defineTable({
+    sponsorTokenIdentifier: v.string(),
+    recipientTokenIdentifier: v.string(),
+  }).index("by_sponsor", ["sponsorTokenIdentifier"])
+    .index("by_recipient", ["recipientTokenIdentifier"]),
 });

@@ -63,6 +63,7 @@ Install Convex agent skills: `npx convex ai-files install`
 - **Prompt caching**: History blocks are tagged for Anthropic prompt caching (live).
 - **Sequential dual-Claude**: When 2+ Claudes are `@mentioned`, each subsequent Claude receives all preceding replies as context.
 - **Personal Context MCP**: Three layers — Layer 1 (personal-context MCP URL), Layer 2 (additional MCP servers), Layer 3 (context seed textarea). All optional, collapsed in join form.
+- **Key Sponsorship**: The `keySponsors` table lets one user's API key serve as a fallback for another. When a Claude call fails with a billing/credit error, the system automatically retries with the sponsor's key. Managed via `addKeySponsor`/`removeKeySponsor` mutations in `convex/apiKeys.ts`. Currently used to sponsor Ashley's Claude usage.
 
 ## ADHDesigns Design Tokens
 
@@ -85,6 +86,7 @@ pnpm install          # Install dependencies
 npm run dev           # Start dev server (Next.js + Convex)
 npx convex dev        # Run Convex dev backend
 npx convex deploy     # Deploy Convex backend (after changes)
+npx tsc --noEmit      # Type-check — no output means clean build
 ```
 
 ## Environment Variables

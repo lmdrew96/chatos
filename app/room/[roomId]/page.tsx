@@ -891,8 +891,7 @@ function RoomContent() {
         return next;
       });
 
-      const reply = await callClaudeStreaming({
-        apiKey,
+      const streamOpts = {
         systemPrompt: owner.systemPrompt,
         messages: callMessages,
         mcpServers: ownerMcpServers.length > 0 ? ownerMcpServers : undefined,
@@ -901,16 +900,16 @@ function RoomContent() {
         ownerTimezone: ownerTimezone ?? undefined,
         chainDepth: depth,
         chainLimit,
-        onText: (accumulated) => {
+        onText: (accumulated: string) => {
           if (messageId) {
             updateStreamingMessage({
               messageId,
               content: accumulated,
               isStreaming: true,
-            }).catch((e) => console.warn("[stream flush] update failed:", e));
+            }).catch((e: unknown) => console.warn("[stream flush] update failed:", e));
           }
         },
-        onToolUse: (toolName) => {
+        onToolUse: (toolName: string) => {
           sendMessage({
             roomId,
             fromUserId: "system",
@@ -922,7 +921,33 @@ function RoomContent() {
           });
         },
         signal,
-      });
+      };
+
+      let reply: string;
+      try {
+        reply = await callClaudeStreaming({ apiKey, ...streamOpts });
+      } catch (primaryErr) {
+        // On billing/credit errors, try the sponsor's key as fallback
+        const errText = primaryErr instanceof Error ? primaryErr.message : "";
+        const isBillingError = /credit balance|billing|payment|insufficient.*(fund|credit)|exceeded.*budget|rate.*limit/i.test(errText);
+        if (isBillingError) {
+          const sponsorKey = await convex.query(api.apiKeys.getSponsorKeyForParticipant, {
+            roomId,
+            participantUserId: owner.userId,
+          });
+          if (sponsorKey) {
+            // Reset the streaming message for the retry
+            if (messageId) {
+              await updateStreamingMessage({ messageId, content: "", isStreaming: true });
+            }
+            reply = await callClaudeStreaming({ apiKey: sponsorKey, ...streamOpts });
+          } else {
+            throw primaryErr;
+          }
+        } else {
+          throw primaryErr;
+        }
+      }
 
       // Strip @everyone from Claude replies — agents must use direct @mentions
       const replyForMentions = reply.replace(/@everyone(?!\w)/gi, "everyone");
