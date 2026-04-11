@@ -24,43 +24,19 @@ async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: st
   const cached = base64Cache.get(url);
   if (cached) return cached;
   const promise = (async () => {
-    // Try direct fetch first, fall back to server proxy for CORS-blocked URLs
-    let blob: Blob;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Direct fetch failed: ${res.statusText}`);
-      blob = await res.blob();
-    } catch {
-      // CORS or network error — use server-side proxy
-      const proxyRes = await fetch("/api/fetch-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-      const proxyData = await proxyRes.json();
-      if (!proxyRes.ok) throw new Error(proxyData.error ?? "Proxy fetch failed");
-      if (proxyData.type === "image") {
-        return { data: proxyData.data, mediaType: proxyData.mediaType };
-      }
-      throw new Error("Not an image");
-    }
-    // If oversized image, compress via canvas downscaling
-    if (blob.type.startsWith("image/") && blob.size > MAX_BASE64_BYTES) {
-      return compressImageToFit(blob);
-    }
-    return new Promise<{ data: string; mediaType: string }>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        const base64 = result.split(",")[1];
-        resolve({ data: base64, mediaType: blob.type });
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
+    const proxyRes = await fetch("/api/fetch-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
     });
+    const proxyData = await proxyRes.json();
+    if (!proxyRes.ok) throw new Error(proxyData.error ?? "Proxy fetch failed");
+    if (proxyData.type === "image") {
+      return { data: proxyData.data, mediaType: proxyData.mediaType };
+    }
+    throw new Error("Not an image");
   })();
   base64Cache.set(url, promise);
-  // Evict on failure so retries work
   promise.catch(() => base64Cache.delete(url));
   return promise;
 }
