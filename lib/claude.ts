@@ -91,26 +91,27 @@ function formatTimeForTimezone(timezone?: string): string {
 }
 
 /** Build the multi-agent rules block appended to system prompts. */
-function buildMultiAgentRules(claudeName?: string, ownerTimezone?: string, chainDepth?: number, chainLimit?: number): string {
-  if (!claudeName) return "";
+function buildMultiAgentRules(claudeName?: string, ownerTimezone?: string, chainDepth?: number, chainLimit?: number): { staticRules: string; dynamicContext: string } {
+  if (!claudeName) return { staticRules: "", dynamicContext: "" };
 
-  let chain = "";
-  if (chainDepth !== undefined && chainLimit !== undefined) {
-    const rem = chainLimit - chainDepth - 1;
-    if (rem <= 0) chain = `\nChain: LAST TURN (${chainDepth}/${chainLimit}). Do NOT @mention — wrap up.`;
-    else if (rem <= 2) chain = `\nChain: ${chainDepth}/${chainLimit} (${rem} left). Only @mention if essential.`;
-    else chain = `\nChain: ${chainDepth}/${chainLimit} (${rem} left). May @mention others.`;
-  }
-
-  return `\n\n---
+  const staticRules = `\n\n---
 You are **${claudeName}** in Cha(t)os (multi-agent chat). Claudiu is the platform bot, not you.
 - You are ONLY ${claudeName}. Your messages = "assistant" role. Other Claudes = "user" prefixed [TheirName].
 - Single direct reply only. Never impersonate others. Stay in character unless sincerely asked.
 - Reactions ("[reacted with …]"): brief acknowledgment only, don't rehash the original.
-- Time: ${formatTimeForTimezone(ownerTimezone)}
 - @mentions to tag others, @everyone for all. Files/images/PDFs/GIFs are inline.
 - fetch_url tool: fetches any URL (images rendered, text up to 10k chars).
-- Memory is automatic. MCP tools available if configured — use proactively.${chain}`;
+- Memory is automatic. MCP tools available if configured — use proactively.`;
+
+  let dynamicContext = `- Time: ${formatTimeForTimezone(ownerTimezone)}`;
+  if (chainDepth !== undefined && chainLimit !== undefined) {
+    const rem = chainLimit - chainDepth - 1;
+    if (rem <= 0) dynamicContext += `\nChain: LAST TURN (${chainDepth}/${chainLimit}). Do NOT @mention — wrap up.`;
+    else if (rem <= 2) dynamicContext += `\nChain: ${chainDepth}/${chainLimit} (${rem} left). Only @mention if essential.`;
+    else dynamicContext += `\nChain: ${chainDepth}/${chainLimit} (${rem} left). May @mention others.`;
+  }
+
+  return { staticRules, dynamicContext };
 }
 
 /** Check if the last user message is simple enough to skip MCP server initialization. */
@@ -157,9 +158,19 @@ export async function callClaude({
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<{ text: string; usage: TokenUsage }> {
-  // System prompt stays stable (and cached) — memory goes in as a prepended
-  // message pair so cache hits aren't busted when the summary updates.
-  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
+  // System prompt: static part is cached, dynamic (time/chain) is not.
+  const { staticRules, dynamicContext } = buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit);
+
+  const systemBlocks: Record<string, unknown>[] = [
+    {
+      type: "text",
+      text: `${systemPrompt}${staticRules}`,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+  if (dynamicContext) {
+    systemBlocks.push({ type: "text", text: dynamicContext });
+  }
 
   // Prepend memory as a message exchange so it's cacheable independently
   const messagesWithMemory: typeof messages = memoryContext
@@ -182,6 +193,12 @@ export async function callClaude({
       ]
     : messages;
 
+  // Cache conversation history prefix for active chats
+  const msgCopy = messagesWithMemory.map((m) => ({ ...m }));
+  if (msgCopy.length >= 4) {
+    (msgCopy[msgCopy.length - 3] as any).cache_control = { type: "ephemeral" };
+  }
+
   const fetchTool = {
     name: "fetch_url",
     description:
@@ -198,14 +215,8 @@ export async function callClaude({
   const body: Record<string, unknown> = {
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
-    system: [
-      {
-        type: "text",
-        text: effectiveSystem,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    messages: messagesWithMemory,
+    system: systemBlocks,
+    messages: msgCopy,
     tools: [fetchTool],
   };
 
@@ -363,7 +374,18 @@ export async function callClaudeStreaming({
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<{ text: string; usage: TokenUsage }> {
-  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
+  const { staticRules, dynamicContext } = buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit);
+
+  const systemBlocks: Record<string, unknown>[] = [
+    {
+      type: "text",
+      text: `${systemPrompt}${staticRules}`,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+  if (dynamicContext) {
+    systemBlocks.push({ type: "text", text: dynamicContext });
+  }
 
   const messagesWithMemory: typeof messages = memoryContext
     ? [
@@ -385,6 +407,12 @@ export async function callClaudeStreaming({
       ]
     : messages;
 
+  // Cache conversation history prefix for active chats
+  const msgCopy = messagesWithMemory.map((m) => ({ ...m }));
+  if (msgCopy.length >= 4) {
+    (msgCopy[msgCopy.length - 3] as any).cache_control = { type: "ephemeral" };
+  }
+
   const fetchTool = {
     name: "fetch_url",
     description:
@@ -402,14 +430,8 @@ export async function callClaudeStreaming({
     model: "claude-sonnet-4-6",
     max_tokens: 1024,
     stream: true,
-    system: [
-      {
-        type: "text",
-        text: effectiveSystem,
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    messages: messagesWithMemory,
+    system: systemBlocks,
+    messages: msgCopy,
     tools: [fetchTool],
   };
 
