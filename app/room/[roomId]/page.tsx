@@ -930,8 +930,7 @@ function RoomContent() {
             const subHistory = await buildHistory(subTrimmed, CLAUDIU_NAME, uploadBlobToStorage);
             const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
               ...subHistory,
-              { role: "user", content: `[${claudeName}]: ${reply}` },
-              { role: "user", content: `(${CLAUDIU_NAME}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)` },
+              { role: "user", content: `[${claudeName}]: ${reply}\n\n(${CLAUDIU_NAME}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)` },
             ];
             await invokeClaudiuResponse({
               callMessages: subCallMessages,
@@ -950,11 +949,7 @@ function RoomContent() {
           const subHistory = await buildHistory(subTrimmed, subName, uploadBlobToStorage);
           const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
             ...subHistory,
-            { role: "user", content: `[${claudeName}]: ${reply}` },
-            {
-              role: "user",
-              content: `(${subName}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)`,
-            },
+            { role: "user", content: `[${claudeName}]: ${reply}\n\n(${subName}, you were mentioned by ${claudeName} above. Respond to them or the conversation.)` },
           ];
           await invokeClaudeResponse({
             claudeName: subName,
@@ -1190,8 +1185,7 @@ function RoomContent() {
           const subHistory = await buildHistory(subTrimmed, subName, uploadBlobToStorage);
           const subCallMessages: { role: "user" | "assistant"; content: string | MessageContent[] }[] = [
             ...subHistory,
-            { role: "user", content: `[${CLAUDIU_NAME}]: ${text}` },
-            { role: "user", content: `(${subName}, you were mentioned by ${CLAUDIU_NAME} above. Respond to them or the conversation.)` },
+            { role: "user", content: `[${CLAUDIU_NAME}]: ${text}\n\n(${subName}, you were mentioned by ${CLAUDIU_NAME} above. Respond to them or the conversation.)` },
           ];
           await invokeClaudeResponse({
             claudeName: subName,
@@ -1348,11 +1342,16 @@ function RoomContent() {
                   callClaude({
                     apiKey: ownerApiKey,
                     systemPrompt:
-                      "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
+                      "Compress this chat log into TWO sections:\nSUMMARY: Brief context of resolved topics, completed tasks, and decisions (max 100 words). This is ephemeral session context.\nSTANDING: Ongoing facts, relationships, preferences, or dynamics that should persist across sessions (bullet list, max 50 words). Output STANDING: NONE if nothing qualifies.\nNo preamble — output only the two sections.",
                     messages: [{ role: "user", content: base }],
                   })
-                    .then(({ text: summary }) => {
-                      sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
+                    .then(({ text: raw }) => {
+                      const summaryMatch = raw.match(/SUMMARY:\s*([\s\S]*?)(?=STANDING:|$)/i);
+                      const summary = summaryMatch?.[1]?.trim() ?? raw.trim();
+                      const isNone = /^none\.?$/i.test(summary) || summary.length < 10;
+                      sessionSummaryRef.current = isNone
+                        ? { summary: "", throughMsgCount: allMsgs.length }
+                        : { summary, throughMsgCount: allMsgs.length };
                     })
                     .catch((err) => console.error("[compact] summary failed:", err));
                 }
@@ -1485,14 +1484,48 @@ function RoomContent() {
                   const base = existing?.summary
                     ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
                     : formatted;
+                  const pctxMemory = claudeMemories?.[claudeName]?.summary;
+                  const dedup = pctxMemory
+                    ? `\n\nIMPORTANT: This persistent memory already exists — do NOT repeat anything it covers:\n${pctxMemory}\n\nOnly output NEW context not in the memory above. If everything is already covered, output SUMMARY: NONE`
+                    : "";
                   callClaude({
                     apiKey: ownerApiKey,
                     systemPrompt:
-                      "Compress this chat log into a brief context summary (max 150 words). Capture key topics, decisions, and participant positions. No preamble — output only the summary.",
+                      `Compress this chat log into TWO sections:\nSUMMARY: Brief context of resolved topics, completed tasks, and decisions (max 100 words). This is ephemeral session context.\nSTANDING: Ongoing facts, relationships, preferences, or dynamics that should persist across sessions (bullet list, max 50 words). Output STANDING: NONE if nothing qualifies.\nNo preamble — output only the two sections.${dedup}`,
                     messages: [{ role: "user", content: base }],
                   })
-                    .then(({ text: summary }) => {
-                      sessionSummaryRef.current = { summary, throughMsgCount: allMsgs.length };
+                    .then(({ text: raw }) => {
+                      const summaryMatch = raw.match(/SUMMARY:\s*([\s\S]*?)(?=STANDING:|$)/i);
+                      const standingMatch = raw.match(/STANDING:\s*([\s\S]*?)$/i);
+                      const summary = summaryMatch?.[1]?.trim() ?? raw.trim();
+                      const standing = standingMatch?.[1]?.trim();
+
+                      const isNone = /^none\.?$/i.test(summary) || summary.length < 10;
+                      sessionSummaryRef.current = isNone
+                        ? { summary: "", throughMsgCount: allMsgs.length }
+                        : { summary, throughMsgCount: allMsgs.length };
+
+                      // Migrate standing context into pctx memory
+                      if (standing && !/^none\.?$/i.test(standing) && standing.length >= 10) {
+                        const currentMemory = claudeMemories?.[claudeName]?.summary;
+                        const mergePrompt = currentMemory
+                          ? `Merge this new standing context into the existing memory. Deduplicate.\n\nExisting:\n${currentMemory}\n\nNew:\n${standing}`
+                          : standing;
+                        callClaude({
+                          apiKey: ownerApiKey,
+                          systemPrompt: `You compress Cha(t)os chat context into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
+                          messages: [{ role: "user", content: mergePrompt }],
+                        })
+                          .then(({ text: mergedMemory }) =>
+                            upsertClaudeMemory({
+                              ownerUserId: owner.userId,
+                              claudeName,
+                              summary: mergedMemory,
+                              messageCount: allMsgs.length,
+                            })
+                          )
+                          .catch((err) => console.error("[compact] standing->pctx failed:", err));
+                      }
                     })
                     .catch((err) => console.error("[compact] summary failed:", err));
                 }
@@ -1502,10 +1535,11 @@ function RoomContent() {
           history = await buildHistory(trimmed, claudeName, uploadBlobToStorage);
         }
 
-        // Inject session summary at the top if available
-        if (sessionSummaryRef.current?.summary) {
+        // Inject session summary at the top if available (skip if empty/NONE)
+        const sessionSummary = sessionSummaryRef.current?.summary;
+        if (sessionSummary && sessionSummary.length >= 10) {
           history.unshift(
-            { role: "user" as const, content: `[Earlier conversation context — auto-summarized]\n${sessionSummaryRef.current.summary}` },
+            { role: "user" as const, content: `[Earlier conversation context — auto-summarized]\n${sessionSummary}` },
             { role: "assistant" as const, content: "Got it, I have that context." },
           );
         }
