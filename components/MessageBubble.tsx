@@ -37,6 +37,7 @@ interface MessageBubbleProps {
   participantColors: Record<string, Color>;
   reactions?: GroupedReaction[];
   onReaction?: (emoji: string) => void;
+  onStop?: () => void;
   specialUsers?: Record<string, SpecialStyle>;
 }
 
@@ -166,6 +167,7 @@ function MessageBubble({
   participantColors,
   reactions = [],
   onReaction,
+  onStop,
   specialUsers = {},
 }: MessageBubbleProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -221,7 +223,18 @@ function MessageBubble({
             <span className="text-xs font-medium" style={{ color: textColor }}>
               {message.claudeName}
             </span>
-            <Timestamp ts={message._creationTime} />
+            {message.isStreaming && onStop ? (
+              <button
+                onClick={onStop}
+                className="text-xs ml-0.5 transition-opacity opacity-50 hover:opacity-90"
+                style={{ color: textColor }}
+                title="Stop this response"
+              >
+                stop
+              </button>
+            ) : (
+              <Timestamp ts={message._creationTime} />
+            )}
           </div>
           <div className="relative">
             <div

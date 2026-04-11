@@ -1766,6 +1766,7 @@ function RoomContent() {
             participantColors={participantColors}
             specialUsers={specialUsers}
             reactions={groupedReactions[msg._id] ?? []}
+            onStop={msg.isStreaming ? () => chainAbortRef.current?.abort() : undefined}
             onReaction={async (emoji) => {
               const result = await toggleReaction({ messageId: msg._id, roomId, emoji, userId: currentUserId });
               if (result.action !== "added") return;

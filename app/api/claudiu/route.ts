@@ -203,8 +203,25 @@ export async function POST(request: Request) {
     let outputTokens = 0;
     let cacheCreationTokens = 0;
     let cacheReadTokens = 0;
+    let logged = false;
     const sseDecoder = new TextDecoder();
     let sseBuffer = "";
+
+    const fireLog = () => {
+      if (logged || !convexUrl) return;
+      if (inputTokens <= 0 && outputTokens <= 0) return;
+      logged = true;
+      const logClient = new ConvexHttpClient(convexUrl);
+      logClient.mutation(api.claudiuUsage.logUsage, {
+        endpoint: "onboarding" as const,
+        model,
+        inputTokens,
+        outputTokens,
+        cacheCreationTokens: cacheCreationTokens || undefined,
+        cacheReadTokens: cacheReadTokens || undefined,
+        timestamp: Date.now(),
+      }).catch(() => {});
+    };
 
     const transform = new TransformStream({
       transform(chunk, controller) {
@@ -227,6 +244,7 @@ export async function POST(request: Request) {
             }
             if (parsed.type === "message_delta" && parsed.usage) {
               outputTokens = parsed.usage.output_tokens ?? 0;
+              fireLog();
             }
           } catch {
             // skip
@@ -234,18 +252,7 @@ export async function POST(request: Request) {
         }
       },
       flush() {
-        if ((inputTokens > 0 || outputTokens > 0) && convexUrl) {
-          const logClient = new ConvexHttpClient(convexUrl);
-          logClient.mutation(api.claudiuUsage.logUsage, {
-            endpoint: "onboarding" as const,
-            model,
-            inputTokens,
-            outputTokens,
-            cacheCreationTokens: cacheCreationTokens || undefined,
-            cacheReadTokens: cacheReadTokens || undefined,
-            timestamp: Date.now(),
-          }).catch(() => {});
-        }
+        fireLog();
       },
     });
 
