@@ -782,12 +782,12 @@ function RoomContent() {
 
   // Map of special users → bubble style, resolved from participant tokens
   const specialUsers = useMemo(() => {
-    if (!participants) return {};
-    const tokenStyles: [string | undefined, string][] = [
+    if (!participants) return {} as Record<string, "pixel" | "wispy">;
+    const tokenStyles: [string | undefined, "pixel" | "wispy"][] = [
       [process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN, "pixel"],
       [process.env.NEXT_PUBLIC_ASHLEY_USER_TOKEN, "wispy"],
     ];
-    const map: Record<string, string> = {};
+    const map: Record<string, "pixel" | "wispy"> = {};
     for (const [token, style] of tokenStyles) {
       if (!token) continue;
       const p = participants.find((p) => p.tokenIdentifier === token);
