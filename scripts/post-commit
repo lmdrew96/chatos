@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Post-commit hook: trigger immediate changelog sync for feat/fix commits.
+# Install: pnpm setup:hooks
+
+MSG=$(git log -1 --format=%s)
+
+case "$MSG" in
+  feat:*|feat\(*|fix:*|fix\(*)
+    # Background the curl so the commit returns instantly.
+    # If not yet pushed, the sync still picks up prior commits; cron catches the rest.
+    (curl -s -X POST \
+      -H "X-Sync-Secret: ${CHATOS_SYNC_SECRET:-}" \
+      "${CHATOS_CONVEX_SITE_URL:-https://tangible-dolphin-838.convex.cloud}/sync-changelog" \
+      > /dev/null 2>&1 &)
+    ;;
+esac

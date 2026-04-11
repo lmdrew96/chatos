@@ -17,6 +17,7 @@ import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as friends from "../friends.js";
 import type * as gifs from "../gifs.js";
+import type * as http from "../http.js";
 import type * as invites from "../invites.js";
 import type * as messages from "../messages.js";
 import type * as pushNotifications from "../pushNotifications.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   dashboard: typeof dashboard;
   friends: typeof friends;
   gifs: typeof gifs;
+  http: typeof http;
   invites: typeof invites;
   messages: typeof messages;
   pushNotifications: typeof pushNotifications;
