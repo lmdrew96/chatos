@@ -224,7 +224,7 @@ body {
   image-rendering: pixelated;
   position: relative;
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
   /* Pixel-art stepped border via box-shadow */
   box-shadow:
     /* outer pixel border — heather purple */

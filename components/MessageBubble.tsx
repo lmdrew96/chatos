@@ -376,7 +376,7 @@ function MessageBubble({
                   : isSelf ? bgColor : "var(--surface)",
               color: "var(--fg)",
               border: (isPixel || isWispy) ? "none" : isSelf ? `1px solid ${textColor}30` : "1px solid var(--border)",
-              borderRadius: isPixel ? "0" : isWispy ? undefined : isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+              borderRadius: isPixel ? undefined : isWispy ? undefined : isSelf ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
               animation: isPixel ? "pixel-flicker 4s steps(1) infinite" : isWispy ? "wispy-breathe 4s ease-in-out infinite" : undefined,
             }}
           >
