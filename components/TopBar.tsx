@@ -36,7 +36,7 @@ export function TopBar({ current }: { current?: Page }) {
     : navItems;
 
   return (
-    <div className="flex items-center h-14 gap-3">
+    <div className="flex items-center h-14 gap-4 sm:gap-6">
       {/* Logo — left */}
       <Link href="/" className="flex-shrink-0 flex items-center" aria-label="Cha(t)os home">
         <Image src="/chatos-t-logo.png" alt="Cha(t)os" width={32} height={32} />
