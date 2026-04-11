@@ -159,6 +159,12 @@ export const saveJoinPreferences = mutation({
     const displayLower = preferredDisplayName.toLowerCase();
     const claudeLower = preferredClaudeName.toLowerCase();
 
+    // Reserved names
+    const RESERVED_CLAUDE_NAMES = ["claudiu", "everyone"];
+    if (RESERVED_CLAUDE_NAMES.includes(claudeLower)) {
+      throw new Error(`The Claude name "${preferredClaudeName}" is reserved.`);
+    }
+
     // Check display name uniqueness (case-insensitive)
     if (preferredDisplayName) {
       const existing = await ctx.db
