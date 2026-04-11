@@ -41,6 +41,26 @@ async function fetchWithRetry(
   throw lastError ?? new Error("fetchWithRetry exhausted");
 }
 
+/** Execute fetch_url via server-side proxy to avoid CORS issues. */
+async function executeFetchUrl(url: string, signal?: AbortSignal): Promise<any> {
+  const res = await fetch("/api/fetch-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+    signal,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Fetch failed");
+  if (data.type === "image") {
+    return {
+      content: [
+        { type: "image", source: { type: "base64", media_type: data.mediaType, data: data.data } },
+      ],
+    };
+  }
+  return { content: data.content };
+}
+
 export type MessageContent =
   | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string }; cache_control?: { type: "ephemeral" } }
@@ -248,27 +268,12 @@ export async function callClaude({
     for (const tool of toolUseBlocks) {
       if (tool.name === "fetch_url") {
         try {
-          const fetchRes = await fetch(tool.input.url, { signal });
-          const contentType = fetchRes.headers.get("content-type") ?? "";
-          if (contentType.startsWith("image/")) {
-            const buf = await fetchRes.arrayBuffer();
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-            const mediaType = contentType.split(";")[0].trim();
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: tool.id,
-              content: [
-                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-              ],
-            });
-          } else {
-            const body = await fetchRes.text();
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: tool.id,
-              content: body.slice(0, 10000),
-            });
-          }
+          const result = await executeFetchUrl(tool.input.url, signal);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: tool.id,
+            ...result,
+          });
         } catch (e: any) {
           toolResults.push({
             type: "tool_result",
@@ -560,27 +565,12 @@ export async function callClaudeStreaming({
 
       if (tool.name === "fetch_url") {
         try {
-          const fetchRes = await fetch(input.url, { signal });
-          const contentType = fetchRes.headers.get("content-type") ?? "";
-          if (contentType.startsWith("image/")) {
-            const buf = await fetchRes.arrayBuffer();
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-            const mediaType = contentType.split(";")[0].trim();
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: tool.id,
-              content: [
-                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-              ],
-            });
-          } else {
-            const bodyText = await fetchRes.text();
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: tool.id,
-              content: bodyText.slice(0, 10000),
-            });
-          }
+          const result = await executeFetchUrl(input.url, signal);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: tool.id,
+            ...result,
+          });
         } catch (e: any) {
           toolResults.push({
             type: "tool_result",
