@@ -24,9 +24,26 @@ async function fetchAsBase64(url: string): Promise<{ data: string; mediaType: st
   const cached = base64Cache.get(url);
   if (cached) return cached;
   const promise = (async () => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to fetch attachment: ${res.statusText}`);
-    const blob = await res.blob();
+    // Try direct fetch first, fall back to server proxy for CORS-blocked URLs
+    let blob: Blob;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Direct fetch failed: ${res.statusText}`);
+      blob = await res.blob();
+    } catch {
+      // CORS or network error — use server-side proxy
+      const proxyRes = await fetch("/api/fetch-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const proxyData = await proxyRes.json();
+      if (!proxyRes.ok) throw new Error(proxyData.error ?? "Proxy fetch failed");
+      if (proxyData.type === "image") {
+        return { data: proxyData.data, mediaType: proxyData.mediaType };
+      }
+      throw new Error("Not an image");
+    }
     // If oversized image, compress via canvas downscaling
     if (blob.type.startsWith("image/") && blob.size > MAX_BASE64_BYTES) {
       return compressImageToFit(blob);
