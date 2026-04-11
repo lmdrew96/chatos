@@ -69,8 +69,12 @@ export default defineSchema({
     timezone: v.optional(v.string()),
     preferredDisplayName: v.optional(v.string()),
     preferredClaudeName: v.optional(v.string()),
+    preferredDisplayNameLower: v.optional(v.string()),
+    preferredClaudeNameLower: v.optional(v.string()),
   }).index("by_token", ["tokenIdentifier"])
-    .index("by_username", ["username"]),
+    .index("by_username", ["username"])
+    .index("by_preferredDisplayNameLower", ["preferredDisplayNameLower"])
+    .index("by_preferredClaudeNameLower", ["preferredClaudeNameLower"]),
 
   friendRequests: defineTable({
     fromId: v.id("users"),

@@ -154,10 +154,39 @@ export const saveJoinPreferences = mutation({
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", identity.tokenIdentifier))
       .unique();
+    if (!user) return;
 
-    if (user) {
-      await ctx.db.patch(user._id, { preferredDisplayName, preferredClaudeName });
+    const displayLower = preferredDisplayName.toLowerCase();
+    const claudeLower = preferredClaudeName.toLowerCase();
+
+    // Check display name uniqueness (case-insensitive)
+    if (preferredDisplayName) {
+      const existing = await ctx.db
+        .query("users")
+        .withIndex("by_preferredDisplayNameLower", (q) => q.eq("preferredDisplayNameLower", displayLower))
+        .first();
+      if (existing && existing._id !== user._id) {
+        throw new Error(`The name "${preferredDisplayName}" is already taken.`);
+      }
     }
+
+    // Check Claude name uniqueness (case-insensitive)
+    if (preferredClaudeName) {
+      const existing = await ctx.db
+        .query("users")
+        .withIndex("by_preferredClaudeNameLower", (q) => q.eq("preferredClaudeNameLower", claudeLower))
+        .first();
+      if (existing && existing._id !== user._id) {
+        throw new Error(`The Claude name "${preferredClaudeName}" is already taken.`);
+      }
+    }
+
+    await ctx.db.patch(user._id, {
+      preferredDisplayName,
+      preferredClaudeName,
+      preferredDisplayNameLower: displayLower,
+      preferredClaudeNameLower: claudeLower,
+    });
   },
 });
 

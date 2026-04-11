@@ -61,6 +61,7 @@ export default function SettingsPage() {
   const [prefClaudeName, setPrefClaudeName] = useState("");
   const [prefHydrated, setPrefHydrated] = useState(false);
   const [prefSaved, setPrefSaved] = useState(false);
+  const [prefError, setPrefError] = useState("");
 
   useEffect(() => {
     if (prefHydrated || me === undefined) return;
@@ -72,12 +73,20 @@ export default function SettingsPage() {
   }, [me, prefHydrated]);
 
   const handleSavePreferences = async () => {
-    await saveJoinPreferences({
-      preferredDisplayName: prefDisplayName.trim(),
-      preferredClaudeName: prefClaudeName.trim(),
-    });
-    setPrefSaved(true);
-    setTimeout(() => setPrefSaved(false), 2000);
+    setPrefError("");
+    try {
+      await saveJoinPreferences({
+        preferredDisplayName: prefDisplayName.trim(),
+        preferredClaudeName: prefClaudeName.trim(),
+      });
+      setPrefSaved(true);
+      setTimeout(() => setPrefSaved(false), 2000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save.";
+      // Convex wraps errors — extract the inner message
+      const match = msg.match(/Uncaught Error:\s*(.+)/);
+      setPrefError(match ? match[1] : msg);
+    }
   };
 
   const savedKey = useQuery(api.apiKeys.getMyApiKey);
@@ -334,6 +343,19 @@ export default function SettingsPage() {
                 Others use <span style={{ color: "var(--amber)" }}>@{prefClaudeName || "YourClaude"}</span> to invoke your Claude.
               </p>
             </div>
+
+            {prefError && (
+              <p
+                className="text-sm px-4 py-3 rounded-lg"
+                style={{
+                  background: "rgba(255,100,100,0.1)",
+                  border: "1px solid rgba(255,100,100,0.2)",
+                  color: "#FF9090",
+                }}
+              >
+                {prefError}
+              </p>
+            )}
 
             <button
               onClick={handleSavePreferences}
