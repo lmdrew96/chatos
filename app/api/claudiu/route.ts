@@ -134,7 +134,7 @@ export async function POST(request: Request) {
     if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
     if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
 
-    const betas: string[] = [];
+    const betas: string[] = ["pdfs-2024-09-25"];
 
     const allMcpServers: Record<string, string>[] = [];
 

@@ -153,7 +153,7 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
     if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
     if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
 
-    const betas: string[] = [];
+    const betas: string[] = ["pdfs-2024-09-25"];
 
     const mcpServers: Record<string, string>[] = [];
 
@@ -197,7 +197,20 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
       }
     }
 
-    if (mcpServers.length > 0) {
+    // Skip MCP for trivial messages (reactions, greetings, chain nudges)
+    const lastMsg = messages[messages.length - 1];
+    const lastText = typeof lastMsg?.content === "string"
+      ? lastMsg.content
+      : Array.isArray(lastMsg?.content)
+        ? (lastMsg.content.find((b: any) => b.type === "text") as any)?.text ?? ""
+        : "";
+    const stripped = lastText.replace(/^[^:]{1,30}:\s*/, "").trim();
+    const isTrivia =
+      /\[.*reacted with/.test(lastText) ||
+      /you were mentioned by/i.test(lastText) ||
+      (stripped.length < 40 && /^(hi|hey|hello|thanks|thank you|ok|okay|lol|lmao|haha|nice|cool|yes|no|yep|nope|sure|bye|gm|gn|yo|sup|brb|ty|np|gg|wow)[\s!.?]*$/i.test(stripped));
+
+    if (mcpServers.length > 0 && !isTrivia) {
       anthropicBody.mcp_servers = mcpServers;
       betas.push("mcp-client-2025-04-04");
     }
