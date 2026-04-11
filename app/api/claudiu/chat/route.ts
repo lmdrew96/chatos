@@ -116,18 +116,11 @@ export async function POST(request: Request) {
     const maxTokens = config?.roomMaxTokens ?? 1024;
     const historyLimit = config?.roomHistoryLimit ?? 40;
 
-    const messagesCopy = body.messages.slice(-historyLimit).map((m) => ({ ...m }));
-
-    // Cache the conversation history prefix — the third-from-last message is a
-    // stable breakpoint so sequential messages in an active chat get cache reads.
-    if (messagesCopy.length >= 4) {
-      (messagesCopy[messagesCopy.length - 3] as any).cache_control = { type: "ephemeral" };
-    }
+    const messages = body.messages.slice(-historyLimit);
 
     const roomMcpUrl = config?.roomMcpUrl || body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
     const helperMcpUrl = config?.helperMcpUrl;
 
-    // Build dynamic context (changes every request — NOT cached)
     let dynamicContext = `- Time: ${formatTimeForTimezone(body.timezone)}`;
     if (body.chainDepth !== undefined && body.chainLimit !== undefined) {
       const rem = body.chainLimit - body.chainDepth - 1;
@@ -140,6 +133,7 @@ export async function POST(request: Request) {
       model,
       max_tokens: maxTokens,
       stream: true,
+      cache_control: { type: "ephemeral" },
       system: [
         {
           type: "text",
@@ -148,22 +142,18 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
 - You are ONLY Claudiu. Your messages = "assistant" role. Other Claudes = "user" prefixed [TheirName].
 - Single direct reply only. Never impersonate others. Stay in character unless sincerely asked.
 - Reactions ("[reacted with …]"): brief acknowledgment only, don't rehash.
+- ${dynamicContext}
 - @mentions to tag others, @everyone for all. Files/images/PDFs/GIFs are inline.
 - MCP servers: **claudiu-room-context** (your memory/personality) and **claudiu-helper-context** (app knowledge/onboarding). Use pctx tools proactively.`,
-          cache_control: { type: "ephemeral" },
-        },
-        {
-          type: "text",
-          text: dynamicContext,
         },
       ],
-      messages: messagesCopy,
+      messages,
     };
 
     if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
     if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
 
-    const betas: string[] = ["prompt-caching-2024-07-31"];
+    const betas: string[] = [];
 
     const mcpServers: Record<string, string>[] = [];
 

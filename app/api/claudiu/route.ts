@@ -115,31 +115,26 @@ export async function POST(request: Request) {
       return Response.json({ error: "Messages array required" }, { status: 400 });
     }
 
-    const messagesCopy = body.messages.slice(-historyLimit).map((m) => ({ ...m }));
-
-    // Cache the conversation history prefix for active chats
-    if (messagesCopy.length >= 4) {
-      (messagesCopy[messagesCopy.length - 3] as any).cache_control = { type: "ephemeral" };
-    }
+    const messages = body.messages.slice(-historyLimit);
 
     const anthropicBody: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
       stream: true,
+      cache_control: { type: "ephemeral" },
       system: [
         {
           type: "text",
           text: systemPrompt,
-          cache_control: { type: "ephemeral" },
         },
       ],
-      messages: messagesCopy,
+      messages,
     };
 
     if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
     if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
 
-    const betas: string[] = ["prompt-caching-2024-07-31"];
+    const betas: string[] = [];
 
     const allMcpServers: Record<string, string>[] = [];
 
