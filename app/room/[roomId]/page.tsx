@@ -646,11 +646,17 @@ function RoomContent() {
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+    let ticking = false;
     const handleScroll = () => {
-      const threshold = 150;
-      const isNearBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
-      setShowScrollButton(!isNearBottom);
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const threshold = 150;
+        const isNearBottom =
+          container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+        setShowScrollButton(!isNearBottom);
+        ticking = false;
+      });
     };
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
