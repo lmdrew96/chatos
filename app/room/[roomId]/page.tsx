@@ -908,7 +908,9 @@ function RoomContent() {
         signal,
       });
 
-      const mentions = detectMentions(reply, allParticipants).filter(
+      // Strip @everyone from Claude replies — agents must use direct @mentions
+      const replyForMentions = reply.replace(/@everyone(?!\w)/gi, "everyone");
+      const mentions = detectMentions(replyForMentions, allParticipants).filter(
         (name) => name !== claudeName
       );
 
@@ -1178,7 +1180,9 @@ function RoomContent() {
       }
 
       // Final flush
-      const mentions = detectMentions(text, allParticipants).filter((n) => n !== CLAUDIU_NAME);
+      // Strip @everyone from Claudiu replies — agents must use direct @mentions
+      const textForMentions = text.replace(/@everyone(?!\w)/gi, "everyone");
+      const mentions = detectMentions(textForMentions, allParticipants).filter((n) => n !== CLAUDIU_NAME);
       if (messageId) {
         await updateStreamingMessage({ messageId, content: text, isStreaming: false, mentions });
       }
