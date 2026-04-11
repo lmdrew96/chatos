@@ -55,6 +55,31 @@ export default function SettingsPage() {
     localStorage.setItem(COLOR_KEY, hex);
   };
 
+  // Room defaults (preferred names)
+  const saveJoinPreferences = useMutation(api.users.saveJoinPreferences);
+  const [prefDisplayName, setPrefDisplayName] = useState("");
+  const [prefClaudeName, setPrefClaudeName] = useState("");
+  const [prefHydrated, setPrefHydrated] = useState(false);
+  const [prefSaved, setPrefSaved] = useState(false);
+
+  useEffect(() => {
+    if (prefHydrated || me === undefined) return;
+    if (me) {
+      setPrefDisplayName(me.preferredDisplayName ?? "");
+      setPrefClaudeName(me.preferredClaudeName ?? "");
+    }
+    setPrefHydrated(true);
+  }, [me, prefHydrated]);
+
+  const handleSavePreferences = async () => {
+    await saveJoinPreferences({
+      preferredDisplayName: prefDisplayName.trim(),
+      preferredClaudeName: prefClaudeName.trim(),
+    });
+    setPrefSaved(true);
+    setTimeout(() => setPrefSaved(false), 2000);
+  };
+
   const savedKey = useQuery(api.apiKeys.getMyApiKey);
   const saveApiKeyMutation = useMutation(api.apiKeys.saveApiKey);
   const deleteApiKeyMutation = useMutation(api.apiKeys.deleteApiKey);
@@ -250,6 +275,77 @@ export default function SettingsPage() {
                 ))}
               </select>
             </div>
+          </div>
+        </section>
+
+        {/* Divider */}
+        <div style={{ borderTop: "1px solid var(--border)" }} />
+
+        {/* Room Defaults section */}
+        <section>
+          <h2
+            className="text-xs font-medium tracking-widest uppercase mb-1"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Room Defaults
+          </h2>
+          <p className="text-sm mb-5" style={{ color: "var(--text-muted)" }}>
+            Pre-filled when you join a new room. You can still change them on the join page.
+          </p>
+
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Your name
+              </label>
+              <input
+                type="text"
+                value={prefDisplayName}
+                onChange={(e) => { setPrefDisplayName(e.target.value); setPrefSaved(false); }}
+                placeholder="e.g. Nae"
+                autoComplete="off"
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all field-focus"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium" style={{ color: "var(--fg)" }}>
+                Your Claude&apos;s name
+              </label>
+              <input
+                type="text"
+                value={prefClaudeName}
+                onChange={(e) => { setPrefClaudeName(e.target.value); setPrefSaved(false); }}
+                placeholder="e.g. NaeClaude"
+                autoComplete="off"
+                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all field-focus"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--fg)",
+                }}
+              />
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Others use <span style={{ color: "var(--amber)" }}>@{prefClaudeName || "YourClaude"}</span> to invoke your Claude.
+              </p>
+            </div>
+
+            <button
+              onClick={handleSavePreferences}
+              className="w-full py-2.5 rounded-lg font-bold text-sm transition-all"
+              style={{
+                background: prefSaved ? "rgba(151,209,129,0.15)" : "var(--amber)",
+                color: prefSaved ? "var(--soft-green)" : "var(--deep-dark)",
+                fontFamily: "var(--font-super-bakery)",
+              }}
+            >
+              {prefSaved ? "Saved ✓" : "Save defaults"}
+            </button>
           </div>
         </section>
 
