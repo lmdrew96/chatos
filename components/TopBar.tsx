@@ -36,25 +36,25 @@ export function TopBar({ current }: { current?: Page }) {
     : navItems;
 
   return (
-    <div className="flex items-center justify-center h-14 relative">
+    <div className="flex items-center h-14 gap-3">
       {/* Logo — left */}
-      <Link href="/" className="absolute left-0 flex items-center" aria-label="Cha(t)os home">
+      <Link href="/" className="flex-shrink-0 flex items-center" aria-label="Cha(t)os home">
         <Image src="/chatos-t-logo.png" alt="Cha(t)os" width={32} height={32} />
       </Link>
 
-      {/* Nav — center */}
-      <nav className="flex items-center gap-5">
+      {/* Nav — center, takes remaining space */}
+      <nav className="flex items-center gap-3 sm:gap-5 min-w-0 flex-1 justify-center">
         {allNavItems.map((item, i) => (
-          <span key={item.page} className="flex items-center gap-5">
+          <span key={item.page} className="flex items-center gap-3 sm:gap-5">
             {i > 0 && (
               <span style={{ color: "var(--border)" }}>·</span>
             )}
             {activePage === item.page ? (
-              <span className="text-xs font-medium nav-link-active">
+              <span className="text-xs font-medium nav-link-active whitespace-nowrap">
                 {item.label}
               </span>
             ) : (
-              <Link href={item.href} className="text-xs nav-link">
+              <Link href={item.href} className="text-xs nav-link whitespace-nowrap">
                 {item.label}
               </Link>
             )}
@@ -63,7 +63,7 @@ export function TopBar({ current }: { current?: Page }) {
       </nav>
 
       {/* Actions — right */}
-      <div className="absolute right-0 flex items-center gap-1">
+      <div className="flex-shrink-0 flex items-center gap-1">
         <ChangelogBadge />
         <SettingsLink />
         <NotificationBell />
