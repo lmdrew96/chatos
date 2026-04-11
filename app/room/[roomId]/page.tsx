@@ -334,25 +334,6 @@ async function buildHistory(
     }
   }
 
-  // Apply prompt caching breakpoints (Max 4 allowed total)
-  // 1 is used for System Prompt, 1 for memory context (when present).
-  // We'll use up to 2 more for the history blocks.
-  // Tagging from latest back ensures the most recent state is cached for the next turn.
-  let breakpointsSet = 0;
-  for (let i = result.length - 1; i >= 0 && breakpointsSet < 2; i--) {
-    const msg = result[i];
-    if (typeof msg.content === "string") {
-      if (!msg.content) continue; // skip empty text (e.g. streaming placeholders)
-      msg.content = [{ type: "text", text: msg.content, cache_control: { type: "ephemeral" } }];
-      breakpointsSet++;
-    } else if (Array.isArray(msg.content) && msg.content.length > 0) {
-      const last = msg.content[msg.content.length - 1];
-      if (last.type === "text" && !last.text) continue; // skip empty text blocks
-      last.cache_control = { type: "ephemeral" };
-      breakpointsSet++;
-    }
-  }
-
   return result;
 }
 
