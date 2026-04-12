@@ -6,6 +6,7 @@ import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { callClaudeProxy, estimateTokens, McpServer, TokenUsage } from "@/lib/claude";
+import { isPctxServer } from "@/lib/pctx-prefetch";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
@@ -906,8 +907,13 @@ function RoomContent() {
         }
       }
 
-      // Fire-and-forget memory update (only at depth 0 to avoid thrashing)
-      if (depth === 0) {
+      // Fire-and-forget memory update (only at depth 0 to avoid thrashing).
+      // Skip entirely when the owner has a PCTX MCP server — PCTX is the
+      // authoritative source for persistent identity/project/relationship data.
+      // Writing compressed chat summaries into Claude Memory would create a
+      // parallel data source that drifts and injects phantom context.
+      const ownerHasPctxServer = owner.mcpServers?.some((s) => isPctxServer(s.name));
+      if (depth === 0 && !ownerHasPctxServer) {
         const USER_TRIGGERS = /\b(remember this|remember that|don't forget|save this|note this|keep that in mind|log this)\b/i;
         const CLAUDE_TRIGGERS = /\b(i('ll| will) remember|i('ve| have) noted|i('ll| will) keep that in mind|noted|i('ll| will) make a note)\b/i;
 
@@ -1422,58 +1428,83 @@ function RoomContent() {
                   const base = existing?.summary
                     ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
                     : formatted;
-                  const pctxMemory = claudeMemories?.[claudeName]?.summary;
-                  const dedup = pctxMemory
-                    ? `\n\nIMPORTANT: This persistent memory already exists — do NOT repeat anything it covers:\n${pctxMemory}\n\nOnly output NEW context not in the memory above. If everything is already covered, output SUMMARY: NONE`
-                    : "";
-                  callClaudeProxy({
-                    roomId,
-                    participantUserId: owner.userId,
-                    ownerTokenIdentifier: owner.tokenIdentifier,
-                    claudeName,
-                    systemPrompt:
-                      `Compress this chat log into TWO sections:\nSUMMARY: Brief context of resolved topics, completed tasks, and decisions (max 100 words). This is ephemeral session context.\nSTANDING: Ongoing facts, relationships, preferences, or dynamics that should persist across sessions (bullet list, max 50 words). Output STANDING: NONE if nothing qualifies.\nNo preamble — output only the two sections.${dedup}`,
-                    messages: [{ role: "user", content: base }],
-                    onText: () => {},
-                  })
-                    .then(({ text: raw }) => {
-                      const summaryMatch = raw.match(/SUMMARY:\s*([\s\S]*?)(?=STANDING:|$)/i);
-                      const standingMatch = raw.match(/STANDING:\s*([\s\S]*?)$/i);
-                      const summary = summaryMatch?.[1]?.trim() ?? raw.trim();
-                      const standing = standingMatch?.[1]?.trim();
+                  const hasPctx = owner.mcpServers?.some((s) => isPctxServer(s.name));
 
-                      const isNone = /^none\.?$/i.test(summary) || summary.length < 10;
-                      sessionSummaryRef.current = isNone
-                        ? { summary: "", throughMsgCount: allMsgs.length }
-                        : { summary, throughMsgCount: allMsgs.length };
-
-                      // Migrate standing context into pctx memory
-                      if (standing && !/^none\.?$/i.test(standing) && standing.length >= 10) {
-                        const currentMemory = claudeMemories?.[claudeName]?.summary;
-                        const mergePrompt = currentMemory
-                          ? `Merge this new standing context into the existing memory. Deduplicate.\n\nExisting:\n${currentMemory}\n\nNew:\n${standing}`
-                          : standing;
-                        callClaudeProxy({
-                          roomId,
-                          participantUserId: owner.userId,
-                          ownerTokenIdentifier: owner.tokenIdentifier,
-                          claudeName,
-                          systemPrompt: `You compress Cha(t)os chat context into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
-                          messages: [{ role: "user", content: mergePrompt }],
-                          onText: () => {},
-                        })
-                          .then(({ text: mergedMemory }) =>
-                            upsertClaudeMemory({
-                              ownerUserId: owner.userId,
-                              claudeName,
-                              summary: mergedMemory,
-                              messageCount: allMsgs.length,
-                            })
-                          )
-                          .catch((err) => console.error("[compact] standing->pctx failed:", err));
-                      }
+                  if (hasPctx) {
+                    // PCTX owner: only extract ephemeral session summary (no STANDING).
+                    // PCTX is the source of truth for persistent context — don't create
+                    // a parallel memory layer from chat compression.
+                    callClaudeProxy({
+                      roomId,
+                      participantUserId: owner.userId,
+                      ownerTokenIdentifier: owner.tokenIdentifier,
+                      claudeName,
+                      systemPrompt:
+                        "Compress this chat log into a brief summary of resolved topics, completed tasks, and decisions (max 100 words). This is ephemeral session context. No preamble — output only the summary.",
+                      messages: [{ role: "user", content: base }],
+                      onText: () => {},
                     })
-                    .catch((err) => console.error("[compact] summary failed:", err));
+                      .then(({ text: summary }) => {
+                        const isNone = /^none\.?$/i.test(summary) || summary.length < 10;
+                        sessionSummaryRef.current = isNone
+                          ? { summary: "", throughMsgCount: allMsgs.length }
+                          : { summary, throughMsgCount: allMsgs.length };
+                      })
+                      .catch((err) => console.error("[compact] summary failed:", err));
+                  } else {
+                    // Non-PCTX owner: extract SUMMARY + STANDING, migrate standing into Claude Memory
+                    const existingMemory = claudeMemories?.[claudeName]?.summary;
+                    const dedup = existingMemory
+                      ? `\n\nIMPORTANT: This persistent memory already exists — do NOT repeat anything it covers:\n${existingMemory}\n\nOnly output NEW context not in the memory above. If everything is already covered, output SUMMARY: NONE`
+                      : "";
+                    callClaudeProxy({
+                      roomId,
+                      participantUserId: owner.userId,
+                      ownerTokenIdentifier: owner.tokenIdentifier,
+                      claudeName,
+                      systemPrompt:
+                        `Compress this chat log into TWO sections:\nSUMMARY: Brief context of resolved topics, completed tasks, and decisions (max 100 words). This is ephemeral session context.\nSTANDING: Ongoing facts, relationships, preferences, or dynamics that should persist across sessions (bullet list, max 50 words). Output STANDING: NONE if nothing qualifies.\nNo preamble — output only the two sections.${dedup}`,
+                      messages: [{ role: "user", content: base }],
+                      onText: () => {},
+                    })
+                      .then(({ text: raw }) => {
+                        const summaryMatch = raw.match(/SUMMARY:\s*([\s\S]*?)(?=STANDING:|$)/i);
+                        const standingMatch = raw.match(/STANDING:\s*([\s\S]*?)$/i);
+                        const summary = summaryMatch?.[1]?.trim() ?? raw.trim();
+                        const standing = standingMatch?.[1]?.trim();
+
+                        const isNone = /^none\.?$/i.test(summary) || summary.length < 10;
+                        sessionSummaryRef.current = isNone
+                          ? { summary: "", throughMsgCount: allMsgs.length }
+                          : { summary, throughMsgCount: allMsgs.length };
+
+                        if (standing && !/^none\.?$/i.test(standing) && standing.length >= 10) {
+                          const currentMemory = claudeMemories?.[claudeName]?.summary;
+                          const mergePrompt = currentMemory
+                            ? `Merge this new standing context into the existing memory. Deduplicate.\n\nExisting:\n${currentMemory}\n\nNew:\n${standing}`
+                            : standing;
+                          callClaudeProxy({
+                            roomId,
+                            participantUserId: owner.userId,
+                            ownerTokenIdentifier: owner.tokenIdentifier,
+                            claudeName,
+                            systemPrompt: `You compress Cha(t)os chat context into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
+                            messages: [{ role: "user", content: mergePrompt }],
+                            onText: () => {},
+                          })
+                            .then(({ text: mergedMemory }) =>
+                              upsertClaudeMemory({
+                                ownerUserId: owner.userId,
+                                claudeName,
+                                summary: mergedMemory,
+                                messageCount: allMsgs.length,
+                              })
+                            )
+                            .catch((err) => console.error("[compact] standing->pctx failed:", err));
+                        }
+                      })
+                      .catch((err) => console.error("[compact] summary failed:", err));
+                  }
               }
             }
           }

@@ -150,9 +150,12 @@ export async function POST(request: Request) {
         chainLimit: body.chainLimit,
       });
 
-    // Inject memory context as a user/assistant message pair
+    // Inject memory context as a user/assistant message pair.
+    // Skip when PCTX was successfully pre-fetched — it's the authoritative source
+    // for identity/projects/relationships and memoryContext would duplicate or contradict it.
     const messages = stripOldMedia(body.messages);
-    const messagesWithMemory: typeof messages = body.memoryContext
+    const useMemoryContext = body.memoryContext && !pctxMemory;
+    const messagesWithMemory: typeof messages = useMemoryContext
       ? [
           {
             role: "user",
