@@ -177,12 +177,8 @@ export async function POST(request: Request) {
       max_tokens: maxTokens,
       system: [{ type: "text" as const, text: systemText }],
       messages,
-      // Server-side compaction: summarize old messages when input exceeds threshold
       context_management: {
-        edits: [{
-          type: "compact_20260112",
-          trigger: { type: "input_tokens", value: 20000 },
-        }],
+        edits: [{ type: "compact_20260112", trigger: { type: "input_tokens", value: 50000 } }],
       },
     };
 
@@ -193,7 +189,7 @@ export async function POST(request: Request) {
       streamParams.mcp_servers = mcpServers;
     }
 
-    const betas: string[] = ["pdfs-2024-09-25", "context-management-2025-06-27"];
+    const betas: string[] = ["pdfs-2024-09-25", "compact-2026-01-12"];
     if (useMcp) betas.push("mcp-client-2025-04-04");
 
     // Always use beta API for context management + optional MCP

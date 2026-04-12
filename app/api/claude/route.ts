@@ -182,7 +182,7 @@ export async function POST(request: Request) {
 
     const client = new Anthropic({ apiKey });
 
-    const betas: string[] = ["pdfs-2024-09-25", "context-management-2025-06-27"];
+    const betas: string[] = ["pdfs-2024-09-25", "compact-2026-01-12"];
     const useMcp = mcpServers.length > 0;
     if (useMcp) betas.push("mcp-client-2025-04-04");
 
@@ -192,10 +192,7 @@ export async function POST(request: Request) {
       system: [{ type: "text" as const, text: effectiveSystem }],
       tools: [fetchTool],
       context_management: {
-        edits: [{
-          type: "compact_20260112",
-          trigger: { type: "input_tokens", value: 20000 },
-        }],
+        edits: [{ type: "compact_20260112", trigger: { type: "input_tokens", value: 50000 } }],
       },
     };
 
