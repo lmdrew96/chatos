@@ -1,41 +1,7 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-
-/** Retry fetch for transient Anthropic API errors (429, 5xx). */
-async function fetchWithRetry(
-  url: string,
-  init: RequestInit,
-  maxRetries = 2,
-  baseDelay = 1000,
-): Promise<Response> {
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await fetch(url, init);
-      if (res.ok || (res.status >= 400 && res.status < 429) || (res.status > 429 && res.status < 500)) {
-        return res;
-      }
-      if (attempt < maxRetries) {
-        const retryAfter = res.headers.get("retry-after");
-        const delay = retryAfter
-          ? Math.min(parseInt(retryAfter, 10) * 1000, 30000)
-          : baseDelay * Math.pow(2, attempt) + Math.random() * 500;
-        await new Promise((r) => setTimeout(r, delay));
-        continue;
-      }
-      return res;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < maxRetries) {
-        await new Promise((r) => setTimeout(r, baseDelay * Math.pow(2, attempt)));
-        continue;
-      }
-      throw lastError;
-    }
-  }
-  throw lastError ?? new Error("fetchWithRetry exhausted");
-}
 
 // Simple in-memory rate limiting (values overridden by config at request time)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -117,33 +83,15 @@ export async function POST(request: Request) {
 
     const messages = body.messages.slice(-historyLimit);
 
-    const anthropicBody: Record<string, unknown> = {
-      model,
-      max_tokens: maxTokens,
-      stream: true,
-      cache_control: { type: "ephemeral" },
-      system: [
-        {
-          type: "text",
-          text: systemPrompt,
-        },
-      ],
-      messages,
-    };
-
-    if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
-    if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
-
-    const betas: string[] = ["pdfs-2024-09-25"];
-
-    const allMcpServers: Record<string, string>[] = [];
+    // Build MCP servers array
+    const allMcpServers: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
 
     const helperMcpUrl = config?.helperMcpUrl;
     if (helperMcpUrl) {
       try {
         const parsed = new URL(helperMcpUrl);
         const token = parsed.searchParams.get("token");
-        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
         if (token) server.authorization_token = token;
         allMcpServers.push(server);
       } catch {
@@ -151,13 +99,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // Additional MCP servers from admin config
     for (const s of config?.mcpServers ?? []) {
       if (!s.name.trim() || !s.url.trim()) continue;
       try {
         const parsed = new URL(s.url);
         const token = parsed.searchParams.get("token");
-        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: s.name };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: s.name };
         if (token) server.authorization_token = token;
         allMcpServers.push(server);
       } catch {
@@ -165,44 +112,41 @@ export async function POST(request: Request) {
       }
     }
 
+    // Initialize SDK client
+    const client = new Anthropic({ apiKey });
+
+    const streamParams: Record<string, unknown> = {
+      model,
+      max_tokens: maxTokens,
+      system: [{ type: "text" as const, text: systemPrompt }],
+      messages,
+      // Server-side compaction: summarize old messages when input exceeds threshold
+      context_management: {
+        edits: [{
+          type: "compact_20260112",
+          trigger: { type: "input_tokens", value: 10000 },
+        }],
+      },
+    };
+
+    if (config?.temperature !== undefined) streamParams.temperature = config.temperature;
+    if (config?.topP !== undefined) streamParams.top_p = config.topP;
+
     if (allMcpServers.length > 0) {
-      anthropicBody.mcp_servers = allMcpServers;
-      betas.push("mcp-client-2025-04-04");
+      streamParams.mcp_servers = allMcpServers;
     }
 
-    const anthropicRes = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": betas.join(","),
-      },
-      body: JSON.stringify(anthropicBody),
+    const betas: string[] = ["pdfs-2024-09-25", "context-management-2025-06-27"];
+    if (allMcpServers.length > 0) betas.push("mcp-client-2025-04-04");
+
+    // Always use beta API for context management + optional MCP
+    const stream = client.beta.messages.stream(streamParams as any, {
+      headers: { "anthropic-beta": betas.join(",") },
     });
 
-    if (!anthropicRes.ok) {
-      const err = await anthropicRes.json().catch(() => ({}));
-      return Response.json(
-        { error: (err as any).error?.message ?? `Anthropic API error ${anthropicRes.status}` },
-        { status: 502 }
-      );
-    }
-
-    // Stream SSE through to the client, intercepting token usage
-    if (!anthropicRes.body) {
-      return Response.json({ error: "No stream from Anthropic" }, { status: 502 });
-    }
-
-    let inputTokens = 0;
-    let outputTokens = 0;
-    let cacheCreationTokens = 0;
-    let cacheReadTokens = 0;
+    // Re-serialize SDK events as SSE for the client, logging usage eagerly
     let logged = false;
-    const sseDecoder = new TextDecoder();
-    let sseBuffer = "";
-
-    const fireLog = () => {
+    const fireLog = (inputTokens: number, outputTokens: number, cacheCreationTokens: number, cacheReadTokens: number) => {
       if (logged || !convexUrl) return;
       if (inputTokens <= 0 && outputTokens <= 0) return;
       logged = true;
@@ -218,42 +162,51 @@ export async function POST(request: Request) {
       }).catch(() => {});
     };
 
-    const transform = new TransformStream({
-      transform(chunk, controller) {
-        controller.enqueue(chunk);
+    const encoder = new TextEncoder();
+    let inputTokens = 0;
+    let cacheCreationTokens = 0;
+    let cacheReadTokens = 0;
 
-        sseBuffer += sseDecoder.decode(chunk, { stream: true });
-        const lines = sseBuffer.split("\n");
-        sseBuffer = lines.pop() ?? "";
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            // Forward the event as SSE
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === "message_start" && parsed.message?.usage) {
-              inputTokens = parsed.message.usage.input_tokens ?? 0;
-              cacheCreationTokens = parsed.message.usage.cache_creation_input_tokens ?? 0;
-              cacheReadTokens = parsed.message.usage.cache_read_input_tokens ?? 0;
+            // Track usage eagerly from events
+            if (event.type === "message_start" && (event as any).message?.usage) {
+              const u = (event as any).message.usage;
+              inputTokens = u.input_tokens ?? 0;
+              cacheCreationTokens = u.cache_creation_input_tokens ?? 0;
+              cacheReadTokens = u.cache_read_input_tokens ?? 0;
             }
-            if (parsed.type === "message_delta" && parsed.usage) {
-              outputTokens = parsed.usage.output_tokens ?? 0;
-              fireLog();
+            if (event.type === "message_delta" && (event as any).usage) {
+              const outputTokens = (event as any).usage.output_tokens ?? 0;
+              fireLog(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens);
             }
-          } catch {
-            // skip
           }
+          controller.close();
+
+          // Fallback: log from finalMessage if we haven't logged yet
+          if (!logged) {
+            try {
+              const final = await stream.finalMessage();
+              fireLog(
+                final.usage.input_tokens,
+                final.usage.output_tokens,
+                (final.usage as any).cache_creation_input_tokens ?? 0,
+                (final.usage as any).cache_read_input_tokens ?? 0,
+              );
+            } catch { /* stream may have been aborted */ }
+          }
+        } catch (err: any) {
+          controller.error(err);
         }
-      },
-      flush() {
-        fireLog();
       },
     });
 
-    const stream = anthropicRes.body.pipeThrough(transform);
-
-    return new Response(stream, {
+    return new Response(readable, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",

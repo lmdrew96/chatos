@@ -1,59 +1,29 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-
-function formatTimeForTimezone(timezone?: string): string {
-  try {
-    return new Date().toLocaleString("en-US", {
-      timeZone: timezone || undefined,
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZoneName: "short",
-    });
-  } catch {
-    return new Date().toISOString();
-  }
-}
+import { buildMultiAgentRules } from "@/lib/multi-agent-rules";
 
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
-/** Retry fetch for transient Anthropic API errors (429, 5xx). */
-async function fetchWithRetry(
-  url: string,
-  init: RequestInit,
-  maxRetries = 2,
-  baseDelay = 1000,
-): Promise<Response> {
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await fetch(url, init);
-      if (res.ok || (res.status >= 400 && res.status < 429) || (res.status > 429 && res.status < 500)) {
-        return res;
-      }
-      if (attempt < maxRetries) {
-        const retryAfter = res.headers.get("retry-after");
-        const delay = retryAfter
-          ? Math.min(parseInt(retryAfter, 10) * 1000, 30000)
-          : baseDelay * Math.pow(2, attempt) + Math.random() * 500;
-        await new Promise((r) => setTimeout(r, delay));
-        continue;
-      }
-      return res;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < maxRetries) {
-        await new Promise((r) => setTimeout(r, baseDelay * Math.pow(2, attempt)));
-        continue;
-      }
-      throw lastError;
-    }
-  }
-  throw lastError ?? new Error("fetchWithRetry exhausted");
+/** Strip images and documents from older messages to reduce token cost.
+ *  Only the last `recencyLimit` messages keep their media blocks. */
+function stripOldMedia(
+  messages: Array<{ role: string; content: string | object[] }>,
+  recencyLimit = 5,
+): typeof messages {
+  return messages.map((msg, i) => {
+    const isRecent = i >= messages.length - recencyLimit;
+    if (isRecent || typeof msg.content === "string") return msg;
+    if (!Array.isArray(msg.content)) return msg;
+
+    const filtered = msg.content.map((block: any) => {
+      if (block.type === "image") return { type: "text", text: "[image was shared]" };
+      if (block.type === "document") return { type: "text", text: "[PDF was shared]" };
+      return block;
+    });
+    return { ...msg, content: filtered };
+  });
 }
 
 export async function POST(request: Request) {
@@ -116,54 +86,27 @@ export async function POST(request: Request) {
     const maxTokens = config?.roomMaxTokens ?? 1024;
     const historyLimit = config?.roomHistoryLimit ?? 40;
 
-    const messages = body.messages.slice(-historyLimit);
+    const messages = stripOldMedia(body.messages.slice(-historyLimit));
 
     const roomMcpUrl = config?.roomMcpUrl || body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
     const helperMcpUrl = config?.helperMcpUrl;
 
-    let dynamicContext = `- Time: ${formatTimeForTimezone(body.timezone)}`;
-    if (body.chainDepth !== undefined && body.chainLimit !== undefined) {
-      const rem = body.chainLimit - body.chainDepth - 1;
-      if (rem <= 0) dynamicContext += `\nChain: LAST TURN (${body.chainDepth}/${body.chainLimit}). Do NOT @mention — wrap up.`;
-      else if (rem <= 2) dynamicContext += `\nChain: ${body.chainDepth}/${body.chainLimit} (${rem} left). Only @mention if essential.`;
-      else dynamicContext += `\nChain: ${body.chainDepth}/${body.chainLimit} (${rem} left). May @mention others.`;
-    }
+    const systemText = roomPrompt + buildMultiAgentRules({
+      agentName: "Claudiu",
+      isClaudiu: true,
+      timezone: body.timezone,
+      chainDepth: body.chainDepth,
+      chainLimit: body.chainLimit,
+    });
 
-    const anthropicBody: Record<string, unknown> = {
-      model,
-      max_tokens: maxTokens,
-      stream: true,
-      cache_control: { type: "ephemeral" },
-      system: [
-        {
-          type: "text",
-          text: roomPrompt + `\n\n---
-You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). Other Claudes have different names/owners. You are NOT them.
-- You are ONLY Claudiu. Your messages = "assistant" role. Other Claudes = "user" prefixed [TheirName].
-- Single direct reply only. Never impersonate others. Stay in character unless sincerely asked.
-- NEVER parrot other Claudes. Read their messages — if a point was made, don't restate it. Respond only with what's new, different, or builds on it. Silence > echo.
-- Reactions ("[reacted with …]"): brief acknowledgment only, don't rehash.
-- @mentions to tag others, @everyone for all. Files/images/PDFs/GIFs are inline.
-- MCP servers: **claudiu-room-context** (your memory/personality) and **claudiu-helper-context** (app knowledge/onboarding). Use pctx tools proactively.
-- ${dynamicContext}`,
-        },
-      ],
-      messages,
-    };
+    // Build MCP servers array
+    const mcpServers: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
 
-    if (config?.temperature !== undefined) anthropicBody.temperature = config.temperature;
-    if (config?.topP !== undefined) anthropicBody.top_p = config.topP;
-
-    const betas: string[] = ["pdfs-2024-09-25"];
-
-    const mcpServers: Record<string, string>[] = [];
-
-    // Room context MCP (general knowledge, conversation context)
     if (roomMcpUrl) {
       try {
         const parsed = new URL(roomMcpUrl);
         const token = parsed.searchParams.get("token");
-        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-room-context" };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-room-context" };
         if (token) server.authorization_token = token;
         mcpServers.push(server);
       } catch {
@@ -171,12 +114,11 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
       }
     }
 
-    // Helper context MCP (app knowledge, onboarding facts)
     if (helperMcpUrl) {
       try {
         const parsed = new URL(helperMcpUrl);
         const token = parsed.searchParams.get("token");
-        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
         if (token) server.authorization_token = token;
         mcpServers.push(server);
       } catch {
@@ -184,13 +126,12 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
       }
     }
 
-    // Additional MCP servers from admin config
     for (const s of config?.mcpServers ?? []) {
       if (!s.name.trim() || !s.url.trim()) continue;
       try {
         const parsed = new URL(s.url);
         const token = parsed.searchParams.get("token");
-        const server: Record<string, string> = { type: "url", url: parsed.toString(), name: s.name };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: s.name };
         if (token) server.authorization_token = token;
         mcpServers.push(server);
       } catch {
@@ -211,43 +152,43 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
       /you were mentioned by/i.test(lastText) ||
       (stripped.length < 40 && /^(hi|hey|hello|thanks|thank you|ok|okay|lol|lmao|haha|nice|cool|yes|no|yep|nope|sure|bye|gm|gn|yo|sup|brb|ty|np|gg|wow)[\s!.?]*$/i.test(stripped));
 
-    if (mcpServers.length > 0 && !isTrivia) {
-      anthropicBody.mcp_servers = mcpServers;
-      betas.push("mcp-client-2025-04-04");
+    const useMcp = mcpServers.length > 0 && !isTrivia;
+
+    // Initialize SDK client
+    const client = new Anthropic({ apiKey });
+
+    const streamParams: Record<string, unknown> = {
+      model,
+      max_tokens: maxTokens,
+      system: [{ type: "text" as const, text: systemText }],
+      messages,
+      // Server-side compaction: summarize old messages when input exceeds threshold
+      context_management: {
+        edits: [{
+          type: "compact_20260112",
+          trigger: { type: "input_tokens", value: 20000 },
+        }],
+      },
+    };
+
+    if (config?.temperature !== undefined) streamParams.temperature = config.temperature;
+    if (config?.topP !== undefined) streamParams.top_p = config.topP;
+
+    if (useMcp) {
+      streamParams.mcp_servers = mcpServers;
     }
 
-    const anthropicRes = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": betas.join(","),
-      },
-      body: JSON.stringify(anthropicBody),
+    const betas: string[] = ["pdfs-2024-09-25", "context-management-2025-06-27"];
+    if (useMcp) betas.push("mcp-client-2025-04-04");
+
+    // Always use beta API for context management + optional MCP
+    const stream = client.beta.messages.stream(streamParams as any, {
+      headers: { "anthropic-beta": betas.join(",") },
     });
 
-    if (!anthropicRes.ok) {
-      const err = await anthropicRes.json().catch(() => ({}));
-      return Response.json(
-        { error: (err as any).error?.message ?? `Anthropic API error ${anthropicRes.status}` },
-        { status: 502 }
-      );
-    }
-
-    if (!anthropicRes.body) {
-      return Response.json({ error: "No stream from Anthropic" }, { status: 502 });
-    }
-
-    let inputTokens = 0;
-    let outputTokens = 0;
-    let cacheCreationTokens = 0;
-    let cacheReadTokens = 0;
+    // Re-serialize SDK events as SSE for the client, logging usage eagerly
     let logged = false;
-    const sseDecoder = new TextDecoder();
-    let sseBuffer = "";
-
-    const fireLog = () => {
+    const fireLog = (inputTokens: number, outputTokens: number, cacheCreationTokens: number, cacheReadTokens: number) => {
       if (logged) return;
       if (inputTokens <= 0 && outputTokens <= 0) return;
       logged = true;
@@ -264,44 +205,50 @@ You are **Claudiu** — the built-in assistant in Cha(t)os (multi-agent chat). O
       }).catch(() => {});
     };
 
-    const transform = new TransformStream({
-      transform(chunk, controller) {
-        controller.enqueue(chunk);
+    const encoder = new TextEncoder();
+    let inputTokens = 0;
+    let cacheCreationTokens = 0;
+    let cacheReadTokens = 0;
 
-        sseBuffer += sseDecoder.decode(chunk, { stream: true });
-        const lines = sseBuffer.split("\n");
-        sseBuffer = lines.pop() ?? "";
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === "message_start" && parsed.message?.usage) {
-              inputTokens = parsed.message.usage.input_tokens ?? 0;
-              cacheCreationTokens = parsed.message.usage.cache_creation_input_tokens ?? 0;
-              cacheReadTokens = parsed.message.usage.cache_read_input_tokens ?? 0;
+            // Track usage eagerly from events
+            if (event.type === "message_start" && (event as any).message?.usage) {
+              const u = (event as any).message.usage;
+              inputTokens = u.input_tokens ?? 0;
+              cacheCreationTokens = u.cache_creation_input_tokens ?? 0;
+              cacheReadTokens = u.cache_read_input_tokens ?? 0;
             }
-            if (parsed.type === "message_delta" && parsed.usage) {
-              outputTokens = parsed.usage.output_tokens ?? 0;
-              // Log immediately — flush() won't fire if client aborts
-              fireLog();
+            if (event.type === "message_delta" && (event as any).usage) {
+              const outputTokens = (event as any).usage.output_tokens ?? 0;
+              fireLog(inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens);
             }
-          } catch {
-            // skip
           }
+          controller.close();
+
+          // Fallback: log from finalMessage if we haven't logged yet
+          if (!logged) {
+            try {
+              const final = await stream.finalMessage();
+              fireLog(
+                final.usage.input_tokens,
+                final.usage.output_tokens,
+                (final.usage as any).cache_creation_input_tokens ?? 0,
+                (final.usage as any).cache_read_input_tokens ?? 0,
+              );
+            } catch { /* stream may have been aborted */ }
+          }
+        } catch (err: any) {
+          controller.error(err);
         }
-      },
-      flush() {
-        // Fallback for streams that complete without message_delta
-        fireLog();
       },
     });
 
-    const stream = anthropicRes.body.pipeThrough(transform);
-
-    return new Response(stream, {
+    return new Response(readable, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",

@@ -1,3 +1,5 @@
+import { buildMultiAgentRules } from "./multi-agent-rules";
+
 export type McpServer = { name: string; url: string };
 
 /** Retry helper for transient API errors (429, 5xx, network failures). */
@@ -73,48 +75,7 @@ export type TokenUsage = {
   cacheReadTokens: number;
 };
 
-function formatTimeForTimezone(timezone?: string): string {
-  try {
-    return new Date().toLocaleString("en-US", {
-      timeZone: timezone || undefined,
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZoneName: "short",
-    });
-  } catch {
-    return new Date().toISOString();
-  }
-}
-
-/** Build the multi-agent rules block appended to system prompts.
- *  Dynamic content (time, chain depth) goes at the end so automatic
- *  caching can cache the stable prefix. */
-function buildMultiAgentRules(claudeName?: string, ownerTimezone?: string, chainDepth?: number, chainLimit?: number): string {
-  if (!claudeName) return "";
-
-  let chain = "";
-  if (chainDepth !== undefined && chainLimit !== undefined) {
-    const rem = chainLimit - chainDepth - 1;
-    if (rem <= 0) chain = `\nChain: LAST TURN (${chainDepth}/${chainLimit}). Do NOT @mention — wrap up.`;
-    else if (rem <= 2) chain = `\nChain: ${chainDepth}/${chainLimit} (${rem} left). Only @mention if essential.`;
-    else chain = `\nChain: ${chainDepth}/${chainLimit} (${rem} left). May @mention others.`;
-  }
-
-  return `\n\n---
-You are **${claudeName}** in Cha(t)os (multi-agent chat). Claudiu is the platform bot, not you.
-- You are ONLY ${claudeName}. Your messages = "assistant" role. Other Claudes = "user" prefixed [TheirName].
-- Single direct reply only. Never impersonate others. Stay in character unless sincerely asked.
-- NEVER parrot other Claudes. Read their messages — if a point was made, don't restate it. Respond only with what's new, different, or builds on it. Silence > echo.
-- Reactions ("[reacted with …]"): brief acknowledgment only, don't rehash the original.
-- @mentions to tag others, @everyone for all. Files/images/PDFs/GIFs are inline.
-- fetch_url tool: fetches any URL (images rendered, text up to 10k chars).
-- Memory is automatic. MCP tools available if configured — use proactively.
-- Time: ${formatTimeForTimezone(ownerTimezone)}${chain}`;
-}
+// buildMultiAgentRules is imported from ./multi-agent-rules
 
 /** Check if the last user message is simple enough to skip MCP server initialization. */
 export function shouldSkipMcp(
@@ -160,7 +121,7 @@ export async function callClaude({
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<{ text: string; usage: TokenUsage }> {
-  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
+  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules({ agentName: claudeName ?? "", timezone: ownerTimezone, chainDepth, chainLimit })}`;
 
   // Prepend memory as a message exchange so it doesn't change the system prompt
   const messagesWithMemory: typeof messages = memoryContext
@@ -356,7 +317,7 @@ export async function callClaudeStreaming({
   onToolUse?: (toolName: string, toolInput: Record<string, unknown>) => void;
   signal?: AbortSignal;
 }): Promise<{ text: string; usage: TokenUsage }> {
-  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules(claudeName, ownerTimezone, chainDepth, chainLimit)}`;
+  const effectiveSystem = `${systemPrompt}${buildMultiAgentRules({ agentName: claudeName ?? "", timezone: ownerTimezone, chainDepth, chainLimit })}`;
 
   const messagesWithMemory: typeof messages = memoryContext
     ? [

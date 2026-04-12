@@ -60,9 +60,9 @@ function estimateMessageTokens(m: MessageWithAttachments): number {
         // Text files are inlined — estimate from file size, capped at MAX_TEXT_FILE_CHARS
         tokens += Math.ceil(Math.min(a.size, MAX_TEXT_FILE_CHARS) / 4);
       } else if (a.contentType.startsWith("image/")) {
-        // Images: Anthropic charges based on dimensions; file size is a rough proxy.
-        // ~1 token per 750 bytes for typical compressed images, min 300 tokens.
-        tokens += Math.max(300, Math.ceil(a.size / 750));
+        // Images: Anthropic charges based on pixel dimensions, not file size.
+        // Without dimension metadata, use conservative flat estimate (~midpoint for typical photos).
+        tokens += 1600;
       } else if (a.contentType === "application/pdf") {
         // PDFs: ~800 tokens per page; estimate ~2KB per page of content
         tokens += Math.max(800, Math.ceil(a.size / 2000) * 800);
