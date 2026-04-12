@@ -108,6 +108,9 @@ export async function POST(request: Request) {
 
     // Fetch the owner's API key from Convex (server-side — key never reaches the browser)
     const convex = new ConvexHttpClient(convexUrl);
+    const clerkToken = await session.getToken({ template: "convex" });
+    if (clerkToken) convex.setAuth(clerkToken);
+
     let apiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
       roomId: body.roomId as any,
       participantUserId: body.participantUserId,
