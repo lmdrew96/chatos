@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
     // Fetch Claudiu config from Convex
     const configClient = new ConvexHttpClient(convexUrl);
-    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; helperMcpUrl?: string; mcpServers?: { name: string; url: string }[]; temperature?: number; topP?: number } | null = null;
+    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; mcpServers?: { name: string; url: string }[]; temperature?: number; topP?: number } | null = null;
     try {
       config = await configClient.query(api.claudiuConfig.getConfig, {});
     } catch {
@@ -90,12 +90,11 @@ export async function POST(request: Request) {
     const messages = stripOldMedia(body.messages.slice(-historyLimit));
 
     const roomMcpUrl = config?.roomMcpUrl || body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
-    const helperMcpUrl = config?.helperMcpUrl;
 
-    // Pre-fetch PCTX memory from Claudiu's MCP servers
-    const pctxUrls = [roomMcpUrl, helperMcpUrl].filter(Boolean) as string[];
-    const pctxResults = await Promise.all(pctxUrls.map((url) => prefetchPctxContext(url)));
-    const pctxMemory = pctxResults.filter(Boolean).join("\n");
+    // Pre-fetch PCTX memory from Claudiu's room MCP server only.
+    // helperMcpUrl is for Helper Claudiu's separate endpoint — mixing them
+    // causes in-room Claudiu to see Helper's context as its own.
+    const pctxMemory = roomMcpUrl ? await prefetchPctxContext(roomMcpUrl) : null;
 
     const systemText = roomPrompt
       + (pctxMemory ? `\n\n${pctxMemory}` : "")
@@ -128,17 +127,8 @@ export async function POST(request: Request) {
       }
     }
 
-    if (helperMcpUrl) {
-      try {
-        const parsed = new URL(helperMcpUrl);
-        const token = parsed.searchParams.get("token");
-        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-helper-context", tool_configuration: pctxToolConfig };
-        if (token) server.authorization_token = token;
-        mcpServers.push(server);
-      } catch {
-        // Invalid URL — skip
-      }
-    }
+    // helperMcpUrl is intentionally NOT added here — it belongs to Helper
+    // Claudiu's endpoint only. In-room Claudiu uses its own roomMcpUrl.
 
     for (const s of config?.mcpServers ?? []) {
       if (!s.name.trim() || !s.url.trim()) continue;
