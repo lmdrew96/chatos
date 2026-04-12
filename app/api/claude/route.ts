@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
-import { fetchQuery } from "convex/nextjs";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRules } from "@/lib/multi-agent-rules";
 import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
@@ -76,8 +75,8 @@ function buildMcpServers(servers: McpServerInput[]): Anthropic.Beta.Messages.Bet
 
 export async function POST(request: Request) {
   try {
-    const authObj = await auth();
-    if (!authObj.userId) {
+    const session = await auth();
+    if (!session.userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -108,15 +107,12 @@ export async function POST(request: Request) {
     }
 
     // Fetch the owner's API key from Convex (server-side — key never reaches the browser)
-    const clerkToken = await authObj.getToken({ template: "convex" });
-    if (!clerkToken) {
-      return Response.json({ error: "Failed to get auth token" }, { status: 401 });
-    }
+    const convex = new ConvexHttpClient(convexUrl);
 
-    let apiKey = await fetchQuery(api.apiKeys.getApiKeyForParticipant, {
+    let apiKey = await convex.query(api.apiKeys.getApiKeyByParticipant, {
       roomId: body.roomId as any,
       participantUserId: body.participantUserId,
-    }, { token: clerkToken });
+    });
 
     // Track which token identifier to attribute usage to
     let usageAttributionToken: string | null = body.ownerTokenIdentifier ?? null;
@@ -124,10 +120,10 @@ export async function POST(request: Request) {
     let usedSponsor = false;
     if (!apiKey) {
       // Try sponsor key fallback
-      const sponsorResult = await fetchQuery(api.apiKeys.getSponsorKeyForParticipant, {
+      const sponsorResult = await convex.query(api.apiKeys.getSponsorKeyByParticipant, {
         roomId: body.roomId as any,
         participantUserId: body.participantUserId,
-      }, { token: clerkToken });
+      });
       if (sponsorResult) {
         apiKey = sponsorResult.encryptedKey;
         usageAttributionToken = sponsorResult.sponsorTokenIdentifier;

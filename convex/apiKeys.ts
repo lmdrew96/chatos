@@ -251,3 +251,58 @@ export const getApiKeyForParticipant = query({
     return keyDoc?.encryptedKey ?? null;
   },
 });
+
+// ── Server-proxy queries (auth handled by Vercel route via Clerk) ───────────
+
+/** Look up a participant's API key. Called from /api/claude where
+ *  Clerk auth is already verified server-side. */
+export const getApiKeyByParticipant = query({
+  args: { roomId: v.id("rooms"), participantUserId: v.string() },
+  handler: async (ctx, { roomId, participantUserId }) => {
+    const target = await ctx.db
+      .query("participants")
+      .withIndex("by_room_and_user_id", (q) =>
+        q.eq("roomId", roomId).eq("userId", participantUserId)
+      )
+      .unique();
+    if (!target?.tokenIdentifier) return null;
+
+    const keyDoc = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", target.tokenIdentifier!))
+      .unique();
+
+    return keyDoc?.encryptedKey ?? null;
+  },
+});
+
+/** Look up a sponsor's API key for a participant. Called from /api/claude. */
+export const getSponsorKeyByParticipant = query({
+  args: { roomId: v.id("rooms"), participantUserId: v.string() },
+  handler: async (ctx, { roomId, participantUserId }) => {
+    const target = await ctx.db
+      .query("participants")
+      .withIndex("by_room_and_user_id", (q) =>
+        q.eq("roomId", roomId).eq("userId", participantUserId)
+      )
+      .unique();
+    if (!target?.tokenIdentifier) return null;
+
+    const sponsorship = await ctx.db
+      .query("keySponsors")
+      .withIndex("by_recipient", (q) => q.eq("recipientTokenIdentifier", target.tokenIdentifier!))
+      .first();
+    if (!sponsorship) return null;
+
+    const keyDoc = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_token", (q) => q.eq("tokenIdentifier", sponsorship.sponsorTokenIdentifier))
+      .unique();
+
+    if (!keyDoc?.encryptedKey) return null;
+    return {
+      encryptedKey: keyDoc.encryptedKey,
+      sponsorTokenIdentifier: sponsorship.sponsorTokenIdentifier,
+    };
+  },
+});
