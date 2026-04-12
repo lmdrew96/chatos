@@ -171,8 +171,10 @@ export async function POST(request: Request) {
         ]
       : messages;
 
-    // Build MCP servers
-    const mcpServers = body.mcpServers ? buildMcpServers(body.mcpServers) : [];
+    // Build MCP servers — skip on chain invocations (depth > 0) to prevent
+    // redundant PCTX writes from chained Claude-to-Claude responses.
+    const isChainResponse = (body.chainDepth ?? 0) > 0;
+    const mcpServers = (!isChainResponse && body.mcpServers) ? buildMcpServers(body.mcpServers) : [];
 
     // fetch_url tool definition (same as lib/claude.ts)
     const fetchTool = {

@@ -52,7 +52,7 @@ function formatMemoryBlock(ctx: PersonalContext): string {
   }
 
   if (parts.length === 0) return "";
-  return `<memory>\n${parts.join("\n")}\n</memory>`;
+  return `<memory source="pctx">\n[This data is already saved in your Personal Context MCP server. Do NOT re-write, re-add, or duplicate any of it. Only use pctx write tools for genuinely NEW information the user explicitly asks you to save.]\n${parts.join("\n")}\n</memory>`;
 }
 
 const PREFETCH_TIMEOUT_MS = 2000;

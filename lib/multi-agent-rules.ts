@@ -44,7 +44,7 @@ export function buildMultiAgentRules(opts: {
 
   const toolLine = isClaudiu
     ? `- Use your MCP tools (pctx) proactively for memory and context.`
-    : `- fetch_url tool: fetches any URL (images rendered, text up to 10k chars).\n- Memory is automatic. MCP tools available if configured — use proactively.`;
+    : `- fetch_url tool: fetches any URL (images rendered, text up to 10k chars).\n- Memory is automatic. MCP tools available if configured — only write NEW data when the user explicitly asks to save/remember something. Never re-write existing <memory> data.`;
 
   return `\n\n---
 ${identity}
