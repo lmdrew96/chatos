@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRules } from "@/lib/multi-agent-rules";
+import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL!;
 
@@ -57,6 +58,13 @@ function buildMcpServers(servers: McpServerInput[]): Anthropic.Beta.Messages.Bet
         type: "url", url: parsed.toString(), name: s.name,
       };
       if (token) server.authorization_token = token;
+      // For PCTX servers, hide read tools (reads are pre-fetched) — keep only writes
+      if (isPctxServer(s.name)) {
+        server.tool_configuration = {
+          enabled: true,
+          allowed_tools: ["pctx_update_context", "pctx_add_project", "pctx_add_relationship"],
+        };
+      }
       result.push(server);
     } catch {
       // Invalid URL — skip
@@ -126,13 +134,19 @@ export async function POST(request: Request) {
       return Response.json({ error: "no_api_key" }, { status: 403 });
     }
 
-    // Build the effective system prompt
-    const effectiveSystem = body.systemPrompt + buildMultiAgentRules({
-      agentName: body.claudeName,
-      timezone: body.timezone,
-      chainDepth: body.chainDepth,
-      chainLimit: body.chainLimit,
-    });
+    // Pre-fetch PCTX memory from the user's MCP server (if any)
+    const pctxServer = body.mcpServers?.find((s) => isPctxServer(s.name));
+    const pctxMemory = pctxServer ? await prefetchPctxContext(pctxServer.url) : null;
+
+    // Build the effective system prompt with pre-fetched memory in the static prefix
+    const effectiveSystem = body.systemPrompt
+      + (pctxMemory ? `\n\n${pctxMemory}` : "")
+      + buildMultiAgentRules({
+        agentName: body.claudeName,
+        timezone: body.timezone,
+        chainDepth: body.chainDepth,
+        chainLimit: body.chainLimit,
+      });
 
     // Inject memory context as a user/assistant message pair
     const messages = stripOldMedia(body.messages);

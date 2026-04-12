@@ -81,112 +81,163 @@ if (isAccountHolder) {
 
 ---
 
-## P2-B: Native Memory Tool vs MCP Memory — Evaluation
+## P2-B: Hybrid Memory Optimization — Pre-fetch + Slim MCP + Native Scratchpad
 
-### Overview
+### Problem
 
-Anthropic now offers a **native memory tool** (`memory_20250818`, beta flag `context-management-2025-06-27`). This evaluation compares it against Cha(t)os's current MCP-based memory approach to determine if migration is worthwhile.
+MCP-based memory is the single biggest token cost after message history. Every request pays ~3,000-4,000 tokens just for MCP tool definitions (even when Claude doesn't call them), plus another 1,000-3,000 tokens when Claude reads memory via a tool call. And since memory reads happen as tool results mid-conversation, they don't survive compaction.
 
-### Current approach: MCP-based memory
+### Applies to
 
-**How it works:**
-- Claudiu has 2-3 MCP servers attached (room-context, helper-context, optionally personal-context)
-- Each MCP server exposes `pctx_*` tools (get_context, add_project, update_project, etc.)
-- Claude calls these tools on-demand during conversation
-- Memory is stored externally in Neon Postgres, accessed via MCP server endpoints
-- BYOK user Claudes also have MCP via their own PCTX URLs
+**Both Claudiu AND user Claudes (via the P2-A proxy).** Every server-side route that calls the Anthropic API can benefit from this pattern. The only difference is which PCTX endpoint gets fetched:
+- **Claudiu:** known helper/room PCTX endpoints (from env vars or Convex config)
+- **User Claudes (via proxy):** the user's PCTX URL (from their profile in Convex)
 
-**Strengths:**
-- Fully custom schema (identity, projects, relationships, preferences)
-- Multi-source (separate MCP servers for different context scopes)
-- Works across both Claudiu and BYOK user Claudes
-- Memory is centralized and accessible outside of Claude (via API, dashboard, etc.)
-- Already built and working
+### Solution: Three-part hybrid
 
-**Weaknesses:**
-- MCP tool definitions eat 2,000-4,000 tokens of context just from being defined
-- MCP tool results eat another 1,000-3,000 tokens when invoked
-- No proactive memory reading — Claude only checks memory if it decides to call the tool
-- No dedup logic — Claude can write redundant entries
-- No structured organization (flat key-value vs categorized files)
-- Incomplete CRUD — relationships can only be added, not updated or deleted (patch filed)
-- Memory does NOT survive compaction — when context gets compacted, MCP tool results from earlier turns are lost
+#### Part 1: Pre-fetch memory server-side, inject into system prompt
 
-### Native memory tool (`memory_20250818`)
+Instead of Claude calling an MCP tool to read memory (on-demand, costs tool-call tokens, doesn't survive compaction), the server fetches memory *before* calling Claude and injects it as a block in the system prompt.
 
-**How it works:**
-- Enabled via `betas: ["context-management-2025-06-27"]` and adding `{ type: "memory_20250818", name: "memory" }` to tools
-- Claude gets file-like memory operations: `view`, `create`, `str_replace`, `insert`, `delete`, `rename`
-- Memory is stored as **client-managed files** — the app receives memory operations via tool calls and decides where to persist them
-- Memory content is organized as markdown files in virtual directories (e.g., `/memories/user-preferences.md`)
-- Designed to integrate with context clearing — memories persist while conversation history gets compacted
+**Flow (for all server-side routes):**
+```
+Request arrives
+        ↓
+Server resolves PCTX URL(s) for this Claude instance
+        ↓
+Server fetches GET /context from the PCTX MCP endpoint (server-to-server)
+        ↓
+Server formats the response as a compact text block
+        ↓
+Server injects it into the STATIC part of the system prompt (gets cached!)
+        ↓
+Server calls Anthropic SDK as usual
+```
 
-**Strengths:**
-- Zero token overhead for tool definitions (it's a built-in tool type, not a schema you define)
-- Survives compaction — memories are preserved when conversation context is cleared
-- Structured markdown with categories (not flat key-value)
-- Built-in file operations (str_replace, insert) enable surgical updates without rewriting
-- Anthropic optimizes the integration since it's a first-party tool
-- Claude knows how to use it natively without system prompt instructions
+**Format the memory block for minimal tokens:**
+```typescript
+function formatMemoryBlock(context: PctxContext): string {
+  const parts: string[] = [];
+  if (context.identity) {
+    parts.push(`Identity: ${context.identity.name} (${context.identity.pronouns})`);
+  }
+  if (context.projects?.length) {
+    const active = context.projects
+      .filter(p => p.status?.toLowerCase().includes('active'))
+      .map(p => `${p.name}: ${p.status}`)
+      .join('; ');
+    if (active) parts.push(`Active projects: ${active}`);
+  }
+  if (context.relationships?.length) {
+    parts.push(`Key people: ${context.relationships.map(r => `${r.name} (${r.role})`).join(', ')}`);
+  }
+  if (context.preferences?.length) {
+    parts.push(`Preferences: ${context.preferences.join('; ')}`);
+  }
+  return `<memory>\n${parts.join('\n')}\n</memory>`;
+}
+```
 
-**Weaknesses:**
-- Beta — API may change
-- Client must implement persistence (receive memory tool calls, store/retrieve the files)
-- Single-scope — no equivalent of "this MCP server is room context, that one is helper context"
-- Not shareable across different Claude instances (each session gets its own memory unless the app syncs)
-- Doesn't replace the PCTX system for BYOK user Claudes — their Claudes would need their own memory setup
-- Would require building a memory persistence layer in the Cha(t)os backend
+This produces a ~300-500 token block vs 3,000-4,000 for MCP tool definitions alone. And because it's in the static system prompt, it gets cached by automatic caching — subsequent messages in the same conversation pay ~0 for it.
 
-### Comparison matrix
+**Where to put it in the system prompt:**
+```typescript
+system: `${roomPrompt}\n\n${memoryBlock}\n\n---\n${multiAgentRules}\n\n${dynamicContext}`
+```
 
-| Dimension | MCP Memory (current) | Native Memory Tool |
+Memory goes in the static prefix (cached). Dynamic context stays at the end (uncached but small).
+
+#### Part 2: Drop read MCP tools, keep only a single write tool
+
+Currently, the PCTX MCP exposes 6+ tools (get_context, add_project, update_project, add_relationship, etc.). Each tool definition costs tokens. Since reads are now pre-fetched, the only MCP tools Claude needs are for *writing*.
+
+**Reduce to a single general-purpose write tool:**
+
+Either:
+- **Option A:** Use MCP `tool_configuration.allowed_tools` (from the SDK) to whitelist only write tools, hiding the read tools from Claude
+- **Option B:** Add a single `pctx_save_note` tool to the PCTX MCP that accepts freeform text (Claude writes what it wants to remember; a background process or the next pre-fetch picks it up)
+
+**Recommendation: Option A** — no MCP server changes needed. Just filter at the SDK level:
+```typescript
+mcp_servers: [{
+  type: 'url',
+  url: pctxUrl,
+  name: 'personal-context',
+  tool_configuration: {
+    enabled: true,
+    allowed_tools: ['pctx_update_project', 'pctx_add_relationship', 'pctx_update_context']
+  }
+}]
+```
+
+This keeps write capability (Claude can still update memory during conversation) while eliminating the token cost of read tool definitions.
+
+#### Part 3: Native memory as compaction-safe scratchpad
+
+Add `memory_20250818` for session-level facts that should survive compaction. This is NOT a replacement for PCTX — it's a lightweight scratchpad for the *current conversation*.
+
+**What goes in the scratchpad:**
+- Current topic/thread being discussed
+- Who's actively participating and their stances
+- Decisions made this session
+- Action items or commitments
+
+**What stays in PCTX (pre-fetched):**
+- Identity, projects, relationships
+- Long-term preferences and context
+- Cross-session facts
+
+**Implementation:**
+```typescript
+tools: [
+  { type: 'memory_20250818', name: 'memory' },
+  // ... other tools
+],
+betas: ['context-management-2025-06-27'],
+```
+
+The app needs to handle memory tool calls in the response (persist scratchpad to Convex, keyed by room ID). On subsequent requests in the same room, inject the scratchpad content so it's available even after compaction clears old messages.
+
+### Token impact
+
+| Component | Before (MCP only) | After (hybrid) |
 |---|---|---|
-| Context token cost | High (2-4k definitions + 1-3k results) | Low (built-in, no schema overhead) |
-| Survives compaction | No | Yes |
-| Multi-scope | Yes (room, helper, personal MCPs) | No (single memory space) |
-| CRUD completeness | Partial (no relationship update/delete) | Full (view, create, str_replace, delete, rename) |
-| Proactive reading | No (on-demand only) | Yes (designed for start-of-conversation reading) |
-| Cross-instance sharing | Yes (centralized DB) | No (per-session unless app syncs) |
-| Works for BYOK users | Yes (each user has their own PCTX URL) | No (would need separate implementation) |
-| Persistence | Built-in (Neon DB) | App must implement |
-| Stability | Production | Beta |
-| Setup effort | Already done | Medium (new persistence layer + tool handling) |
+| MCP tool definitions (reads) | ~2,000-3,000 | 0 (reads removed) |
+| MCP tool definitions (writes) | ~500-1,000 | ~500-1,000 (kept) |
+| MCP read results per invocation | ~500-1,000 | 0 (pre-fetched instead) |
+| Memory in system prompt | 0 | ~300-500 (cached after first request!) |
+| Native memory scratchpad | 0 | ~100 (built-in, minimal) |
+| **Total per request** | **~3,000-5,000** | **~600-1,600** |
+| **Savings** | | **~2,400-3,400 tokens/request** |
 
-### Recommendation
+Over a 40-message room conversation, that's potentially **96,000-136,000 fewer tokens**.
 
-**Don't migrate yet. Adopt selectively.**
+### Implementation order within P2-B
 
-The native memory tool's biggest advantage — surviving compaction — is significant now that we've enabled compaction in P0-B. But a full migration would mean rebuilding the memory persistence layer AND losing the multi-scope architecture that makes Claudiu's context system work (separate room vs helper vs personal context).
+1. **Pre-fetch + inject** — biggest savings, lowest risk. Just a server-side fetch + string formatting.
+2. **Slim MCP tools** — add `tool_configuration.allowed_tools` to hide read tools. One-line change per route.
+3. **Native scratchpad** — more complex (needs Convex persistence layer for scratchpad files). Do this last, and only after confirming compaction is actually losing important session context.
 
-**Suggested hybrid approach (future P3):**
-1. Keep MCP memory as the primary system for both Claudiu and BYOK users
-2. Add the native memory tool as a **compaction-safe scratchpad** for Claudiu only — a place to store key conversation facts that should survive compaction (current topic, active participants, ongoing decisions)
-3. At compaction time, the scratchpad persists while old messages get summarized
-4. The MCP memory remains the source of truth for structured context (identity, projects, relationships)
+### Server-side fetch considerations
 
-This gets the compaction resilience benefit without throwing away the existing system.
-
-### If you decide to fully evaluate later
-
-Build a prototype that:
-1. Adds `{ type: "memory_20250818", name: "memory" }` to Claudiu's room chat tools
-2. Implements a Convex-backed persistence layer for memory files (store as documents keyed by room + user)
-3. On each `memory` tool call, intercept the operation and apply it to the stored files
-4. On each new conversation, inject stored memory files into the tool's initial state
-5. Compare Claudiu's behavior (context quality, token usage) over a week vs the current MCP approach
+- The PCTX MCP endpoint is on Vercel, so latency is low (~100-200ms)
+- Add a reasonable timeout (2 seconds) — if PCTX is down, proceed without memory rather than blocking the response
+- Consider caching the fetched context for 60 seconds per user to avoid redundant fetches on rapid-fire messages in the same room
 
 ---
 
-## Implementation Order
+## Implementation Order (Full P2)
 
-1. **P2-A first** — the BYOK proxy is a clear win (security + features). Spec is concrete and ready to build.
-2. **P2-B: no immediate action** — the evaluation above is the deliverable. Revisit the hybrid approach after observing compaction behavior in production for 1-2 weeks.
+1. **P2-A: BYOK server proxy** — security + feature parity. Must ship first since P2-B depends on server-side routes.
+2. **P2-B Part 1: Pre-fetch memory** — apply to all three server routes (Claudiu onboarding, Claudiu room, BYOK proxy). Biggest token savings.
+3. **P2-B Part 2: Slim MCP tools** — add `allowed_tools` filtering. Quick follow-up.
+4. **P2-B Part 3: Native scratchpad** — only after observing compaction in production for 1-2 weeks to confirm session context loss is a real problem.
 
 ---
 
 ## Future Work (P3+)
 
-- **Native memory scratchpad for Claudiu** — hybrid approach described above
 - **Deprecate non-accountholder BYOK** — once all active users have saved keys, remove the direct browser call path and `anthropic-dangerous-direct-browser-access` entirely
 - **Image resize pipeline** — server-side resizing (from original P3 list)
 - **Stale MCP tool-result clearing** — clear old tool results from context (from original P3 list)
+- **PCTX relationship CRUD** — add `pctx_update_relationship` and `pctx_delete_relationship` (patch already filed in ChaosPatch)

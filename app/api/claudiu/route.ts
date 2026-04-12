@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
 
 // Simple in-memory rate limiting (values overridden by config at request time)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -83,15 +84,26 @@ export async function POST(request: Request) {
 
     const messages = body.messages.slice(-historyLimit);
 
-    // Build MCP servers array
+    // Pre-fetch PCTX memory from helper MCP (if configured)
+    const helperMcpUrl = config?.helperMcpUrl;
+    const pctxMemory = helperMcpUrl ? await prefetchPctxContext(helperMcpUrl) : null;
+    const effectiveSystemPrompt = pctxMemory
+      ? `${systemPrompt}\n\n${pctxMemory}`
+      : systemPrompt;
+
+    // Build MCP servers array — PCTX reads are pre-fetched, keep only writes
+    const pctxToolConfig = {
+      enabled: true as const,
+      allowed_tools: ["pctx_update_context", "pctx_add_project", "pctx_add_relationship"],
+    };
+
     const allMcpServers: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
 
-    const helperMcpUrl = config?.helperMcpUrl;
     if (helperMcpUrl) {
       try {
         const parsed = new URL(helperMcpUrl);
         const token = parsed.searchParams.get("token");
-        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-helper-context", tool_configuration: pctxToolConfig };
         if (token) server.authorization_token = token;
         allMcpServers.push(server);
       } catch {
@@ -106,6 +118,7 @@ export async function POST(request: Request) {
         const token = parsed.searchParams.get("token");
         const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: s.name };
         if (token) server.authorization_token = token;
+        if (isPctxServer(s.name)) server.tool_configuration = pctxToolConfig;
         allMcpServers.push(server);
       } catch {
         // Invalid URL — skip
@@ -118,7 +131,7 @@ export async function POST(request: Request) {
     const streamParams: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
-      system: [{ type: "text" as const, text: systemPrompt }],
+      system: [{ type: "text" as const, text: effectiveSystemPrompt }],
       messages,
       // Server-side compaction: summarize old messages when input exceeds threshold
       context_management: {

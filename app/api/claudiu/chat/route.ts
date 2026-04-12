@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRules } from "@/lib/multi-agent-rules";
+import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
 
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
@@ -91,22 +92,35 @@ export async function POST(request: Request) {
     const roomMcpUrl = config?.roomMcpUrl || body.mcpServerUrl || process.env.CLAUDIU_MCP_URL;
     const helperMcpUrl = config?.helperMcpUrl;
 
-    const systemText = roomPrompt + buildMultiAgentRules({
-      agentName: "Claudiu",
-      isClaudiu: true,
-      timezone: body.timezone,
-      chainDepth: body.chainDepth,
-      chainLimit: body.chainLimit,
-    });
+    // Pre-fetch PCTX memory from Claudiu's MCP servers
+    const pctxUrls = [roomMcpUrl, helperMcpUrl].filter(Boolean) as string[];
+    const pctxResults = await Promise.all(pctxUrls.map((url) => prefetchPctxContext(url)));
+    const pctxMemory = pctxResults.filter(Boolean).join("\n");
+
+    const systemText = roomPrompt
+      + (pctxMemory ? `\n\n${pctxMemory}` : "")
+      + buildMultiAgentRules({
+        agentName: "Claudiu",
+        isClaudiu: true,
+        timezone: body.timezone,
+        chainDepth: body.chainDepth,
+        chainLimit: body.chainLimit,
+      });
 
     // Build MCP servers array
     const mcpServers: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
+
+    // PCTX write-only tool filter (reads are pre-fetched into system prompt)
+    const pctxToolConfig = {
+      enabled: true as const,
+      allowed_tools: ["pctx_update_context", "pctx_add_project", "pctx_add_relationship"],
+    };
 
     if (roomMcpUrl) {
       try {
         const parsed = new URL(roomMcpUrl);
         const token = parsed.searchParams.get("token");
-        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-room-context" };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-room-context", tool_configuration: pctxToolConfig };
         if (token) server.authorization_token = token;
         mcpServers.push(server);
       } catch {
@@ -118,7 +132,7 @@ export async function POST(request: Request) {
       try {
         const parsed = new URL(helperMcpUrl);
         const token = parsed.searchParams.get("token");
-        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-helper-context" };
+        const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: "claudiu-helper-context", tool_configuration: pctxToolConfig };
         if (token) server.authorization_token = token;
         mcpServers.push(server);
       } catch {
@@ -133,6 +147,7 @@ export async function POST(request: Request) {
         const token = parsed.searchParams.get("token");
         const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: s.name };
         if (token) server.authorization_token = token;
+        if (isPctxServer(s.name)) server.tool_configuration = pctxToolConfig;
         mcpServers.push(server);
       } catch {
         // Invalid URL — skip
