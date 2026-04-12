@@ -90,6 +90,17 @@ export async function prefetchPctxContext(mcpUrl: string): Promise<string | null
   }
 }
 
+/** Default PCTX write tools — excludes pctx_get_context since reads are pre-fetched into the system prompt. */
+export const PCTX_WRITE_TOOLS = [
+  "pctx_update_context",
+  "pctx_add_project",
+  "pctx_add_relationship",
+  "pctx_update_project",
+  "pctx_update_relationship",
+  "pctx_delete_project",
+  "pctx_delete_relationship",
+];
+
 /** Known PCTX MCP server names used in Cha(t)os. */
 const PCTX_SERVER_NAMES = [
   "personalcontext",

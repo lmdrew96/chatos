@@ -61,7 +61,8 @@ export default function ClaudiuAdminPage() {
   const [rateLimitWindowMinutes, setRateLimitWindowMinutes] = useState(10);
   const [helperMcpUrl, setHelperMcpUrl] = useState("");
   const [roomMcpUrl, setRoomMcpUrl] = useState("");
-  const [mcpServers, setMcpServers] = useState<{ name: string; url: string }[]>([]);
+  const [mcpServers, setMcpServers] = useState<{ name: string; url: string; allowedTools?: string[] }[]>([]);
+  const [adminToolDiscovery, setAdminToolDiscovery] = useState<Record<number, { tools: { name: string; description: string }[]; loading: boolean; error?: string; expanded: boolean }>>({});
   const [temperatureEnabled, setTemperatureEnabled] = useState(false);
   const [temperature, setTemperature] = useState(1.0);
   const [topPEnabled, setTopPEnabled] = useState(false);
@@ -1089,48 +1090,169 @@ export default function ClaudiuAdminPage() {
 
           <div className="flex flex-col gap-2">
             {mcpServers.map((server, i) => (
-              <div key={i} className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                <input
-                  type="text"
-                  value={server.name}
-                  onChange={(e) =>
-                    setMcpServers((prev) =>
-                      prev.map((s, j) => (j === i ? { ...s, name: e.target.value } : s))
-                    )
-                  }
-                  placeholder="Name (e.g. ControlledChaos)"
-                  className="w-full sm:w-[36%] px-3 py-2 rounded-lg text-sm outline-none transition-all field-focus"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--fg)",
-                  }}
-                />
-                <div className="flex gap-2 flex-1 min-w-0">
+              <div key={i} className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                   <input
-                    type="url"
-                    value={server.url}
+                    type="text"
+                    value={server.name}
                     onChange={(e) =>
                       setMcpServers((prev) =>
-                        prev.map((s, j) => (j === i ? { ...s, url: e.target.value } : s))
+                        prev.map((s, j) => (j === i ? { ...s, name: e.target.value } : s))
                       )
                     }
-                    placeholder="https://your-mcp.vercel.app/mcp"
-                    className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1 min-w-0 field-focus"
+                    placeholder="Name (e.g. ControlledChaos)"
+                    className="w-full sm:w-[36%] px-3 py-2 rounded-lg text-sm outline-none transition-all field-focus"
                     style={{
                       background: "var(--surface)",
                       border: "1px solid var(--border)",
                       color: "var(--fg)",
                     }}
                   />
+                  <div className="flex gap-2 flex-1 min-w-0">
+                    <input
+                      type="url"
+                      value={server.url}
+                      onChange={(e) =>
+                        setMcpServers((prev) =>
+                          prev.map((s, j) => (j === i ? { ...s, url: e.target.value } : s))
+                        )
+                      }
+                      placeholder="https://your-mcp.vercel.app/mcp"
+                      className="px-3 py-2 rounded-lg text-sm outline-none transition-all font-mono flex-1 min-w-0 field-focus"
+                      style={{
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        color: "var(--fg)",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMcpServers((prev) => prev.filter((_, j) => j !== i));
+                        setAdminToolDiscovery((prev) => { const next = { ...prev }; delete next[i]; return next; });
+                      }}
+                      className="text-xs px-2 py-2 rounded-lg transition-colors shrink-0"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tool permissions */}
+                <div className="ml-1">
                   <button
                     type="button"
-                    onClick={() => setMcpServers((prev) => prev.filter((_, j) => j !== i))}
-                    className="text-xs px-2 py-2 rounded-lg transition-colors shrink-0"
-                    style={{ color: "var(--text-muted)" }}
+                    onClick={async () => {
+                      const disc = adminToolDiscovery[i];
+                      if (disc?.expanded) {
+                        setAdminToolDiscovery((prev) => ({ ...prev, [i]: { ...prev[i], expanded: false } }));
+                        return;
+                      }
+                      if (disc?.tools?.length) {
+                        setAdminToolDiscovery((prev) => ({ ...prev, [i]: { ...prev[i], expanded: true } }));
+                        return;
+                      }
+                      if (!server.url.trim()) return;
+                      setAdminToolDiscovery((prev) => ({ ...prev, [i]: { tools: [], loading: true, expanded: true } }));
+                      try {
+                        const res = await fetch("/api/mcp/tools", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ url: server.url }),
+                        });
+                        const data = await res.json();
+                        setAdminToolDiscovery((prev) => ({
+                          ...prev,
+                          [i]: { tools: data.tools ?? [], loading: false, error: data.error, expanded: true },
+                        }));
+                      } catch (e: any) {
+                        setAdminToolDiscovery((prev) => ({
+                          ...prev,
+                          [i]: { tools: [], loading: false, error: e.message, expanded: true },
+                        }));
+                      }
+                    }}
+                    className="text-xs px-2 py-1 rounded transition-colors inline-flex items-center gap-1"
+                    style={{ color: "var(--sage-teal)" }}
                   >
-                    ✕
+                    {adminToolDiscovery[i]?.expanded ? "▾" : "▸"} Tools
+                    {server.allowedTools ? ` (${server.allowedTools.length} enabled)` : " (all enabled)"}
                   </button>
+
+                  {adminToolDiscovery[i]?.expanded && (
+                    <div
+                      className="mt-1 p-2 rounded-lg text-xs"
+                      style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+                    >
+                      {adminToolDiscovery[i]?.loading && (
+                        <p style={{ color: "var(--text-muted)" }}>Discovering tools...</p>
+                      )}
+                      {adminToolDiscovery[i]?.error && !adminToolDiscovery[i]?.tools?.length && (
+                        <p style={{ color: "var(--amber)" }}>
+                          Could not discover tools: {adminToolDiscovery[i].error}
+                        </p>
+                      )}
+                      {adminToolDiscovery[i]?.tools?.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span style={{ color: "var(--text-muted)" }}>
+                              {adminToolDiscovery[i].tools.length} tool{adminToolDiscovery[i].tools.length !== 1 ? "s" : ""} available
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMcpServers((prev) => prev.map((s, j) =>
+                                  j === i ? { ...s, allowedTools: undefined } : s
+                                ));
+                              }}
+                              className="text-xs underline"
+                              style={{ color: "var(--sage-teal)" }}
+                            >
+                              Enable all
+                            </button>
+                          </div>
+                          {adminToolDiscovery[i].tools.map((tool) => {
+                            const isAllowed = !server.allowedTools || server.allowedTools.includes(tool.name);
+                            return (
+                              <label
+                                key={tool.name}
+                                className="flex items-start gap-2 py-0.5 cursor-pointer"
+                                style={{ color: "var(--fg)" }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isAllowed}
+                                  onChange={(e) => {
+                                    setMcpServers((prev) => prev.map((s, j) => {
+                                      if (j !== i) return s;
+                                      const allToolNames = adminToolDiscovery[i].tools.map((t) => t.name);
+                                      const current = s.allowedTools ?? allToolNames;
+                                      const updated = e.target.checked
+                                        ? [...current, tool.name]
+                                        : current.filter((t) => t !== tool.name);
+                                      const allEnabled = allToolNames.every((t) => updated.includes(t));
+                                      return { ...s, allowedTools: allEnabled ? undefined : updated };
+                                    }));
+                                  }}
+                                  className="mt-0.5 accent-[var(--sage-teal)]"
+                                />
+                                <div>
+                                  <span className="font-mono">{tool.name}</span>
+                                  {tool.description && (
+                                    <span style={{ color: "var(--text-muted)" }}> — {tool.description}</span>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {!adminToolDiscovery[i]?.loading && !adminToolDiscovery[i]?.tools?.length && !adminToolDiscovery[i]?.error && (
+                        <p style={{ color: "var(--text-muted)" }}>No tools found on this server.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

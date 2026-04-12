@@ -52,7 +52,7 @@ You can help with anything — coding, brainstorming, writing, analysis, casual 
   rateLimitWindowMinutes: 10,
   helperMcpUrl: "",
   roomMcpUrl: "",
-  mcpServers: [] as { name: string; url: string }[],
+  mcpServers: [] as { name: string; url: string; allowedTools?: string[] }[],
   temperature: undefined as number | undefined,
   topP: undefined as number | undefined,
 };
@@ -93,7 +93,7 @@ export const updateConfig = mutation({
     rateLimitWindowMinutes: v.optional(v.number()),
     helperMcpUrl: v.optional(v.string()),
     roomMcpUrl: v.optional(v.string()),
-    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string(), allowedTools: v.optional(v.array(v.string())) }))),
     temperature: v.optional(v.union(v.number(), v.null())),
     topP: v.optional(v.union(v.number(), v.null())),
   },

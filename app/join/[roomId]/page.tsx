@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { fetchPersonalContext, buildContextPrefix, normalizeMcpServerUrl } from "@/lib/personalContext";
+import { PCTX_WRITE_TOOLS } from "@/lib/pctx-prefetch";
 import { FloatingOrb } from "@/components/FloatingOrb";
 
 const STARTER_PROMPTS = [
@@ -100,7 +101,7 @@ export default function JoinPage() {
 
     // Read MCP settings from localStorage (configured in Settings)
     const mcpUrl = localStorage.getItem("chatos:mcpUrl") ?? "";
-    const storedServers: { name: string; url: string }[] = (() => {
+    const storedServers: { name: string; url: string; allowedTools?: string[] }[] = (() => {
       try { return JSON.parse(localStorage.getItem("chatos:mcpServers") ?? "[]"); } catch { return []; }
     })();
     const contextSeed = localStorage.getItem("chatos:contextSeed") ?? "";
@@ -118,8 +119,9 @@ export default function JoinPage() {
           basePrompt = basePrompt ? `${prefix}\n\nPersonality: ${basePrompt}` : prefix;
 
           // Also register as a live MCP server so Claude can use its write tools during conversations.
+          // allowedTools excludes pctx_get_context since reads are pre-fetched into the system prompt.
           const mcpServerUrl = normalizeMcpServerUrl(mcpUrl.trim());
-          finalMcpServers = [{ name: "PersonalContext", url: mcpServerUrl }, ...validServers];
+          finalMcpServers = [{ name: "PersonalContext", url: mcpServerUrl, allowedTools: PCTX_WRITE_TOOLS }, ...validServers];
           sessionStorage.setItem("chatos:mcpServers", JSON.stringify(finalMcpServers));
         } catch {
           setError("Couldn't reach your Personal Context MCP — check the URL in Settings and try again.");

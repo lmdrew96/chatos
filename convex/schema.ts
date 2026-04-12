@@ -24,7 +24,7 @@ export default defineSchema({
     isOnline: v.boolean(),
     color: v.optional(v.string()),
     lastSeenAt: v.optional(v.number()),
-    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string(), allowedTools: v.optional(v.array(v.string())) }))),
   }).index("by_room", ["roomId"])
     .index("by_token_identifier", ["tokenIdentifier"])
     .index("by_room_and_token_identifier", ["roomId", "tokenIdentifier"])
@@ -166,8 +166,8 @@ export default defineSchema({
     helperMcpUrl: v.optional(v.string()),
     // Personal Context MCP URL for in-room Claudiu
     roomMcpUrl: v.optional(v.string()),
-    // Additional MCP servers (name + URL pairs)
-    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+    // Additional MCP servers (name + URL pairs, with optional tool filtering)
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string(), allowedTools: v.optional(v.array(v.string())) }))),
     // Sampling parameters (optional — omit to use Anthropic defaults)
     temperature: v.optional(v.number()),
     topP: v.optional(v.number()),
@@ -189,7 +189,7 @@ export default defineSchema({
       rateLimitWindowMinutes: v.number(),
       helperMcpUrl: v.optional(v.string()),
       roomMcpUrl: v.optional(v.string()),
-      mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+      mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string(), allowedTools: v.optional(v.array(v.string())) }))),
       temperature: v.optional(v.number()),
       topP: v.optional(v.number()),
     }),

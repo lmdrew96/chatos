@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRules } from "@/lib/multi-agent-rules";
-import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
+import { prefetchPctxContext, isPctxServer, PCTX_WRITE_TOOLS } from "@/lib/pctx-prefetch";
 
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
     // Fetch Claudiu config from Convex
     const configClient = new ConvexHttpClient(convexUrl);
-    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; mcpServers?: { name: string; url: string }[]; temperature?: number; topP?: number } | null = null;
+    let config: { roomPrompt: string; model: string; roomMaxTokens: number; roomHistoryLimit: number; roomMcpUrl?: string; mcpServers?: { name: string; url: string; allowedTools?: string[] }[]; temperature?: number; topP?: number } | null = null;
     try {
       config = await configClient.query(api.claudiuConfig.getConfig, {});
     } catch {
@@ -109,10 +109,10 @@ export async function POST(request: Request) {
     // Build MCP servers array
     const mcpServers: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
 
-    // PCTX write-only tool filter (reads are pre-fetched into system prompt)
+    // Claudiu's own PCTX URL uses default write tools (reads are pre-fetched)
     const pctxToolConfig = {
       enabled: true as const,
-      allowed_tools: ["pctx_update_context", "pctx_add_project", "pctx_add_relationship"],
+      allowed_tools: PCTX_WRITE_TOOLS,
     };
 
     if (roomMcpUrl) {
@@ -137,7 +137,12 @@ export async function POST(request: Request) {
         const token = parsed.searchParams.get("token");
         const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: s.name };
         if (token) server.authorization_token = token;
-        if (isPctxServer(s.name)) server.tool_configuration = pctxToolConfig;
+        // Use admin-configured tool filtering, or default PCTX write tools for context servers
+        if (s.allowedTools && s.allowedTools.length > 0) {
+          server.tool_configuration = { enabled: true, allowed_tools: s.allowedTools };
+        } else if (isPctxServer(s.name)) {
+          server.tool_configuration = pctxToolConfig;
+        }
         mcpServers.push(server);
       } catch {
         // Invalid URL — skip

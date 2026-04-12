@@ -1,6 +1,6 @@
 import { buildMultiAgentRules } from "./multi-agent-rules";
 
-export type McpServer = { name: string; url: string };
+export type McpServer = { name: string; url: string; allowedTools?: string[] };
 
 /** Retry helper for transient API errors (429, 5xx, network failures). */
 async function fetchWithRetry(
@@ -168,14 +168,19 @@ export async function callClaude({
   const useMcp = mcpServers && mcpServers.length > 0 && !shouldSkipMcp(messages);
   if (useMcp) {
     body.mcp_servers = mcpServers!.map((s) => {
+      const server: Record<string, unknown> = { type: "url", url: s.url, name: s.name };
       try {
         const parsed = new URL(s.url);
         const token = parsed.searchParams.get("token");
         if (token) {
-          return { type: "url", url: parsed.toString(), name: s.name, authorization_token: token };
+          server.url = parsed.toString();
+          server.authorization_token = token;
         }
       } catch {}
-      return { type: "url", url: s.url, name: s.name };
+      if (s.allowedTools && s.allowedTools.length > 0) {
+        server.tool_configuration = { enabled: true, allowed_tools: s.allowedTools };
+      }
+      return server;
     });
   }
 
@@ -364,14 +369,19 @@ export async function callClaudeStreaming({
   const useMcp = mcpServers && mcpServers.length > 0 && !shouldSkipMcp(messages);
   if (useMcp) {
     body.mcp_servers = mcpServers!.map((s) => {
+      const server: Record<string, unknown> = { type: "url", url: s.url, name: s.name };
       try {
         const parsed = new URL(s.url);
         const token = parsed.searchParams.get("token");
         if (token) {
-          return { type: "url", url: parsed.toString(), name: s.name, authorization_token: token };
+          server.url = parsed.toString();
+          server.authorization_token = token;
         }
       } catch {}
-      return { type: "url", url: s.url, name: s.name };
+      if (s.allowedTools && s.allowedTools.length > 0) {
+        server.tool_configuration = { enabled: true, allowed_tools: s.allowedTools };
+      }
+      return server;
     });
   }
 

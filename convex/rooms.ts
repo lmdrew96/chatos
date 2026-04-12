@@ -105,7 +105,7 @@ export const joinRoom = mutation({
     displayName: v.string(),
     claudeName: v.string(),
     systemPrompt: v.string(),
-    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string() }))),
+    mcpServers: v.optional(v.array(v.object({ name: v.string(), url: v.string(), allowedTools: v.optional(v.array(v.string())) }))),
   },
   handler: async (ctx, { roomId, userId, displayName, claudeName, systemPrompt, mcpServers }) => {
     const identity = await ctx.auth.getUserIdentity();

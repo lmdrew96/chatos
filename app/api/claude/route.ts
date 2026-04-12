@@ -45,7 +45,7 @@ function stripOldMedia(
   });
 }
 
-type McpServerInput = { name: string; url: string };
+type McpServerInput = { name: string; url: string; allowedTools?: string[] };
 
 function buildMcpServers(servers: McpServerInput[]): Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] {
   const result: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
@@ -58,11 +58,11 @@ function buildMcpServers(servers: McpServerInput[]): Anthropic.Beta.Messages.Bet
         type: "url", url: parsed.toString(), name: s.name,
       };
       if (token) server.authorization_token = token;
-      // For PCTX servers, hide read tools (reads are pre-fetched) — keep only writes
-      if (isPctxServer(s.name)) {
+      // Use user-configured tool filtering if present
+      if (s.allowedTools && s.allowedTools.length > 0) {
         server.tool_configuration = {
           enabled: true,
-          allowed_tools: ["pctx_update_context", "pctx_add_project", "pctx_add_relationship"],
+          allowed_tools: s.allowedTools,
         };
       }
       result.push(server);

@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
+import { prefetchPctxContext, isPctxServer, PCTX_WRITE_TOOLS } from "@/lib/pctx-prefetch";
 
 // Simple in-memory rate limiting (values overridden by config at request time)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   try {
     // Fetch Claudiu config from Convex
     const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    let config: { onboardingPrompt: string; model: string; onboardingMaxTokens: number; onboardingHistoryLimit: number; rateLimitMaxMessages: number; rateLimitWindowMinutes: number; helperMcpUrl?: string; mcpServers?: { name: string; url: string }[]; temperature?: number; topP?: number } | null = null;
+    let config: { onboardingPrompt: string; model: string; onboardingMaxTokens: number; onboardingHistoryLimit: number; rateLimitMaxMessages: number; rateLimitWindowMinutes: number; helperMcpUrl?: string; mcpServers?: { name: string; url: string; allowedTools?: string[] }[]; temperature?: number; topP?: number } | null = null;
     if (convexUrl) {
       try {
         const convex = new ConvexHttpClient(convexUrl);
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     // Build MCP servers array — PCTX reads are pre-fetched, keep only writes
     const pctxToolConfig = {
       enabled: true as const,
-      allowed_tools: ["pctx_update_context", "pctx_add_project", "pctx_add_relationship"],
+      allowed_tools: PCTX_WRITE_TOOLS,
     };
 
     const allMcpServers: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
@@ -118,7 +118,12 @@ export async function POST(request: Request) {
         const token = parsed.searchParams.get("token");
         const server: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition = { type: "url", url: parsed.toString(), name: s.name };
         if (token) server.authorization_token = token;
-        if (isPctxServer(s.name)) server.tool_configuration = pctxToolConfig;
+        // Use admin-configured tool filtering, or default PCTX write tools for context servers
+        if (s.allowedTools && s.allowedTools.length > 0) {
+          server.tool_configuration = { enabled: true, allowed_tools: s.allowedTools };
+        } else if (isPctxServer(s.name)) {
+          server.tool_configuration = pctxToolConfig;
+        }
         allMcpServers.push(server);
       } catch {
         // Invalid URL — skip
