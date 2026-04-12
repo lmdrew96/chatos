@@ -214,7 +214,13 @@ export async function POST(request: Request) {
             } catch { /* stream may have been aborted */ }
           }
         } catch (err: any) {
-          controller.error(err);
+          console.error("[claudiu/onboarding] Stream error:", err.message, err.stack);
+          const errorEvent = {
+            type: "error",
+            error: { message: err.message ?? "Internal server error" },
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`));
+          controller.close();
         }
       },
     });
