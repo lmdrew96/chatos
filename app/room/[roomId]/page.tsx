@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { callClaude, callClaudeStreaming, estimateTokens, McpServer, TokenUsage } from "@/lib/claude";
+import { callClaudeProxy, estimateTokens, McpServer, TokenUsage } from "@/lib/claude";
 import MessageBubble from "@/components/MessageBubble";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
@@ -518,7 +518,7 @@ function RoomContent() {
   const clearTypingMutation = useMutation(api.typing.clearTyping);
   const toggleReaction = useMutation(api.reactions.toggleReaction);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
-  const logTokenUsage = useMutation(api.tokenUsage.logUsage);
+
 
   // Per-room chain limit (defaults to 5)
   const chainLimit = room?.chainLimit ?? DEFAULT_CHAIN_LIMIT;
@@ -752,30 +752,12 @@ function RoomContent() {
     if (respondedSet.has(claudeName)) return null;
     respondedSet.add(claudeName);
 
-    // Fetch the owner's API key and timezone from Convex
-    const [apiKey, ownerTimezone] = await Promise.all([
-      convex.query(api.apiKeys.getApiKeyForParticipant, {
-        roomId,
-        participantUserId: owner.userId,
-      }),
-      owner.tokenIdentifier
-        ? convex.query(api.users.getTimezoneByTokenIdentifier, {
-            tokenIdentifier: owner.tokenIdentifier,
-          })
-        : null,
-    ]);
-    if (!apiKey) {
-      await sendMessage({
-        roomId,
-        fromUserId: "system",
-        fromDisplayName: "system",
-        type: "system",
-        content: `${claudeName}'s API key isn't available — ${owner.displayName} needs to set one in Settings.`,
-        mentions: [],
-        mentionDepth: depth,
-      });
-      return null;
-    }
+    // Fetch the owner's timezone from Convex
+    const ownerTimezone = owner.tokenIdentifier
+      ? await convex.query(api.users.getTimezoneByTokenIdentifier, {
+          tokenIdentifier: owner.tokenIdentifier,
+        })
+      : null;
 
     setThinkingClaudes((prev) => new Set(prev).add(claudeName));
 
@@ -817,13 +799,18 @@ function RoomContent() {
         return next;
       });
 
-      const streamOpts = {
+      // Call Claude through server-side proxy — API key never reaches the browser.
+      // The proxy handles key fetching, sponsor fallback, compaction, and usage logging.
+      const result = await callClaudeProxy({
+        roomId,
+        participantUserId: owner.userId,
+        ownerTokenIdentifier: owner.tokenIdentifier,
         systemPrompt: owner.systemPrompt,
         messages: callMessages,
         mcpServers: ownerMcpServers.length > 0 ? ownerMcpServers : undefined,
         claudeName,
         memoryContext,
-        ownerTimezone: ownerTimezone ?? undefined,
+        timezone: ownerTimezone ?? undefined,
         chainDepth: depth,
         chainLimit,
         onText: (accumulated: string) => {
@@ -847,41 +834,10 @@ function RoomContent() {
           });
         },
         signal,
-      };
+      });
 
-      let reply: string;
-      let tokenUsage: TokenUsage | undefined;
-      let usageAttributionToken = owner.tokenIdentifier;
-      try {
-        const result = await callClaudeStreaming({ apiKey, ...streamOpts });
-        reply = result.text;
-        tokenUsage = result.usage;
-      } catch (primaryErr) {
-        // On billing/credit errors, try the sponsor's key as fallback
-        const errText = primaryErr instanceof Error ? primaryErr.message : "";
-        const isBillingError = /credit balance|billing|payment|insufficient.*(fund|credit)|exceeded.*budget|rate.*limit/i.test(errText);
-        if (isBillingError) {
-          const sponsorResult = await convex.query(api.apiKeys.getSponsorKeyForParticipant, {
-            roomId,
-            participantUserId: owner.userId,
-          });
-          if (sponsorResult) {
-            // Reset the streaming message for the retry
-            if (messageId) {
-              await updateStreamingMessage({ messageId, content: "", isStreaming: true });
-            }
-            const result = await callClaudeStreaming({ apiKey: sponsorResult.encryptedKey, ...streamOpts });
-            reply = result.text;
-            tokenUsage = result.usage;
-            // Attribute usage to the sponsor who actually paid
-            usageAttributionToken = sponsorResult.sponsorTokenIdentifier;
-          } else {
-            throw primaryErr;
-          }
-        } else {
-          throw primaryErr;
-        }
-      }
+      const reply = result.text;
+      // Usage is logged server-side by the proxy
 
       // Strip @everyone from Claude replies — agents must use direct @mentions
       const replyForMentions = reply.replace(/@everyone(?!\w)/gi, "everyone");
@@ -897,21 +853,6 @@ function RoomContent() {
           isStreaming: false,
           mentions,
         });
-      }
-
-      // Log token usage — attributed to whoever's key was actually used
-      if (tokenUsage && usageAttributionToken) {
-        logTokenUsage({
-          roomId,
-          claudeName,
-          ownerTokenIdentifier: usageAttributionToken,
-          model: "claude-sonnet-4-6",
-          inputTokens: tokenUsage.inputTokens,
-          outputTokens: tokenUsage.outputTokens,
-          cacheCreationTokens: tokenUsage.cacheCreationTokens || undefined,
-          cacheReadTokens: tokenUsage.cacheReadTokens || undefined,
-          timestamp: Date.now(),
-        }).catch((err) => console.error("[token-usage] log failed:", err));
       }
 
       // Guard: if the reply @-addresses a human by display name, yield to them
@@ -997,11 +938,15 @@ function RoomContent() {
           const summaryPrompt = memory?.summary
             ? `Update this existing summary:\n${memory.summary}\n\nNew messages:\n${formatted}`
             : formatted;
-          callClaude({
-            apiKey,
+          callClaudeProxy({
+            roomId,
+            participantUserId: owner.userId,
+            ownerTokenIdentifier: owner.tokenIdentifier,
             systemPrompt:
               `You compress Cha(t)os chat logs into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
+            claudeName,
             messages: [{ role: "user", content: summaryPrompt }],
+            onText: () => {},
           })
             .then(({ text: summary }) =>
               upsertClaudeMemory({
@@ -1328,22 +1273,21 @@ function RoomContent() {
               .map((m) => `${m.fromDisplayName}: ${m.content}`)
               .join("\n");
             if (formatted.trim()) {
-              // Use first participant's key for the summary call
+              // Use first participant's key for the summary call (via proxy)
               const firstOwner = currentParticipants.find((p) => uniqueMentions.includes(p.claudeName));
               if (firstOwner) {
-                const ownerApiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
-                  roomId,
-                  participantUserId: firstOwner.userId,
-                });
-                if (ownerApiKey) {
                   const base = existing?.summary
                     ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
                     : formatted;
-                  callClaude({
-                    apiKey: ownerApiKey,
+                  callClaudeProxy({
+                    roomId,
+                    participantUserId: firstOwner.userId,
+                    ownerTokenIdentifier: firstOwner.tokenIdentifier,
+                    claudeName: firstOwner.claudeName,
                     systemPrompt:
                       "Compress this chat log into TWO sections:\nSUMMARY: Brief context of resolved topics, completed tasks, and decisions (max 100 words). This is ephemeral session context.\nSTANDING: Ongoing facts, relationships, preferences, or dynamics that should persist across sessions (bullet list, max 50 words). Output STANDING: NONE if nothing qualifies.\nNo preamble — output only the two sections.",
                     messages: [{ role: "user", content: base }],
+                    onText: () => {},
                   })
                     .then(({ text: raw }) => {
                       const summaryMatch = raw.match(/SUMMARY:\s*([\s\S]*?)(?=STANDING:|$)/i);
@@ -1354,7 +1298,6 @@ function RoomContent() {
                         : { summary, throughMsgCount: allMsgs.length };
                     })
                     .catch((err) => console.error("[compact] summary failed:", err));
-                }
               }
             }
           }
@@ -1476,11 +1419,6 @@ function RoomContent() {
                 .map((m) => `${m.fromDisplayName}: ${m.content}`)
                 .join("\n");
               if (formatted.trim()) {
-                const ownerApiKey = await convex.query(api.apiKeys.getApiKeyForParticipant, {
-                  roomId,
-                  participantUserId: owner.userId,
-                });
-                if (ownerApiKey) {
                   const base = existing?.summary
                     ? `Update this summary with new earlier context:\n${existing.summary}\n\nAdditional messages:\n${formatted}`
                     : formatted;
@@ -1488,11 +1426,15 @@ function RoomContent() {
                   const dedup = pctxMemory
                     ? `\n\nIMPORTANT: This persistent memory already exists — do NOT repeat anything it covers:\n${pctxMemory}\n\nOnly output NEW context not in the memory above. If everything is already covered, output SUMMARY: NONE`
                     : "";
-                  callClaude({
-                    apiKey: ownerApiKey,
+                  callClaudeProxy({
+                    roomId,
+                    participantUserId: owner.userId,
+                    ownerTokenIdentifier: owner.tokenIdentifier,
+                    claudeName,
                     systemPrompt:
                       `Compress this chat log into TWO sections:\nSUMMARY: Brief context of resolved topics, completed tasks, and decisions (max 100 words). This is ephemeral session context.\nSTANDING: Ongoing facts, relationships, preferences, or dynamics that should persist across sessions (bullet list, max 50 words). Output STANDING: NONE if nothing qualifies.\nNo preamble — output only the two sections.${dedup}`,
                     messages: [{ role: "user", content: base }],
+                    onText: () => {},
                   })
                     .then(({ text: raw }) => {
                       const summaryMatch = raw.match(/SUMMARY:\s*([\s\S]*?)(?=STANDING:|$)/i);
@@ -1511,10 +1453,14 @@ function RoomContent() {
                         const mergePrompt = currentMemory
                           ? `Merge this new standing context into the existing memory. Deduplicate.\n\nExisting:\n${currentMemory}\n\nNew:\n${standing}`
                           : standing;
-                        callClaude({
-                          apiKey: ownerApiKey,
+                        callClaudeProxy({
+                          roomId,
+                          participantUserId: owner.userId,
+                          ownerTokenIdentifier: owner.tokenIdentifier,
+                          claudeName,
                           systemPrompt: `You compress Cha(t)os chat context into a minimal memory note for an AI persona called ${claudeName}. Output ONLY a tight bullet list of facts about the human participants — names, relationships, preferences, projects, ongoing topics. No prose, no commentary, no filler. Hard limit: 120 words. If a previous summary is provided, merge and deduplicate rather than append.`,
                           messages: [{ role: "user", content: mergePrompt }],
+                          onText: () => {},
                         })
                           .then(({ text: mergedMemory }) =>
                             upsertClaudeMemory({
@@ -1528,7 +1474,6 @@ function RoomContent() {
                       }
                     })
                     .catch((err) => console.error("[compact] summary failed:", err));
-                }
               }
             }
           }
