@@ -6,6 +6,15 @@ import remarkGfm from "remark-gfm";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { ReactionBar } from "./ReactionBar";
 import { ReactionPicker } from "./ReactionPicker";
+import StreamingTimer from "./StreamingTimer";
+
+export type StreamingPhase = "building_context" | "waiting" | "streaming" | "tool_use";
+
+export interface StreamingStatusInfo {
+  phase: StreamingPhase;
+  startedAt: number;
+  toolName?: string;
+}
 
 interface Color {
   text: string;
@@ -39,6 +48,7 @@ interface MessageBubbleProps {
   onReaction?: (emoji: string) => void;
   onStop?: () => void;
   specialUsers?: Record<string, SpecialStyle>;
+  streamingStatus?: StreamingStatusInfo;
 }
 
 function BotIcon({ color }: { color: string }) {
@@ -169,6 +179,7 @@ function MessageBubble({
   onReaction,
   onStop,
   specialUsers = {},
+  streamingStatus,
 }: MessageBubbleProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const hasReactions = reactions.length > 0;
@@ -252,32 +263,60 @@ function MessageBubble({
             >
               {message.isStreaming && !message.content ? (
                 /* Thinking dots — shown until first token arrives */
-                <div className="flex items-center gap-1.5 py-0.5">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-1.5 rounded-full"
-                      style={{
-                        background: textColor,
-                        opacity: 0.6,
-                        height: "6px",
-                        animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
-                      }}
-                    />
-                  ))}
+                <div>
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="w-1.5 rounded-full"
+                        style={{
+                          background: textColor,
+                          opacity: 0.6,
+                          height: "6px",
+                          animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {streamingStatus && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="text-[10px]" style={{ color: textColor, opacity: 0.5 }}>
+                        {streamingStatus.phase === "waiting" ? "Waiting for response..." : "Building context..."}
+                      </span>
+                      <StreamingTimer startedAt={streamingStatus.startedAt} color={textColor} />
+                    </div>
+                  )}
                 </div>
               ) : message.isStreaming && message.content ? (
                 /* Streaming: render plain text to avoid Markdown layout jank */
-                <span className="whitespace-pre-wrap">{message.content}
-                  <span
-                    className="inline-block w-1.5 h-3.5 rounded-sm ml-0.5 align-text-bottom"
-                    style={{
-                      background: textColor,
-                      opacity: 0.6,
-                      animation: "streaming-cursor 0.8s ease-in-out infinite",
-                    }}
-                  />
-                </span>
+                <div>
+                  <span className="whitespace-pre-wrap">{message.content}
+                    <span
+                      className="inline-block w-1.5 h-3.5 rounded-sm ml-0.5 align-text-bottom"
+                      style={{
+                        background: textColor,
+                        opacity: 0.6,
+                        animation: "streaming-cursor 0.8s ease-in-out infinite",
+                      }}
+                    />
+                  </span>
+                  {streamingStatus?.phase === "tool_use" && streamingStatus.toolName && (
+                    <div className="flex items-center gap-1.5 mt-2 pt-2" style={{ borderTop: `1px solid ${textColor}15` }}>
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style={{ color: textColor, opacity: 0.5 }}>
+                        <path d="M7.5 1.5L6 4.5h3L5 10.5l1-4H3.5l4-5z" fill="currentColor" />
+                      </svg>
+                      <span className="text-[10px]" style={{ color: textColor, opacity: 0.5 }}>
+                        Fetching {streamingStatus.toolName}...
+                      </span>
+                      <StreamingTimer startedAt={streamingStatus.startedAt} color={textColor} />
+                    </div>
+                  )}
+                  {streamingStatus && streamingStatus.phase !== "tool_use" && (
+                    <div className="flex justify-end mt-1">
+                      <StreamingTimer startedAt={streamingStatus.startedAt} color={textColor} />
+                    </div>
+                  )}
+                </div>
               ) : message.content ? (
                 <Markdown remarkPlugins={[remarkGfm]}>{message.content}</Markdown>
               ) : null}

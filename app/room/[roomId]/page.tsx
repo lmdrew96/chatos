@@ -7,7 +7,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { callClaudeProxy, estimateTokens, McpServer, TokenUsage } from "@/lib/claude";
 import { isPctxServer } from "@/lib/pctx-prefetch";
-import MessageBubble from "@/components/MessageBubble";
+import MessageBubble, { StreamingStatusInfo } from "@/components/MessageBubble";
+import StreamingTimer from "@/components/StreamingTimer";
 import MentionInput from "@/components/MentionInput";
 import { InviteButton } from "@/components/InviteButton";
 import { RoomSettings } from "@/components/RoomSettings";
@@ -495,8 +496,16 @@ function RoomContent() {
   const [currentDisplayName, setCurrentDisplayName] = useState("");
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [sending, setSending] = useState(false);
-  // Claude names currently generating a response
-  const [thinkingClaudes, setThinkingClaudes] = useState<Set<string>>(new Set());
+  // Streaming status for each Claude currently generating a response
+  const [streamingStatuses, setStreamingStatuses] = useState<Map<string, StreamingStatusInfo>>(new Map());
+  // Derive thinkingClaudes for backward compat (pre-message phase only)
+  const thinkingClaudes = useMemo(() => {
+    const set = new Set<string>();
+    for (const [name, status] of streamingStatuses) {
+      if (status.phase === "building_context") set.add(name);
+    }
+    return set;
+  }, [streamingStatuses]);
 
   const room = useQuery(api.rooms.getRoomById, { roomId });
   const messages = useQuery(api.messages.useMessages, { roomId });
@@ -647,8 +656,8 @@ function RoomContent() {
 
   // Auto-scroll to latest message — only when user is near the bottom
   const isStreaming = useMemo(
-    () => messages?.some((m) => m.isStreaming) || thinkingClaudes.size > 0,
-    [messages, thinkingClaudes]
+    () => messages?.some((m) => m.isStreaming) || streamingStatuses.size > 0,
+    [messages, streamingStatuses]
   );
   const [showScrollButton, setShowScrollButton] = useState(false);
   useEffect(() => {
@@ -663,7 +672,7 @@ function RoomContent() {
         behavior: isStreaming ? "auto" : "smooth",
       });
     }
-  }, [messages, thinkingClaudes, isStreaming]);
+  }, [messages, streamingStatuses, isStreaming]);
 
   // Track scroll position for showing/hiding the scroll-to-bottom button
   // Depends on `messages` so the listener re-attaches when the loading guard
@@ -760,7 +769,11 @@ function RoomContent() {
         })
       : null;
 
-    setThinkingClaudes((prev) => new Set(prev).add(claudeName));
+    setStreamingStatuses((prev) => {
+      const next = new Map(prev);
+      next.set(claudeName, { phase: "building_context", startedAt: Date.now() });
+      return next;
+    });
 
     // Create the message up-front so streaming updates fill it in progressively
     let messageId: Id<"messages"> | null = null;
@@ -793,10 +806,11 @@ function RoomContent() {
         isStreaming: true,
       });
 
-      // Remove standalone thinking indicator now that the bubble has its own
-      setThinkingClaudes((prev) => {
-        const next = new Set(prev);
-        next.delete(claudeName);
+      // Transition from standalone thinking bubble to in-message waiting state
+      setStreamingStatuses((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(claudeName);
+        next.set(claudeName, { ...existing, phase: "waiting", startedAt: existing?.startedAt ?? Date.now() });
         return next;
       });
 
@@ -815,6 +829,16 @@ function RoomContent() {
         chainDepth: depth,
         chainLimit,
         onText: (accumulated: string) => {
+          // Transition to streaming phase on first text
+          setStreamingStatuses((prev) => {
+            const existing = prev.get(claudeName);
+            if (existing && existing.phase !== "streaming") {
+              const next = new Map(prev);
+              next.set(claudeName, { ...existing, phase: "streaming" });
+              return next;
+            }
+            return prev;
+          });
           if (messageId) {
             updateStreamingMessage({
               messageId,
@@ -824,6 +848,16 @@ function RoomContent() {
           }
         },
         onToolUse: (toolName: string) => {
+          // Show tool use phase in streaming status
+          setStreamingStatuses((prev) => {
+            const existing = prev.get(claudeName);
+            if (existing) {
+              const next = new Map(prev);
+              next.set(claudeName, { ...existing, phase: "tool_use", toolName });
+              return next;
+            }
+            return prev;
+          });
           sendMessage({
             roomId,
             fromUserId: "system",
@@ -995,8 +1029,8 @@ function RoomContent() {
       }
       return null;
     } finally {
-      setThinkingClaudes((prev) => {
-        const next = new Set(prev);
+      setStreamingStatuses((prev) => {
+        const next = new Map(prev);
         next.delete(claudeName);
         return next;
       });
@@ -1029,7 +1063,11 @@ function RoomContent() {
     if (respondedSet.has(CLAUDIU_NAME)) return null;
     respondedSet.add(CLAUDIU_NAME);
 
-    setThinkingClaudes((prev) => new Set(prev).add(CLAUDIU_NAME));
+    setStreamingStatuses((prev) => {
+      const next = new Map(prev);
+      next.set(CLAUDIU_NAME, { phase: "building_context", startedAt: Date.now() });
+      return next;
+    });
 
     let messageId: Id<"messages"> | null = null;
 
@@ -1047,9 +1085,11 @@ function RoomContent() {
         isStreaming: true,
       });
 
-      setThinkingClaudes((prev) => {
-        const next = new Set(prev);
-        next.delete(CLAUDIU_NAME);
+      // Transition from standalone thinking bubble to in-message waiting state
+      setStreamingStatuses((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(CLAUDIU_NAME);
+        next.set(CLAUDIU_NAME, { ...existing, phase: "waiting", startedAt: existing?.startedAt ?? Date.now() });
         return next;
       });
 
@@ -1110,6 +1150,16 @@ function RoomContent() {
 
           if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
             text += event.delta.text;
+            // Transition to streaming phase on first text
+            setStreamingStatuses((prev) => {
+              const existing = prev.get(CLAUDIU_NAME);
+              if (existing && existing.phase !== "streaming") {
+                const next = new Map(prev);
+                next.set(CLAUDIU_NAME, { ...existing, phase: "streaming" });
+                return next;
+              }
+              return prev;
+            });
             if (Date.now() - lastFlush >= FLUSH_INTERVAL) flush();
           }
         }
@@ -1178,8 +1228,8 @@ function RoomContent() {
       }
       return null;
     } finally {
-      setThinkingClaudes((prev) => {
-        const next = new Set(prev);
+      setStreamingStatuses((prev) => {
+        const next = new Map(prev);
         next.delete(CLAUDIU_NAME);
         return next;
       });
@@ -1757,6 +1807,7 @@ function RoomContent() {
             participantColors={participantColors}
             specialUsers={specialUsers}
             reactions={groupedReactions[msg._id] ?? []}
+            streamingStatus={msg.isStreaming && msg.claudeName ? streamingStatuses.get(msg.claudeName) : undefined}
             onStop={msg.isStreaming ? () => chainAbortRef.current?.abort() : undefined}
             onReaction={async (emoji) => {
               const result = await toggleReaction({ messageId: msg._id, roomId, emoji, userId: currentUserId });
@@ -1851,25 +1902,39 @@ function RoomContent() {
                   </button>
                 </div>
                 <div
-                  className="px-4 py-3.5 text-sm flex items-center gap-1.5"
+                  className="px-4 py-3.5 text-sm"
                   style={{
                     background: bgColor,
                     border: `1px solid ${textColor}22`,
                     borderRadius: "4px 18px 18px 18px",
                   }}
                 >
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-1.5 rounded-full"
-                      style={{
-                        background: textColor,
-                        opacity: 0.6,
-                        height: "6px",
-                        animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
-                      }}
-                    />
-                  ))}
+                  <div className="flex items-center gap-1.5">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="w-1.5 rounded-full"
+                        style={{
+                          background: textColor,
+                          opacity: 0.6,
+                          height: "6px",
+                          animation: `thinking-wave 1.2s ease-in-out ${i * 0.18}s infinite`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {(() => {
+                    const status = streamingStatuses.get(claudeName);
+                    if (!status) return null;
+                    return (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="text-[10px]" style={{ color: textColor, opacity: 0.5 }}>
+                          Building context...
+                        </span>
+                        <StreamingTimer startedAt={status.startedAt} color={textColor} />
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
