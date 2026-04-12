@@ -117,13 +117,14 @@ export async function POST(request: Request) {
     // Track which token identifier to attribute usage to
     let usageAttributionToken: string | null = body.ownerTokenIdentifier ?? null;
 
+    // Pre-fetch sponsor key so we can fall back on billing errors
+    const sponsorResult = await convex.query(api.apiKeys.getSponsorKeyByParticipant, {
+      roomId: body.roomId as any,
+      participantUserId: body.participantUserId,
+    });
+
     let usedSponsor = false;
     if (!apiKey) {
-      // Try sponsor key fallback
-      const sponsorResult = await convex.query(api.apiKeys.getSponsorKeyByParticipant, {
-        roomId: body.roomId as any,
-        participantUserId: body.participantUserId,
-      });
       if (sponsorResult) {
         apiKey = sponsorResult.encryptedKey;
         usageAttributionToken = sponsorResult.sponsorTokenIdentifier;
@@ -181,7 +182,7 @@ export async function POST(request: Request) {
       },
     };
 
-    const client = new Anthropic({ apiKey });
+    let activeApiKey = apiKey;
 
     const betas: string[] = ["pdfs-2024-09-25", "compact-2026-01-12"];
     const useMcp = mcpServers.length > 0;
@@ -203,6 +204,15 @@ export async function POST(request: Request) {
 
     const betaHeaders = { "anthropic-beta": betas.join(",") };
 
+    /** Check if an error is a billing/credit issue that a sponsor key could fix. */
+    const isBillingError = (err: any): boolean => {
+      const msg = (err.message ?? "").toLowerCase();
+      return err.status === 402 || err.status === 429 ||
+        msg.includes("credit") || msg.includes("billing") ||
+        msg.includes("insufficient") || msg.includes("exceeded") ||
+        msg.includes("balance");
+    };
+
     // Stream with tool-use loop (up to 3 rounds)
     const MAX_TOOL_ROUNDS = 3;
     let currentMessages = [...messagesWithMemory] as any[];
@@ -218,6 +228,7 @@ export async function POST(request: Request) {
       async start(controller) {
         try {
           for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+            const client = new Anthropic({ apiKey: activeApiKey });
             const stream = client.beta.messages.stream(
               { ...baseParams, messages: currentMessages } as any,
               { headers: betaHeaders },
@@ -315,6 +326,59 @@ export async function POST(request: Request) {
             }).catch(() => {});
           }
         } catch (err: any) {
+          // If billing error and sponsor key available, retry with sponsor
+          if (!usedSponsor && sponsorResult && isBillingError(err)) {
+            activeApiKey = sponsorResult.encryptedKey;
+            usageAttributionToken = sponsorResult.sponsorTokenIdentifier;
+            usedSponsor = true;
+
+            try {
+              const retryClient = new Anthropic({ apiKey: activeApiKey });
+              const retryStream = retryClient.beta.messages.stream(
+                { ...baseParams, messages: currentMessages } as any,
+                { headers: betaHeaders },
+              );
+
+              for await (const event of retryStream) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+                if (event.type === "message_start" && (event as any).message?.usage) {
+                  const u = (event as any).message.usage;
+                  totalInputTokens += u.input_tokens ?? 0;
+                  totalCacheCreationTokens += u.cache_creation_input_tokens ?? 0;
+                  totalCacheReadTokens += u.cache_read_input_tokens ?? 0;
+                }
+                if (event.type === "message_delta" && (event as any).usage) {
+                  totalOutputTokens += (event as any).usage.output_tokens ?? 0;
+                }
+              }
+              controller.close();
+
+              if (usageAttributionToken && (totalInputTokens > 0 || totalOutputTokens > 0)) {
+                const logClient = new ConvexHttpClient(convexUrl);
+                logClient.mutation(api.tokenUsage.logUsage, {
+                  roomId: body.roomId as any,
+                  claudeName: body.claudeName,
+                  ownerTokenIdentifier: usageAttributionToken,
+                  model: "claude-sonnet-4-6",
+                  inputTokens: totalInputTokens,
+                  outputTokens: totalOutputTokens,
+                  cacheCreationTokens: totalCacheCreationTokens || undefined,
+                  cacheReadTokens: totalCacheReadTokens || undefined,
+                  timestamp: Date.now(),
+                }).catch(() => {});
+              }
+              return;
+            } catch (retryErr: any) {
+              const errorEvent = {
+                type: "error",
+                error: { message: retryErr.message ?? "Sponsor key also failed" },
+              };
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorEvent)}\n\n`));
+              controller.close();
+              return;
+            }
+          }
+
           // Send error as a final SSE event so the client can handle it
           const errorEvent = {
             type: "error",
