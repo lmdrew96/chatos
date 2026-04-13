@@ -6,7 +6,7 @@ export type PersonalContext = {
   };
   projects: {
     name: string;
-    description: string;
+    summary: string;
     status: string;
   }[];
   relationships: {
@@ -23,7 +23,9 @@ export type PersonalContext = {
  */
 export async function fetchPersonalContext(mcpUrl: string): Promise<PersonalContext> {
   const normalized = normalizeContextUrl(mcpUrl);
-  const res = await fetch(`/api/personal-context?url=${encodeURIComponent(normalized)}`, {
+  const withDepth = new URL(normalized);
+  withDepth.searchParams.set("depth", "summary");
+  const res = await fetch(`/api/personal-context?url=${encodeURIComponent(withDepth.toString())}`, {
     headers: { Accept: "application/json" },
     cache: "no-store",
   });

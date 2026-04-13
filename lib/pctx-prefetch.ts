@@ -64,12 +64,13 @@ const PREFETCH_TIMEOUT_MS = 2000;
  */
 export async function prefetchPctxContext(mcpUrl: string): Promise<string | null> {
   try {
-    const contextUrl = normalizeToContextUrl(mcpUrl);
+    const contextUrl = new URL(normalizeToContextUrl(mcpUrl));
+    contextUrl.searchParams.set("depth", "summary");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PREFETCH_TIMEOUT_MS);
 
     try {
-      const res = await fetch(contextUrl, {
+      const res = await fetch(contextUrl.toString(), {
         headers: { Accept: "application/json" },
         signal: controller.signal,
         cache: "no-store",
