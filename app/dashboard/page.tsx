@@ -299,14 +299,15 @@ export default function DashboardPage() {
             <div
               className="rounded-2xl overflow-hidden"
               style={{
-                background: "var(--surface)",
-                border: "1px solid var(--border-subtle)",
+                background: "var(--sidebar)",
+                color: "var(--sidebar-foreground)",
+                border: "1px solid var(--sidebar-border)",
               }}
             >
               <div className="flex items-center justify-between px-4 pt-4 pb-2">
                 <h2
                   className="text-xs font-semibold tracking-widest uppercase"
-                  style={{ color: "var(--text-muted)" }}
+                  style={{ color: "var(--sidebar-foreground)", opacity: 0.6 }}
                 >
                   Friends
                   {friends && friends.length > 0 && (
@@ -323,7 +324,7 @@ export default function DashboardPage() {
               <div className="px-2 pb-2">
                 {(friends?.length ?? 0) === 0 ? (
                   <div className="px-3 py-6 text-center">
-                    <p className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>
+                    <p className="text-sm mb-2" style={{ color: "var(--sidebar-foreground)", opacity: 0.55 }}>
                       No friends yet.
                     </p>
                     <a href="/friends" className="text-xs" style={{ color: "var(--sage-teal)" }}>
@@ -338,7 +339,7 @@ export default function DashboardPage() {
                         className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-150 cursor-default"
                         style={{ background: "transparent" }}
                         onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+                          (e.currentTarget as HTMLElement).style.background = "var(--sidebar-accent)";
                         }}
                         onMouseLeave={(e) => {
                           (e.currentTarget as HTMLElement).style.background = "transparent";
@@ -347,7 +348,7 @@ export default function DashboardPage() {
                         <div
                           className="w-2.5 h-2.5 rounded-full shrink-0"
                           style={{
-                            background: f.isOnline ? "var(--soft-green)" : "var(--text-dim)",
+                            background: f.isOnline ? "var(--soft-green)" : "var(--sidebar-border)",
                             boxShadow: f.isOnline
                               ? "0 0 8px rgba(151,209,129,0.7)"
                               : "none",
@@ -357,7 +358,8 @@ export default function DashboardPage() {
                           <p
                             className="text-sm font-medium truncate"
                             style={{
-                              color: f.isOnline ? "var(--fg)" : "var(--text-muted)",
+                              color: "var(--sidebar-foreground)",
+                              opacity: f.isOnline ? 1 : 0.5,
                             }}
                           >
                             {f.displayName ?? f.username}
@@ -365,7 +367,7 @@ export default function DashboardPage() {
                           {f.username && (
                             <p
                               className="text-xs truncate"
-                              style={{ color: "var(--text-dim)" }}
+                              style={{ color: "var(--sidebar-foreground)", opacity: 0.45 }}
                             >
                               @{f.username}
                             </p>
@@ -380,7 +382,7 @@ export default function DashboardPage() {
               {/* Sidebar footer */}
               <div
                 className="px-4 py-3"
-                style={{ borderTop: "1px solid var(--border-subtle)" }}
+                style={{ borderTop: "1px solid var(--sidebar-border)" }}
               >
                 <Link
                   href="/friends"

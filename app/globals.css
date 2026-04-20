@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+@import "./themes/lab-notebook.css";
 
 :root {
   --olive: #849440;
