@@ -279,10 +279,10 @@ export default function DashboardPage() {
             disabled={creatingRoom}
             className="px-4 py-2.5 rounded-xl font-semibold text-sm transition-all"
             style={{
-              background: "var(--amber)",
-              color: "var(--deep-dark)",
+              background: "var(--primary)",
+              color: "var(--primary-foreground)",
               opacity: creatingRoom ? 0.6 : 1,
-              boxShadow: "0 0 20px rgba(223,166,73,0.15)",
+              boxShadow: "0 0 20px color-mix(in srgb, var(--primary) 18%, transparent)",
             }}
           >
             {creatingRoom ? "Creating..." : "+ New room"}
