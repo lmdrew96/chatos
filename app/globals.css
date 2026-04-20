@@ -32,6 +32,14 @@
   --header-bg: color-mix(in srgb, var(--background) 80%, transparent);
 }
 
+[data-theme="light"] {
+  /* Light-mode contrast: raw --muted-foreground (mauve) is too low-luminance
+     on paper cards. Darken both muted and dim tokens to darker notebook-ink
+     variants that still feel themed but pass AA. */
+  --text-muted: color-mix(in srgb, var(--adhd-purple) 55%, var(--adhd-dark) 45%);
+  --text-dim:   color-mix(in srgb, var(--adhd-purple) 70%, var(--adhd-dark) 30%);
+}
+
 @theme inline {
   --color-background: var(--deep-dark);
   --color-foreground: var(--off-white);
