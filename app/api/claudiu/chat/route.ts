@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { buildMultiAgentRules } from "@/lib/multi-agent-rules";
+import { buildMultiAgentRulesSplit } from "@/lib/multi-agent-rules";
 import { prefetchPctxContext, isPctxServer, PCTX_WRITE_TOOLS } from "@/lib/pctx-prefetch";
 
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
@@ -96,15 +96,22 @@ export async function POST(request: Request) {
     // causes in-room Claudiu to see Helper's context as its own.
     const pctxMemory = roomMcpUrl ? await prefetchPctxContext(roomMcpUrl) : null;
 
-    const systemText = roomPrompt
+    // Two cache-aware system blocks (see /api/claude): the stable prefix carries the
+    // cache_control breakpoint; the volatile <context> tail rides behind it.
+    const { stableRules, volatileContext } = buildMultiAgentRulesSplit({
+      agentName: "Claudiu",
+      isClaudiu: true,
+      timezone: body.timezone,
+      chainDepth: body.chainDepth,
+      chainLimit: body.chainLimit,
+    });
+    const stableSystem = roomPrompt
       + (pctxMemory ? `\n\n${pctxMemory}` : "")
-      + buildMultiAgentRules({
-        agentName: "Claudiu",
-        isClaudiu: true,
-        timezone: body.timezone,
-        chainDepth: body.chainDepth,
-        chainLimit: body.chainLimit,
-      });
+      + stableRules;
+    const systemBlocks: Array<{ type: "text"; text: string; cache_control?: { type: "ephemeral" } }> = [
+      { type: "text", text: stableSystem, cache_control: { type: "ephemeral" } },
+    ];
+    if (volatileContext) systemBlocks.push({ type: "text", text: volatileContext });
 
     // Build MCP servers array
     const mcpServers: Anthropic.Beta.Messages.BetaRequestMCPServerURLDefinition[] = [];
@@ -170,7 +177,7 @@ export async function POST(request: Request) {
     const streamParams: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
-      system: [{ type: "text" as const, text: systemText }],
+      system: systemBlocks,
       messages,
       context_management: {
         edits: [{ type: "compact_20260112", trigger: { type: "input_tokens", value: 50000 } }],
