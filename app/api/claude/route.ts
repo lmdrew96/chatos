@@ -330,23 +330,28 @@ export async function POST(request: Request) {
             ];
           }
 
-          controller.close();
-
-          // Log token usage to Convex
+          // Log token usage to Convex — await BEFORE closing the stream. A
+          // fire-and-forget mutation after controller.close() is killed when the
+          // serverless function freezes, which drops most usage rows. Totals are
+          // fully accumulated by here, so awaiting just adds one fast insert.
           if (usageAttributionToken && (totalInputTokens > 0 || totalOutputTokens > 0)) {
             const logClient = new ConvexHttpClient(convexUrl);
-            logClient.mutation(api.tokenUsage.logUsage, {
-              roomId: body.roomId as any,
-              claudeName: body.claudeName,
-              ownerTokenIdentifier: usageAttributionToken,
-              model,
-              inputTokens: totalInputTokens,
-              outputTokens: totalOutputTokens,
-              cacheCreationTokens: totalCacheCreationTokens || undefined,
-              cacheReadTokens: totalCacheReadTokens || undefined,
-              timestamp: Date.now(),
-            }).catch(() => {});
+            try {
+              await logClient.mutation(api.tokenUsage.logUsage, {
+                roomId: body.roomId as any,
+                claudeName: body.claudeName,
+                ownerTokenIdentifier: usageAttributionToken,
+                model,
+                inputTokens: totalInputTokens,
+                outputTokens: totalOutputTokens,
+                cacheCreationTokens: totalCacheCreationTokens || undefined,
+                cacheReadTokens: totalCacheReadTokens || undefined,
+                timestamp: Date.now(),
+              });
+            } catch { /* logging is best-effort */ }
           }
+
+          controller.close();
         } catch (err: any) {
           // If billing error and sponsor key available, retry with sponsor
           if (!usedSponsor && sponsorResult && isBillingError(err)) {
@@ -373,22 +378,26 @@ export async function POST(request: Request) {
                   totalOutputTokens += (event as any).usage.output_tokens ?? 0;
                 }
               }
-              controller.close();
-
+              // Await before closing (see main path) so the sponsor-retry usage
+              // row isn't lost to the serverless freeze.
               if (usageAttributionToken && (totalInputTokens > 0 || totalOutputTokens > 0)) {
                 const logClient = new ConvexHttpClient(convexUrl);
-                logClient.mutation(api.tokenUsage.logUsage, {
-                  roomId: body.roomId as any,
-                  claudeName: body.claudeName,
-                  ownerTokenIdentifier: usageAttributionToken,
-                  model,
-                  inputTokens: totalInputTokens,
-                  outputTokens: totalOutputTokens,
-                  cacheCreationTokens: totalCacheCreationTokens || undefined,
-                  cacheReadTokens: totalCacheReadTokens || undefined,
-                  timestamp: Date.now(),
-                }).catch(() => {});
+                try {
+                  await logClient.mutation(api.tokenUsage.logUsage, {
+                    roomId: body.roomId as any,
+                    claudeName: body.claudeName,
+                    ownerTokenIdentifier: usageAttributionToken,
+                    model,
+                    inputTokens: totalInputTokens,
+                    outputTokens: totalOutputTokens,
+                    cacheCreationTokens: totalCacheCreationTokens || undefined,
+                    cacheReadTokens: totalCacheReadTokens || undefined,
+                    timestamp: Date.now(),
+                  });
+                } catch { /* logging is best-effort */ }
               }
+
+              controller.close();
               return;
             } catch (retryErr: any) {
               const errorEvent = {
