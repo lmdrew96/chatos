@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRulesSplit } from "@/lib/multi-agent-rules";
 import { prefetchPctxContext, isPctxServer, PCTX_WRITE_TOOLS } from "@/lib/pctx-prefetch";
+import { withHistoryCacheBreakpoint } from "@/lib/claude";
 
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
@@ -178,7 +179,9 @@ export async function POST(request: Request) {
       model,
       max_tokens: maxTokens,
       system: systemBlocks,
-      messages,
+      // Phase-2 caching: breakpoint on the last settled message (Claudiu has no
+      // tool loop, so the whole input prefix is cacheable for the next turn).
+      messages: withHistoryCacheBreakpoint(messages),
       context_management: {
         edits: [{ type: "compact_20260112", trigger: { type: "input_tokens", value: 50000 } }],
       },

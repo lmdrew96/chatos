@@ -26,6 +26,37 @@ export function estimateTokens(
 }
 
 /**
+ * Add a cache_control breakpoint to the last content block of the last message
+ * so the settled conversation prefix is cached and re-read next turn (~90%
+ * cheaper). The breakpoint moves forward automatically — it's recomputed on
+ * whatever the current last message is — and any tool-round messages appended
+ * afterward ride behind it without invalidating the cached prefix. No-op on an
+ * empty array or a blank last message. Returns a new array; never mutates input.
+ */
+export function withHistoryCacheBreakpoint<T extends { role: string; content: unknown }>(
+  messages: T[],
+): T[] {
+  if (messages.length === 0) return messages;
+  const lastIdx = messages.length - 1;
+  const last = messages[lastIdx];
+
+  let newContent: unknown;
+  if (typeof last.content === "string") {
+    if (!last.content) return messages; // empty text block is invalid — skip
+    newContent = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
+  } else if (Array.isArray(last.content) && last.content.length > 0) {
+    const blocks = last.content as Array<Record<string, unknown>>;
+    newContent = blocks.map((b, i) =>
+      i === blocks.length - 1 ? { ...b, cache_control: { type: "ephemeral" } } : b,
+    );
+  } else {
+    return messages; // no cacheable content
+  }
+
+  return [...messages.slice(0, lastIdx), { ...last, content: newContent } as T];
+}
+
+/**
  * Call Claude through the server-side proxy (/api/claude).
  * API key never reaches the browser — the server fetches it from Convex.
  * The proxy owns context-management compaction, media-stripping, and prompt

@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRulesSplit } from "@/lib/multi-agent-rules";
 import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
+import { withHistoryCacheBreakpoint } from "@/lib/claude";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL!;
 
@@ -229,7 +230,9 @@ export async function POST(request: Request) {
 
     // Stream with tool-use loop (up to 3 rounds)
     const MAX_TOOL_ROUNDS = 3;
-    let currentMessages = [...messagesWithMemory] as any[];
+    // Phase-2 caching: breakpoint on the last settled message so the next turn
+    // rereads this turn's history (~90% off). Tool-round messages append after it.
+    let currentMessages = withHistoryCacheBreakpoint(messagesWithMemory) as any[];
     const encoder = new TextEncoder();
 
     // Usage tracking
