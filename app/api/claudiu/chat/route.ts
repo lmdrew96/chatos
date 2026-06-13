@@ -4,7 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRulesSplit } from "@/lib/multi-agent-rules";
 import { prefetchPctxContext, isPctxServer, PCTX_WRITE_TOOLS } from "@/lib/pctx-prefetch";
-import { withHistoryCacheBreakpoint } from "@/lib/claude";
+import { withHistoryCacheBreakpoint, isLowEffortTurn, shouldSkipMcp } from "@/lib/claude";
 
 const OWNER_TOKEN = process.env.NEXT_PUBLIC_CLAUDIU_OWNER_TOKEN;
 
@@ -157,18 +157,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Skip MCP for trivial messages (reactions, greetings, chain nudges)
-    const lastMsg = messages[messages.length - 1];
-    const lastText = typeof lastMsg?.content === "string"
-      ? lastMsg.content
-      : Array.isArray(lastMsg?.content)
-        ? (lastMsg.content.find((b: any) => b.type === "text") as any)?.text ?? ""
-        : "";
-    const stripped = lastText.replace(/^[^:]{1,30}:\s*/, "").trim();
-    const isTrivia =
-      /\[.*reacted with/.test(lastText) ||
-      /you were mentioned by/i.test(lastText) ||
-      (stripped.length < 40 && /^(hi|hey|hello|thanks|thank you|ok|okay|lol|lmao|haha|nice|cool|yes|no|yep|nope|sure|bye|gm|gn|yo|sup|brb|ty|np|gg|wow)[\s!.?]*$/i.test(stripped));
+    // Skip MCP for trivial turns (reactions, greetings, chain nudges)
+    const isTrivia = shouldSkipMcp(messages);
+    // Low-effort turns (reactions, short greetings) → Haiku; substantive turns
+    // (incl. @mention chain responses) keep the configured model.
+    const effectiveModel = isLowEffortTurn(messages) ? "claude-haiku-4-5-20251001" : model;
 
     const useMcp = mcpServers.length > 0 && !isTrivia;
 
@@ -176,7 +169,7 @@ export async function POST(request: Request) {
     const client = new Anthropic({ apiKey });
 
     const streamParams: Record<string, unknown> = {
-      model,
+      model: effectiveModel,
       max_tokens: maxTokens,
       system: systemBlocks,
       // Phase-2 caching: breakpoint on the last settled message (Claudiu has no
@@ -211,7 +204,7 @@ export async function POST(request: Request) {
       const logClient = new ConvexHttpClient(convexUrl);
       logClient.mutation(api.claudiuUsage.logUsage, {
         endpoint: "room" as const,
-        model,
+        model: effectiveModel,
         inputTokens,
         outputTokens,
         cacheCreationTokens: cacheCreationTokens || undefined,

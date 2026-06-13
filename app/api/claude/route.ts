@@ -4,7 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { buildMultiAgentRulesSplit } from "@/lib/multi-agent-rules";
 import { prefetchPctxContext, isPctxServer } from "@/lib/pctx-prefetch";
-import { withHistoryCacheBreakpoint } from "@/lib/claude";
+import { withHistoryCacheBreakpoint, isLowEffortTurn, shouldSkipMcp } from "@/lib/claude";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL!;
 
@@ -181,10 +181,15 @@ export async function POST(request: Request) {
         ]
       : messages;
 
+    // Model routing: low-effort turns (reactions, short greetings) → Haiku;
+    // everything substantive (including @mention chain responses) stays on Sonnet.
+    const model = isLowEffortTurn(body.messages) ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6";
+
     // Build MCP servers — skip on chain invocations (depth > 0) to prevent
-    // redundant PCTX writes from chained Claude-to-Claude responses.
+    // redundant PCTX writes from chained Claude-to-Claude responses, and on
+    // trivial turns (reactions/greetings/chain nudges) where tool setup is wasted cost.
     const isChainResponse = (body.chainDepth ?? 0) > 0;
-    const mcpServers = (!isChainResponse && body.mcpServers) ? buildMcpServers(body.mcpServers) : [];
+    const mcpServers = (!isChainResponse && !shouldSkipMcp(body.messages) && body.mcpServers) ? buildMcpServers(body.mcpServers) : [];
 
     // fetch_url tool definition (same as lib/claude.ts)
     const fetchTool = {
@@ -204,7 +209,7 @@ export async function POST(request: Request) {
     if (useMcp) betas.push("mcp-client-2025-04-04");
 
     const baseParams: Record<string, unknown> = {
-      model: "claude-sonnet-4-6",
+      model,
       max_tokens: 1024,
       system: systemBlocks,
       tools: [fetchTool],
@@ -334,7 +339,7 @@ export async function POST(request: Request) {
               roomId: body.roomId as any,
               claudeName: body.claudeName,
               ownerTokenIdentifier: usageAttributionToken,
-              model: "claude-sonnet-4-6",
+              model,
               inputTokens: totalInputTokens,
               outputTokens: totalOutputTokens,
               cacheCreationTokens: totalCacheCreationTokens || undefined,
@@ -376,7 +381,7 @@ export async function POST(request: Request) {
                   roomId: body.roomId as any,
                   claudeName: body.claudeName,
                   ownerTokenIdentifier: usageAttributionToken,
-                  model: "claude-sonnet-4-6",
+                  model,
                   inputTokens: totalInputTokens,
                   outputTokens: totalOutputTokens,
                   cacheCreationTokens: totalCacheCreationTokens || undefined,

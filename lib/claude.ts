@@ -56,6 +56,49 @@ export function withHistoryCacheBreakpoint<T extends { role: string; content: un
   return [...messages.slice(0, lastIdx), { ...last, content: newContent } as T];
 }
 
+/** Latest user-message text (handles string or block content). Empty if none. */
+function lastUserText(messages: Array<{ role: string; content: unknown }>): string {
+  const last = messages.findLast((m) => m.role === "user");
+  if (!last) return "";
+  if (typeof last.content === "string") return last.content;
+  if (Array.isArray(last.content)) {
+    const textBlock = last.content.find(
+      (b) => b && typeof b === "object" && (b as { type?: string }).type === "text",
+    ) as { text?: string } | undefined;
+    return textBlock?.text ?? "";
+  }
+  return "";
+}
+
+const GREETING_RE =
+  /^(hi|hey|hello|thanks|thank you|ok|okay|lol|lmao|haha|nice|cool|yes|no|yep|nope|sure|bye|gm|gn|yo|sup|brb|ty|np|gg|wow)[\s!.?]*$/i;
+
+/**
+ * Low-effort turns that warrant neither Sonnet nor MCP tools: reaction
+ * acknowledgments and short greetings/affirmations. Deliberately EXCLUDES chain
+ * nudges ("you were mentioned by …"), which carry the prior Claude's full reply
+ * and expect a substantive answer — those stay on Sonnet. Bias toward false when
+ * unsure: a wrong model downgrade on a real message costs more than the savings.
+ */
+export function isLowEffortTurn(messages: Array<{ role: string; content: unknown }>): boolean {
+  const text = lastUserText(messages);
+  if (/\[.*reacted with/.test(text)) return true;
+  const stripped = text.replace(/^[^:]{1,30}:\s*/, "").trim();
+  return stripped.length < 40 && GREETING_RE.test(stripped);
+}
+
+/**
+ * Whether to skip MCP server setup for this turn — true for low-effort turns AND
+ * chain nudges (a chained Claude responding to an @mention doesn't need to
+ * re-initialize tools or write memory). Used for MCP-skip only; model routing
+ * uses the narrower isLowEffortTurn. Restores the heuristic formerly carried by
+ * the retired browser-direct path.
+ */
+export function shouldSkipMcp(messages: Array<{ role: string; content: unknown }>): boolean {
+  if (isLowEffortTurn(messages)) return true;
+  return /you were mentioned by/i.test(lastUserText(messages));
+}
+
 /**
  * Call Claude through the server-side proxy (/api/claude).
  * API key never reaches the browser — the server fetches it from Convex.
